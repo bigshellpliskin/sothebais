@@ -259,11 +259,7 @@ export class EventBus {
 
         return events.map(event => ({
             ...event,
-            data: JSON.parse(event.data),
-            metadata: JSON.parse(event.metadata)
+            timestamp: new Date(event.timestamp)
         }));
     }
 }
-
-// Export singleton instance
-export const eventBus = new EventBus(db);

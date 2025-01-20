@@ -1,0 +1,10 @@
+import { EventType, EventPriority, eventBus } from '../infrastructure/events/EventBus';
+import { localEventEmitter, LocalEvent } from './LocalEventEmitter';
+import { SystemState } from '../state/types';
+export declare function createEvent(type: EventType, data: any, source: string, priority?: EventPriority): LocalEvent;
+export declare function emitEvent(type: EventType, data: any, source: string, priority?: EventPriority): Promise<string>;
+export declare function subscribeToLocalEvents(events: EventType[], callback: (event: LocalEvent) => Promise<void>): () => void;
+export declare function subscribeToPersistentEvents(events: EventType[], callback: (event: LocalEvent) => Promise<void>): () => void;
+export declare function subscribeToAllEvents(events: EventType[], callback: (event: LocalEvent) => Promise<void>): () => void;
+export declare function subscribeToStateChanges<K extends keyof SystemState>(key: K, callback: (value: SystemState[K]) => void): () => void;
+export { EventType, EventPriority, LocalEvent as Event, eventBus, localEventEmitter };
