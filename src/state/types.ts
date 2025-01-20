@@ -50,7 +50,7 @@ export interface SystemState {
 }
 
 // src/state/StateManager.ts
-import { EventType, Event, eventHandler } from '../infrastructure/events/EventBusInstance';
+import { EventType, Event, eventHandler } from '../infrastructure/events/eventBusInstance';
 
 export class StateManager {
     private state: SystemState;
@@ -109,23 +109,23 @@ export class StateManager {
 
     private setupEventHandlers(): void {
         // Auction Events
-        eventHandler.subscribe(EventType.AUCTION_STARTED, this.handleAuctionStart.bind(this));
-        eventHandler.subscribe(EventType.AUCTION_ENDED, this.handleAuctionEnd.bind(this));
-        eventHandler.subscribe(EventType.NEW_BID, this.handleNewBid.bind(this));
-        eventHandler.subscribe(EventType.BID_ACCEPTED, this.handleBidAccepted.bind(this));
+        eventHandler.on(EventType.AUCTION_STARTED, this.handleAuctionStart.bind(this));
+        eventHandler.on(EventType.AUCTION_ENDED, this.handleAuctionEnd.bind(this));
+        eventHandler.on(EventType.NEW_BID, this.handleNewBid.bind(this));
+        eventHandler.on(EventType.BID_ACCEPTED, this.handleBidAccepted.bind(this));
 
         // Stream Events
-        eventHandler.subscribe(EventType.STREAM_STARTED, this.handleStreamStart.bind(this));
-        eventHandler.subscribe(EventType.STREAM_ENDED, this.handleStreamEnd.bind(this));
-        eventHandler.subscribe(EventType.VIEWER_JOINED, this.handleViewerJoined.bind(this));
-        eventHandler.subscribe(EventType.VIEWER_LEFT, this.handleViewerLeft.bind(this));
-        eventHandler.subscribe(EventType.CHAT_MESSAGE, this.handleChatMessage.bind(this));
+        eventHandler.on(EventType.STREAM_STARTED, this.handleStreamStart.bind(this));
+        eventHandler.on(EventType.STREAM_ENDED, this.handleStreamEnd.bind(this));
+        eventHandler.on(EventType.VIEWER_JOINED, this.handleViewerJoined.bind(this));
+        eventHandler.on(EventType.VIEWER_LEFT, this.handleViewerLeft.bind(this));
+        eventHandler.on(EventType.CHAT_MESSAGE, this.handleChatMessage.bind(this));
 
         // VTuber Events
-        eventHandler.subscribe(EventType.EMOTION_CHANGE, this.handleEmotionChange.bind(this));
-        eventHandler.subscribe(EventType.ASSET_LOADED, this.handleAssetLoaded.bind(this));
-        eventHandler.subscribe(EventType.ANIMATION_STARTED, this.handleAnimationStarted.bind(this));
-        eventHandler.subscribe(EventType.ANIMATION_ENDED, this.handleAnimationEnded.bind(this));
+        eventHandler.on(EventType.EMOTION_CHANGE, this.handleEmotionChange.bind(this));
+        eventHandler.on(EventType.ASSET_LOADED, this.handleAssetLoaded.bind(this));
+        eventHandler.on(EventType.ANIMATION_STARTED, this.handleAnimationStarted.bind(this));
+        eventHandler.on(EventType.ANIMATION_ENDED, this.handleAnimationEnded.bind(this));
     }
 
     private async handleAuctionStart(event: Event): Promise<void> {
@@ -293,12 +293,11 @@ export class StateManager {
         this.notifyListeners();
         
         // Emit state changed event
-        eventHandler.emit({
-            type: EventType.STATE_CHANGED,
-            data: { newState, timestamp: Date.now() },
-            timestamp: Date.now(),
-            source: 'StateManager'
-        });
+        eventHandler.emit(
+            EventType.STATE_CHANGED,
+            { newState, timestamp: Date.now() },
+            { source: 'StateManager' }
+        );
     }
 
     public subscribe(listener: (state: SystemState) => void): () => void {

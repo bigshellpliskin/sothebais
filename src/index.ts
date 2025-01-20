@@ -1,6 +1,6 @@
 import express from 'express';
 import { createClient, RedisClientType } from 'redis';
-import { createEventBus } from './infrastructure/events/EventBusInstance';
+import { createEventBus } from './infrastructure/events/eventBusInstance';
 import { stateManager } from './state/types';
 import { AuctionManager } from './plugins/auctionSystem/managers/AuctionManager';
 import { StreamManager } from './plugins/auctionSystem/managers/StreamManager';

@@ -2,10 +2,21 @@ import {
     EventType, 
     EventPriority,
     EventMetadata,
-    EventBus
+    EventBus as EventBusClass,
+    EventCallback,
+    Event as PersistentEvent
 } from '../infrastructure/events/EventBus';
+import { createEventBus } from '../infrastructure/events/eventBusInstance';
 import { localEventEmitter, LocalEvent } from './LocalEventEmitter';
 import { stateManager, SystemState } from '../state/types';
+import { IAgentRuntime } from "@elizaos/core";
+
+declare global {
+    var runtime: IAgentRuntime;
+}
+
+// Get the runtime instance (this should be passed in or available globally)
+const eventBus = createEventBus(global.runtime);
 
 // Utility function to create an event
 export function createEvent(
@@ -36,13 +47,13 @@ export async function emitEvent(
         await localEventEmitter.emit(event);
         
         // Then persist to event bus (async, database)
-        return await EventBus.emit(type, data, { source, priority });
+        return await eventBus.emit(type, data, { source, priority });
     } catch (error) {
         console.error(`Error emitting event ${type}:`, error);
         // Emit error event
         const errorEvent = createEvent(EventType.SYSTEM_ERROR, { originalEvent: { type, data }, error }, 'EventSystem');
         await localEventEmitter.emit(errorEvent);
-        await EventBus.emit(EventType.SYSTEM_ERROR, { originalEvent: { type, data }, error }, { 
+        await eventBus.emit(EventType.SYSTEM_ERROR, { originalEvent: { type, data }, error }, { 
             source: 'EventSystem', 
             priority: EventPriority.HIGH 
         });
@@ -62,18 +73,27 @@ export function subscribeToLocalEvents(
 // Subscribe to persistent events (database-backed events)
 export function subscribeToPersistentEvents(
     events: EventType[],
-    callback: (event: LocalEvent) => Promise<void>
+    callback: EventCallback
 ): () => void {
-    const unsubscribers = events.map(type => EventBus.on(type, callback));
-    return () => unsubscribers.forEach(unsubscribe => unsubscribe());
+    events.forEach(type => eventBus.on(type, callback));
+    return () => events.forEach(type => eventBus.off(type, callback));
 }
 
 // Subscribe to both local and persistent events
 export function subscribeToAllEvents(
     events: EventType[],
-    callback: (event: LocalEvent) => Promise<void>
+    callback: (event: PersistentEvent) => Promise<void>
 ): () => void {
-    const localUnsubscribe = subscribeToLocalEvents(events, callback);
+    const localUnsubscribe = subscribeToLocalEvents(events, async (localEvent) => {
+        // Convert LocalEvent to PersistentEvent format
+        await callback({
+            id: localEvent.source + '-' + localEvent.timestamp,
+            type: localEvent.type,
+            data: localEvent.data,
+            metadata: { source: localEvent.source, priority: EventPriority.MEDIUM },
+            timestamp: new Date(localEvent.timestamp)
+        });
+    });
     const persistentUnsubscribe = subscribeToPersistentEvents(events, callback);
     return () => {
         localUnsubscribe();
@@ -93,6 +113,7 @@ export {
     EventType,
     EventPriority,
     LocalEvent as Event,
-    EventBus,
-    localEventEmitter
+    EventBusClass as EventBus,
+    localEventEmitter,
+    eventBus
 }; 

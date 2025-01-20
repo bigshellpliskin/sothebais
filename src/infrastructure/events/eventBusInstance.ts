@@ -1,4 +1,4 @@
-import { EventBus } from './EventBus';
+import { EventBus, EventType, Event } from './EventBus';
 import { DatabaseAdapter } from '../database/DatabaseAdapter';
 import { IAgentRuntime } from "@elizaos/core";
 
@@ -9,4 +9,12 @@ export function createEventBus(runtime: IAgentRuntime): EventBus {
         connection: ':memory:'
     });
     return new EventBus(dbAdapter);
-} 
+}
+
+// Export the event bus instance
+export const eventHandler = createEventBus({} as IAgentRuntime);
+
+// Re-export types
+export { EventType, Event };
+
+export * from './EventHandler'; 
