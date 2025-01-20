@@ -4,9 +4,9 @@ import { StateManager } from '../state/types';
 import { RedisAdapter } from './RedisAdapter';
 export declare class AgentRuntime implements IAgentRuntime {
     readonly redis: RedisClientType<any>;
-    readonly eventHandler: any;
     readonly stateManager: StateManager;
     private redisAdapter;
+    private _eventHandler;
     readonly agentId: `${string}-${string}-${string}-${string}-${string}`;
     readonly serverUrl: string;
     readonly token: string;
@@ -22,6 +22,8 @@ export declare class AgentRuntime implements IAgentRuntime {
     readonly evaluators: any[];
     readonly clients: any[];
     constructor(redis: RedisClientType<any>, eventHandler: any, stateManager: StateManager);
+    get eventHandler(): any;
+    setEventHandler(handler: any): void;
     get databaseAdapter(): RedisAdapter;
     get messageManager(): RedisAdapter;
     get descriptionManager(): RedisAdapter;

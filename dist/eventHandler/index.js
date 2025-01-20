@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.localEventEmitter = exports.eventBus = exports.Event = exports.EventPriority = exports.EventType = exports.eventHandler = void 0;
+exports.localEventEmitter = exports.EventBus = exports.EventPriority = exports.eventHandler = void 0;
 exports.createEvent = createEvent;
 exports.emitEvent = emitEvent;
 exports.subscribeToLocalEvents = subscribeToLocalEvents;
@@ -8,12 +8,11 @@ exports.subscribeToPersistentEvents = subscribeToPersistentEvents;
 exports.subscribeToAllEvents = subscribeToAllEvents;
 exports.subscribeToStateChanges = subscribeToStateChanges;
 const EventBus_1 = require("../infrastructure/events/EventBus");
-Object.defineProperty(exports, "EventType", { enumerable: true, get: function () { return EventBus_1.EventType; } });
 Object.defineProperty(exports, "EventPriority", { enumerable: true, get: function () { return EventBus_1.EventPriority; } });
-Object.defineProperty(exports, "eventBus", { enumerable: true, get: function () { return EventBus_1.eventBus; } });
-const LocalEventEmitter_1 = require("./LocalEventEmitter");
+Object.defineProperty(exports, "EventBus", { enumerable: true, get: function () { return EventBus_1.EventBus; } });
+const EventHandler_1 = require("../infrastructure/events/EventHandler");
+const LocalEventEmitter_1 = require("../events/LocalEventEmitter");
 Object.defineProperty(exports, "localEventEmitter", { enumerable: true, get: function () { return LocalEventEmitter_1.localEventEmitter; } });
-Object.defineProperty(exports, "Event", { enumerable: true, get: function () { return LocalEventEmitter_1.LocalEvent; } });
 const types_1 = require("../state/types");
 // Utility function to create an event
 function createEvent(type, data, source, priority = EventBus_1.EventPriority.MEDIUM) {
@@ -31,14 +30,14 @@ async function emitEvent(type, data, source, priority = EventBus_1.EventPriority
         // Emit locally first (synchronous, in-memory)
         await LocalEventEmitter_1.localEventEmitter.emit(event);
         // Then persist to event bus (async, database)
-        return await EventBus_1.eventBus.emit(type, data, { source, priority });
+        return await EventHandler_1.eventBus.emit(type, data, { source, priority });
     }
     catch (error) {
         console.error(`Error emitting event ${type}:`, error);
         // Emit error event
         const errorEvent = createEvent(EventBus_1.EventType.SYSTEM_ERROR, { originalEvent: { type, data }, error }, 'EventSystem');
         await LocalEventEmitter_1.localEventEmitter.emit(errorEvent);
-        await EventBus_1.eventBus.emit(EventBus_1.EventType.SYSTEM_ERROR, { originalEvent: { type, data }, error }, {
+        await EventHandler_1.eventBus.emit(EventBus_1.EventType.SYSTEM_ERROR, { originalEvent: { type, data }, error }, {
             source: 'EventSystem',
             priority: EventBus_1.EventPriority.HIGH
         });
@@ -52,8 +51,11 @@ function subscribeToLocalEvents(events, callback) {
 }
 // Subscribe to persistent events (database-backed events)
 function subscribeToPersistentEvents(events, callback) {
-    const unsubscribers = events.map(type => EventBus_1.eventBus.on(type, callback));
-    return () => unsubscribers.forEach(unsubscribe => unsubscribe());
+    const unsubscribers = events.map(type => {
+        EventHandler_1.eventBus.on(type, callback);
+        return () => EventHandler_1.eventBus.off(type, callback);
+    });
+    return () => unsubscribers.forEach(unsub => unsub());
 }
 // Subscribe to both local and persistent events
 function subscribeToAllEvents(events, callback) {

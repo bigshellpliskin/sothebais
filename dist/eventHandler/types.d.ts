@@ -1,4 +1,4 @@
-import { EventType } from '../infrastructure/events/EventBus';
+import { EventType } from '../infrastructure/events';
 export interface LocalEvent {
     type: EventType;
     data: any;

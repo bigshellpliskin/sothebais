@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const redis_1 = require("redis");
-const eventHandler_1 = require("./eventHandler");
+const eventBusInstance_1 = require("./infrastructure/events/eventBusInstance");
 const types_1 = require("./state/types");
 const AuctionManager_1 = require("./plugins/auctionSystem/managers/AuctionManager");
 const StreamManager_1 = require("./plugins/auctionSystem/managers/StreamManager");
@@ -41,8 +41,12 @@ class Application {
         });
     }
     setupManagers() {
-        // Initialize runtime
-        this.runtime = new AgentRuntime_1.AgentRuntime(this.redis, eventHandler_1.eventHandler, types_1.stateManager);
+        // Create runtime first
+        this.runtime = new AgentRuntime_1.AgentRuntime(this.redis, null, types_1.stateManager);
+        // Then create event bus with runtime
+        this.eventBus = (0, eventBusInstance_1.createEventBus)(this.runtime);
+        // Update runtime with event bus
+        this.runtime.setEventHandler(this.eventBus);
         // Initialize managers with runtime
         this.auctionManager = new AuctionManager_1.AuctionManager(this.runtime);
         this.streamManager = new StreamManager_1.StreamManager(this.runtime);

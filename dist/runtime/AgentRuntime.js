@@ -7,7 +7,6 @@ const uuid_1 = require("uuid");
 class AgentRuntime {
     constructor(redis, eventHandler, stateManager) {
         this.redis = redis;
-        this.eventHandler = eventHandler;
         this.stateManager = stateManager;
         this.serverUrl = process.env.SERVER_URL || 'http://localhost:7998';
         this.token = process.env.AGENT_TOKEN || 'default-token';
@@ -44,6 +43,13 @@ class AgentRuntime {
         const id = (0, uuid_1.v4)();
         this.agentId = id;
         this.redisAdapter = new RedisAdapter_1.RedisAdapter(redis);
+        this._eventHandler = eventHandler;
+    }
+    get eventHandler() {
+        return this._eventHandler;
+    }
+    setEventHandler(handler) {
+        this._eventHandler = handler;
     }
     get databaseAdapter() { return this.redisAdapter; }
     get messageManager() { return this.redisAdapter; }

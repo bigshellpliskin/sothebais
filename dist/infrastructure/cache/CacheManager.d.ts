@@ -1,4 +1,4 @@
-export interface CacheConfig {
+interface CacheConfig {
     type: 'memory' | 'redis';
     ttl: number;
     maxSize?: number;
@@ -15,3 +15,4 @@ export declare class CacheManager {
     delete(key: string): Promise<void>;
     clear(): Promise<void>;
 }
+export {};

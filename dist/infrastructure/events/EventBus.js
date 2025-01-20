@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.eventBus = exports.EventBus = exports.EventPriority = exports.EventType = void 0;
+exports.EventBus = exports.EventPriority = exports.EventType = void 0;
 const crypto_1 = require("crypto");
 // Event Types Definition
 var EventType;
@@ -10,23 +10,29 @@ var EventType;
     EventType["AUCTION_STARTED"] = "auction:started";
     EventType["AUCTION_ENDED"] = "auction:ended";
     EventType["AUCTION_CANCELLED"] = "auction:cancelled";
+    EventType["NEW_BID"] = "auction:newBid";
     // Bid Events
     EventType["BID_PLACED"] = "bid:placed";
     EventType["BID_ACCEPTED"] = "bid:accepted";
     EventType["BID_REJECTED"] = "bid:rejected";
     EventType["NEW_HIGHEST_BID"] = "bid:newHighest";
-    // VTuber Events
-    EventType["VTUBER_EXPRESSION_CHANGE"] = "vtuber:expressionChange";
-    EventType["VTUBER_ANIMATION_START"] = "vtuber:animationStart";
-    EventType["VTUBER_ANIMATION_END"] = "vtuber:animationEnd";
     // Stream Events
     EventType["STREAM_STARTED"] = "stream:started";
     EventType["STREAM_ENDED"] = "stream:ended";
     EventType["STREAM_ERROR"] = "stream:error";
+    EventType["VIEWER_JOINED"] = "stream:viewerJoined";
+    EventType["VIEWER_LEFT"] = "stream:viewerLeft";
+    EventType["CHAT_MESSAGE"] = "stream:chatMessage";
+    // VTuber Events
+    EventType["EMOTION_CHANGE"] = "vtuber:emotionChange";
+    EventType["ASSET_LOADED"] = "vtuber:assetLoaded";
+    EventType["ANIMATION_STARTED"] = "vtuber:animationStart";
+    EventType["ANIMATION_ENDED"] = "vtuber:animationEnd";
     // System Events
     EventType["SYSTEM_ERROR"] = "system:error";
     EventType["SYSTEM_WARNING"] = "system:warning";
     EventType["SYSTEM_INFO"] = "system:info";
+    EventType["STATE_CHANGED"] = "system:stateChanged";
 })(EventType || (exports.EventType = EventType = {}));
 // Event Priority Levels
 var EventPriority;
@@ -191,11 +197,8 @@ class EventBus {
         });
         return events.map(event => ({
             ...event,
-            data: JSON.parse(event.data),
-            metadata: JSON.parse(event.metadata)
+            timestamp: new Date(event.timestamp)
         }));
     }
 }
 exports.EventBus = EventBus;
-// Export singleton instance
-exports.eventBus = new EventBus(db);

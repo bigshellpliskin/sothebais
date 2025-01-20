@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.stateManager = exports.StateManager = void 0;
 // src/state/StateManager.ts
-const types_1 = require("../eventHandler/types");
+const eventBusInstance_1 = require("../infrastructure/events/eventBusInstance");
 class StateManager {
     constructor() {
         this.state = this.getInitialState();
@@ -53,21 +53,21 @@ class StateManager {
     }
     setupEventHandlers() {
         // Auction Events
-        types_1.eventHandler.subscribe(types_1.EventType.AUCTION_STARTED, this.handleAuctionStart.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.AUCTION_ENDED, this.handleAuctionEnd.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.NEW_BID, this.handleNewBid.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.BID_ACCEPTED, this.handleBidAccepted.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.AUCTION_STARTED, this.handleAuctionStart.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.AUCTION_ENDED, this.handleAuctionEnd.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.NEW_BID, this.handleNewBid.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.BID_ACCEPTED, this.handleBidAccepted.bind(this));
         // Stream Events
-        types_1.eventHandler.subscribe(types_1.EventType.STREAM_STARTED, this.handleStreamStart.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.STREAM_ENDED, this.handleStreamEnd.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.VIEWER_JOINED, this.handleViewerJoined.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.VIEWER_LEFT, this.handleViewerLeft.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.CHAT_MESSAGE, this.handleChatMessage.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.STREAM_STARTED, this.handleStreamStart.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.STREAM_ENDED, this.handleStreamEnd.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.VIEWER_JOINED, this.handleViewerJoined.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.VIEWER_LEFT, this.handleViewerLeft.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.CHAT_MESSAGE, this.handleChatMessage.bind(this));
         // VTuber Events
-        types_1.eventHandler.subscribe(types_1.EventType.EMOTION_CHANGE, this.handleEmotionChange.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.ASSET_LOADED, this.handleAssetLoaded.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.ANIMATION_STARTED, this.handleAnimationStarted.bind(this));
-        types_1.eventHandler.subscribe(types_1.EventType.ANIMATION_ENDED, this.handleAnimationEnded.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.EMOTION_CHANGE, this.handleEmotionChange.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.ASSET_LOADED, this.handleAssetLoaded.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.ANIMATION_STARTED, this.handleAnimationStarted.bind(this));
+        eventBusInstance_1.eventHandler.on(eventBusInstance_1.EventType.ANIMATION_ENDED, this.handleAnimationEnded.bind(this));
     }
     async handleAuctionStart(event) {
         this.updateState({
@@ -219,12 +219,7 @@ class StateManager {
         this.state = newState;
         this.notifyListeners();
         // Emit state changed event
-        types_1.eventHandler.emit({
-            type: types_1.EventType.STATE_CHANGED,
-            data: { newState, timestamp: Date.now() },
-            timestamp: Date.now(),
-            source: 'StateManager'
-        });
+        eventBusInstance_1.eventHandler.emit(eventBusInstance_1.EventType.STATE_CHANGED, { newState, timestamp: Date.now() }, { source: 'StateManager' });
     }
     subscribe(listener) {
         this.listeners.add(listener);

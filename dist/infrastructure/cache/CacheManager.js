@@ -31,7 +31,7 @@ class CacheManager {
                 entries
                     .sort((a, b) => a[1].expiry - b[1].expiry)
                     .slice(0, entriesToRemove)
-                    .forEach(([key]) => this.cache.delete(key));
+                    .forEach((entry) => this.cache.delete(entry[0]));
             }
         }
     }

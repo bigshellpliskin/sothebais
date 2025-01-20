@@ -4,19 +4,25 @@ export declare enum EventType {
     AUCTION_STARTED = "auction:started",
     AUCTION_ENDED = "auction:ended",
     AUCTION_CANCELLED = "auction:cancelled",
+    NEW_BID = "auction:newBid",
     BID_PLACED = "bid:placed",
     BID_ACCEPTED = "bid:accepted",
     BID_REJECTED = "bid:rejected",
     NEW_HIGHEST_BID = "bid:newHighest",
-    VTUBER_EXPRESSION_CHANGE = "vtuber:expressionChange",
-    VTUBER_ANIMATION_START = "vtuber:animationStart",
-    VTUBER_ANIMATION_END = "vtuber:animationEnd",
     STREAM_STARTED = "stream:started",
     STREAM_ENDED = "stream:ended",
     STREAM_ERROR = "stream:error",
+    VIEWER_JOINED = "stream:viewerJoined",
+    VIEWER_LEFT = "stream:viewerLeft",
+    CHAT_MESSAGE = "stream:chatMessage",
+    EMOTION_CHANGE = "vtuber:emotionChange",
+    ASSET_LOADED = "vtuber:assetLoaded",
+    ANIMATION_STARTED = "vtuber:animationStart",
+    ANIMATION_ENDED = "vtuber:animationEnd",
     SYSTEM_ERROR = "system:error",
     SYSTEM_WARNING = "system:warning",
-    SYSTEM_INFO = "system:info"
+    SYSTEM_INFO = "system:info",
+    STATE_CHANGED = "system:stateChanged"
 }
 export declare enum EventPriority {
     LOW = 0,
@@ -71,4 +77,3 @@ export declare class EventBus {
         limit?: number;
     }): Promise<Event[]>;
 }
-export declare const eventBus: EventBus;
