@@ -71,7 +71,17 @@ check_services() {
 # Function to list available services
 list_services() {
     echo "Available services:"
-    docker-compose $COMPOSE_FILES ps --services
+    echo "  auction-manager   (port 4100)"
+    echo "  event-handler    (port 4300)"
+    echo "  stream-manager   (port 4200)"
+    echo "  shape-l2        (port 4000)"
+    echo "  eliza           (port 4400)"
+    echo "  admin-frontend  (port 3000)"
+    echo "  redis           (port 6379)"
+    echo "  prometheus      (port 9090)"
+    echo "  grafana         (port 3001)"
+    echo "  adminer         (port 6380)"
+    echo "  traefik         (ports 80,443)"
 }
 
 # Function to view logs
@@ -84,7 +94,7 @@ view_logs() {
             echo "Showing last $lines lines of all services..."
             docker-compose $COMPOSE_FILES logs --tail=$lines -f
             ;;
-        "auction-manager"|"event-handler"|"stream-manager"|"shape-l2"|"eliza"|"redis"|"prometheus"|"grafana")
+        "auction-manager"|"event-handler"|"stream-manager"|"shape-l2"|"eliza"|"admin-frontend"|"redis"|"prometheus"|"grafana"|"traefik")
             echo "Showing last $lines lines of $service..."
             docker-compose $COMPOSE_FILES logs --tail=$lines -f $service
             ;;

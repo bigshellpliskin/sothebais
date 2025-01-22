@@ -27,12 +27,20 @@ docker-compose ps
 # Print access information
 echo "
 =================================
-Admin Dashboard Access:
+Service Access Information:
 =================================
-Grafana: http://localhost:3001
-Default credentials: admin / ${GRAFANA_PASSWORD:-admin}
 
-Prometheus: http://localhost:9090
+Admin Dashboard: https://admin.${DOMAIN}
+Monitoring: https://${MONITORING_DOMAIN}
+Prometheus: https://prometheus.${MONITORING_DOMAIN}
 
-ElizaOS: http://localhost:3000
+Internal Services:
+- Auction Manager: :4100
+- Event Handler: :4300
+- Stream Manager: :4200
+- Shape L2: :4000
+- ElizaOS: :4400
+- Redis: :6379
+
+Default Grafana credentials: admin / ${GRAFANA_ADMIN_PASSWORD:-admin}
 =================================" 

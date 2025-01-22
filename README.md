@@ -40,9 +40,16 @@ docker-compose -f docker-compose.yaml -f docker-compose.dev.yaml up
 ```
 
 Development services will be available at:
-- ElizaOS: http://localhost:3000
+- Admin Frontend: http://localhost:3000
+- Auction Manager: http://localhost:4100
+- Event Handler: http://localhost:4300
+- Stream Manager: http://localhost:4200
+- Shape L2: http://localhost:4000
+- ElizaOS: http://localhost:4400
 - Grafana: http://localhost:3001
-- Adminer: http://localhost:8080
+- Prometheus: http://localhost:9090
+- Redis: http://localhost:6379
+- Adminer: http://localhost:6380
 
 ### VPS Development (Staging) Setup
 
@@ -73,6 +80,11 @@ cp .env.example .env.prod
 ```bash
 ./scripts/deploy-vps.sh --env prod
 ```
+
+Production services will be available at:
+- Admin Frontend: https://admin.${DOMAIN}
+- Grafana: https://${MONITORING_DOMAIN}
+- Prometheus: https://prometheus.${MONITORING_DOMAIN}
 
 ## Environment Configurations
 
