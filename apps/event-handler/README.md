@@ -32,7 +32,7 @@ The Event Handler is the central orchestration service in the NFT Auction System
 ## Setup and Development
 
 ### Prerequisites
-- Node.js 18 or higher
+- Node.js 22 or higher
 - Docker
 - Redis instance
 

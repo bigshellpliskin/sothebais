@@ -15,7 +15,7 @@ The system consists of several microservices:
 
 ### Prerequisites
 - Docker and Docker Compose
-- Node.js 22+ (for local development)
+- Node.js 22 (for local development)
 - Git
 - (Optional) AWS CLI for backups
 
