@@ -10,6 +10,7 @@ services:
     volumes:
       - ./apps/auction-manager/src:/app/src:ro
       - ./apps/auction-manager/package.json:/app/package.json:ro
+      - ./storage/auction:/app/storage:rw
     command: npm run dev
 
   event-handler:
@@ -32,6 +33,7 @@ services:
     volumes:
       - ./apps/stream-manager/src:/app/src:ro
       - ./apps/stream-manager/package.json:/app/package.json:ro
+      - ./storage/stream:/app/storage:rw
     command: npm run dev
 
   shape-l2:
@@ -44,6 +46,7 @@ services:
     volumes:
       - ./apps/shape-l2/src:/app/src:ro
       - ./apps/shape-l2/package.json:/app/package.json:ro
+      - ./storage/shape-l2:/app/storage:rw
     command: npm run dev
 
   eliza:
@@ -58,25 +61,12 @@ services:
       - ./apps/eliza/package.json:/app/package.json:ro
       - ./apps/eliza/tsconfig.json:/app/tsconfig.json:ro
       - ./apps/eliza/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
-      - ./apps/eliza/characters:/app/storage/characters:rw
+      - ./storage/eliza/characters:/app/storage/characters:rw
       - ./storage/eliza/db:/app/storage/db:rw
       - ./storage/eliza/data:/app/storage/data:rw
       - ./storage/eliza/cache:/app/storage/cache:rw
     command: npm run dev
 
-  # Development-only services
-  adminer:
-    image: adminer
-    ports:
-      - "8080:8080"
-    networks:
-      - auction_net
-
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    environment:
-      - REDIS_HOSTS=redis
-    ports:
-      - "8081:8081"
-    networks:
-      - auction_net 
+networks:
+  auction_net:
+    driver: bridge 
