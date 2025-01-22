@@ -8,6 +8,8 @@ node_modules/
 
 # Storage and data
 storage/
+data/
+
 *.sqlite
 *.sqlite-journal
 

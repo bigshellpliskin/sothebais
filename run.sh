@@ -97,7 +97,7 @@ fi
 
 # Set root directory and env file path
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$ROOT_DIR/config/env/.env.$ENVIRONMENT.$STAGE"
+ENV_FILE="$ROOT_DIR/.env"
 
 # Set Docker Compose profiles
 COMPOSE_PROFILES="--profile $STAGE"
@@ -113,42 +113,36 @@ setup_env() {
     echo "Setting up $ENVIRONMENT-$STAGE environment..."
     
     # Create directory structure
-    mkdir -p "$ROOT_DIR"/{config/{ssl,env},data/{redis,prometheus,grafana,auction,stream,shape-l2,eliza,backups},logs}
+    mkdir -p "$ROOT_DIR"/{data/{redis,prometheus,grafana,auction,stream,shape-l2,eliza,backups},logs}
     
+    # Create monitoring directories if in prod
+    if [ "$STAGE" = "prod" ]; then
+        mkdir -p "$ROOT_DIR/monitoring/{prometheus,grafana/{dashboards,provisioning}}"
+    fi
+    
+    # Check for example environment file
+    EXAMPLE_ENV_FILE="$ROOT_DIR/.env.example"
+    if [ ! -f "$EXAMPLE_ENV_FILE" ]; then
+        echo "Error: .env.example file not found in root directory"
+        exit 1
+    fi
+
     # Create environment file if it doesn't exist
     if [ ! -f "$ENV_FILE" ]; then
         echo "Creating environment file: $ENV_FILE"
-        cat > "$ENV_FILE" << EOF
-# Environment Configuration
-ENVIRONMENT=$ENVIRONMENT
-STAGE=$STAGE
-NODE_ENV=${STAGE}
-
-# Network Configuration
-DOMAIN=${DOMAIN:-localhost}
-MONITORING_DOMAIN=${MONITORING_DOMAIN:-monitoring.localhost}
-NETWORK_DRIVER=${NETWORK_DRIVER:-bridge}
-
-# Resource Limits
-RESOURCES_CPU=${RESOURCES_CPU:-0.5}
-RESOURCES_MEMORY=${RESOURCES_MEMORY:-512M}
-
-# Service Configuration
-REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
-GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-
-# SSL Configuration (VPS only)
-ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
-EOF
-        chmod 600 "$ENV_FILE"
-    fi
-
-    # Check for SSL certificates in VPS environment
-    if [ "$ENVIRONMENT" = "vps" ]; then
-        if [ ! -f "$ROOT_DIR/config/ssl/cert.pem" ] || [ ! -f "$ROOT_DIR/config/ssl/key.pem" ]; then
-            echo "Warning: SSL certificates missing in config/ssl/"
-            echo "Please add cert.pem and key.pem for HTTPS support"
+        cp "$EXAMPLE_ENV_FILE" "$ENV_FILE"
+        
+        # Update environment-specific variables
+        sed -i "s/NODE_ENV=.*/NODE_ENV=$STAGE/" "$ENV_FILE"
+        
+        if [ "$STAGE" = "prod" ]; then
+            sed -i "s/USE_MOCK_APIS=.*/USE_MOCK_APIS=false/" "$ENV_FILE"
+            sed -i "s/USE_MOCK_BLOCKCHAIN=.*/USE_MOCK_BLOCKCHAIN=false/" "$ENV_FILE"
+            sed -i "s/ENABLE_DEBUG_ENDPOINTS=.*/ENABLE_DEBUG_ENDPOINTS=false/" "$ENV_FILE"
+            sed -i "s/LOG_LEVEL=.*/LOG_LEVEL=info/" "$ENV_FILE"
         fi
+        
+        chmod 600 "$ENV_FILE"
     fi
 
     echo "Setup complete! Use './run.sh start $ENVIRONMENT --stage $STAGE' to start services"

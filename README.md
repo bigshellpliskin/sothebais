@@ -10,6 +10,8 @@ The system consists of several microservices:
 - **Stream Manager**: Handles Twitter integration and bid monitoring
 - **Shape L2 Integration**: Manages blockchain interactions
 - **ElizaOS**: VTuber character system and visual output
+- **Admin Frontend**: Service managment and monitoring
+
 
 ## Quick Start
 
@@ -32,14 +34,16 @@ cd sothebais
 # For local development
 ./run.sh setup local --stage dev
 
-# For VPS development
-./run.sh setup vps --stage dev
-
-# For production
+# For production deployment
 ./run.sh setup vps --stage prod
 ```
 
-3. Start the services:
+3. Configure environment variables:
+   - The setup script will create a `.env` file from `.env.example`
+   - Update the variables in `.env` according to your needs
+   - For production, make sure to configure SSL/TLS, monitoring, and backup settings
+
+4. Start the services:
 ```bash
 # Start all services locally
 ./run.sh start local --stage dev
