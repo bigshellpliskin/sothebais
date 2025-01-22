@@ -1,4 +1,4 @@
-# NFT Auction System
+# SothebAI's: NFT Social Livestream Auction System
 
 A decentralized NFT auction system with VTuber integration, powered by Shape L2 and ElizaOS.
 
@@ -24,7 +24,7 @@ The system consists of several microservices:
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd nft-auction-system
+cd sothebais
 ```
 
 2. Set up environment:
