@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  auction-manager:
+    build:
+      context: ./apps/auction-manager
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./apps/auction-manager/src:/app/src:ro
+      - ./apps/auction-manager/package.json:/app/package.json:ro
+    command: npm run dev
+
+  event-handler:
+    build:
+      context: ./apps/event-handler
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./apps/event-handler/src:/app/src:ro
+      - ./apps/event-handler/package.json:/app/package.json:ro
+    command: npm run dev
+
+  stream-manager:
+    build:
+      context: ./apps/stream-manager
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./apps/stream-manager/src:/app/src:ro
+      - ./apps/stream-manager/package.json:/app/package.json:ro
+    command: npm run dev
+
+  shape-l2:
+    build:
+      context: ./apps/shape-l2
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - USE_MOCK_BLOCKCHAIN=true
+    volumes:
+      - ./apps/shape-l2/src:/app/src:ro
+      - ./apps/shape-l2/package.json:/app/package.json:ro
+    command: npm run dev
+
+  eliza:
+    build:
+      context: ./eliza
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - USE_MOCK_APIS=true
+    volumes:
+      - ./eliza/src:/app/src:ro
+      - ./eliza/package.json:/app/package.json:ro
+    command: npm run dev
+
+  # Development-only services
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - auction_net
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      - REDIS_HOSTS=redis
+    ports:
+      - "8081:8081"
+    networks:
+      - auction_net 

@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  auction-manager:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+
+  event-handler:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+
+  stream-manager:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+
+  shape-l2:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 1G
+
+  eliza:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 2G
+
+  redis:
+    restart: unless-stopped
+    command: redis-server --protected-mode no --maxmemory 2gb --maxmemory-policy allkeys-lru
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  prometheus:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+
+  grafana:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+
+  # Production-only services
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - grafana
+      - prometheus
+      - eliza
+    networks:
+      - auction_net
+    restart: unless-stopped
+
+  backup:
+    image: alpine
+    volumes:
+      - ./storage:/backup/storage:ro
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: sh -c "crond -f"
+    restart: unless-stopped 

@@ -1,90 +1,151 @@
-# Eliza
+# NFT Auction System
 
-## Edit the character files
+A decentralized NFT auction system with VTuber integration, powered by Shape L2 and ElizaOS.
 
-Open `src/character.ts` to modify the default character. Uncomment and edit.
+## System Overview
 
-### Custom characters
+The system consists of several microservices:
+- **Auction Manager**: Handles NFT lifecycle and bid processing
+- **Event Handler**: Manages system-wide event orchestration
+- **Stream Manager**: Handles Twitter integration and bid monitoring
+- **Shape L2 Integration**: Manages blockchain interactions
+- **ElizaOS**: VTuber character system and visual output
 
-To load custom characters instead:
-- Use `pnpm start --characters="path/to/your/character.json"`
-- Multiple character files can be loaded simultaneously
+## Quick Start
 
-### Add clients
-```
-# in character.ts
-clients: [Clients.TWITTER, Clients.DISCORD],
+### Prerequisites
+- Docker and Docker Compose
+- Node.js 22+ (for local development)
+- Git
+- (Optional) AWS CLI for backups
 
-# in character.json
-clients: ["twitter", "discord"]
-```
+### Local Development Setup
 
-## Duplicate the .env.example template
-
+1. Clone the repository:
 ```bash
-cp .env.example .env
+git clone <repository-url>
+cd nft-auction-system
 ```
 
-\* Fill out the .env file with your own values.
-
-### Add login credentials and keys to .env
-```
-DISCORD_APPLICATION_ID="discord-application-id"
-DISCORD_API_TOKEN="discord-api-token"
-...
-OPENROUTER_API_KEY="sk-xx-xx-xxx"
-...
-TWITTER_USERNAME="username"
-TWITTER_PASSWORD="password"
-TWITTER_EMAIL="your@email.com"
-```
-
-## Install dependencies and start your agent
-
+2. Set up environment:
 ```bash
-pnpm i && pnpm start
-```
-Note: this requires node to be at least version 22 when you install packages and run the agent.
-
-## Run with Docker
-
-### Build and run Docker Compose (For x86_64 architecture)
-
-#### Edit the docker-compose.yaml file with your environment variables
-
-```yaml
-services:
-    eliza:
-        environment:
-            - OPENROUTER_API_KEY=blahdeeblahblahblah
+cp .env.example .env.dev
+# Edit .env.dev with your configuration
 ```
 
-#### Run the image
-
+3. Start development environment:
 ```bash
-docker compose up
+./scripts/setup.sh --env dev
+docker-compose -f docker-compose.yaml -f docker-compose.dev.yaml up
 ```
 
-### Build the image with Mac M-Series or aarch64
+Development services will be available at:
+- ElizaOS: http://localhost:3000
+- Grafana: http://localhost:3001
+- Adminer: http://localhost:8080
+- Redis Commander: http://localhost:8081
 
-Make sure docker is running.
+### VPS Development (Staging) Setup
 
+1. Configure VPS:
 ```bash
-# The --load flag ensures the built image is available locally
-docker buildx build --platform linux/amd64 -t eliza-starter:v1 --load .
+./scripts/vps-setup.sh --env dev
 ```
 
-#### Edit the docker-compose-image.yaml file with your environment variables
-
-```yaml
-services:
-    eliza:
-        environment:
-            - OPENROUTER_API_KEY=blahdeeblahblahblah
-```
-
-#### Run the image
-
+2. Deploy services:
 ```bash
-docker compose -f docker-compose-image.yaml up
+./scripts/deploy-vps.sh --env dev
 ```
+
+### Production Setup
+
+1. Configure production environment:
+```bash
+cp .env.example .env.prod
+# Edit .env.prod with production values
+```
+
+2. Set up VPS:
+```bash
+./scripts/vps-setup.sh --env prod
+```
+
+3. Deploy to production:
+```bash
+./scripts/deploy-vps.sh --env prod
+```
+
+## Environment Configurations
+
+| Environment | Purpose | Configuration |
+|------------|---------|---------------|
+| Local Dev | Development and testing | docker-compose.dev.yaml |
+| VPS Dev | Staging and integration | docker-compose.yaml |
+| Production | Live deployment | docker-compose.prod.yaml |
+
+See [Deployment Configuration](docs/deployment-config.md) for detailed environment information.
+
+## Monitoring
+
+The system includes comprehensive monitoring:
+
+- **Prometheus**: Metrics collection and storage
+- **Grafana**: Visualization and alerting
+- **Node Exporter**: System metrics
+- **Custom Metrics**: Application-specific monitoring
+
+Access Grafana at:
+- Local/Dev: http://localhost:3001
+- Production: https://grafana.your-domain.com
+
+## Development Tools
+
+### Available Scripts
+- `setup.sh`: Initial environment setup
+- `dev.sh`: Start development environment
+- `deploy-vps.sh`: Deploy to VPS
+- `backup.sh`: Manage backups
+- `logs.sh`: View service logs
+- `cleanup.sh`: Clean up resources
+
+### Development Features
+- Hot reloading
+- Debug endpoints
+- Mock APIs
+- Development tools (Adminer, Redis Commander)
+
+## Security
+
+### Development
+- Basic authentication
+- Local network only
+
+### Production
+- SSL/TLS encryption
+- IP whitelisting
+- Rate limiting
+- DDoS protection
+- Regular security audits
+
+## Backup Strategy
+
+### Development
+- Volume mounts for persistence
+- No automated backups
+
+### Production
+- Hourly backups to S3
+- 30-day retention
+- Transaction log backups
+- Automated restore testing
+
+## Contributing
+
+1. Create a feature branch
+2. Make changes
+3. Run tests: `./scripts/test.sh`
+4. Submit PR
+
+## License
+
+[License Type] - See LICENSE file for details 

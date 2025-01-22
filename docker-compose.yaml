@@ -2,60 +2,126 @@
 version: '3.8'
 
 services:
-  # Main ElizaOS Application
-  eliza:
+  # NFT Auction Core Service
+  auction-manager:
     build:
-      context: .
+      context: ./apps/auction-manager
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=production
-      # Add development environment variable to ensure TypeScript is installed
-      - NODE_ENV_ADDITIONAL=development
-      # ElizaOS specific environment variables
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - SHAPE_L2_URL=http://shape-l2:4000
+    volumes:
+      - ./storage/auction:/app/storage:rw
+    ports:
+      - "4001:4001"
+    depends_on:
+      - redis
+      - shape-l2
+    networks:
+      - auction_net
+
+  # Event Orchestration Service
+  event-handler:
+    build:
+      context: ./apps/event-handler
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - AUCTION_MANAGER_URL=http://auction-manager:4001
+      - STREAM_MANAGER_URL=http://stream-manager:4002
+      - ELIZA_URL=http://eliza:3000
+      - SHAPE_L2_URL=http://shape-l2:4000
+    ports:
+      - "4003:4003"
+    depends_on:
+      - redis
+      - auction-manager
+      - stream-manager
+      - eliza
+      - shape-l2
+    networks:
+      - auction_net
+
+  # Stream Processing Service
+  stream-manager:
+    build:
+      context: ./apps/stream-manager
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
       - TWITTER_USERNAME=${TWITTER_USERNAME}
       - TWITTER_PASSWORD=${TWITTER_PASSWORD}
       - TWITTER_EMAIL=${TWITTER_EMAIL}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - AUCTION_MANAGER_URL=http://auction-manager:4001
+    volumes:
+      - ./storage/stream:/app/storage:rw
+    depends_on:
+      - redis
+      - auction-manager
+    networks:
+      - auction_net
+
+  # Shape L2 Integration Service
+  shape-l2:
+    build:
+      context: ./apps/shape-l2
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - WALLET_SECRET_SALT=${WALLET_SECRET_SALT:-default_salt}
+      - SOL_RPC_URL=${SOL_RPC_URL:-https://api.mainnet-beta.solana.com}
+    volumes:
+      - ./storage/shape-l2:/app/storage:rw
+    ports:
+      - "4000:4000"
+    networks:
+      - auction_net
+
+  # ElizaOS VTuber Service
+  eliza:
+    build:
+      context: ./eliza
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NODE_ENV_ADDITIONAL=development
       - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
       - DISCORD_API_TOKEN=${DISCORD_API_TOKEN}
       - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
       - TEE_MODE=${TEE_MODE:-default_value}
-      # Auction system specific
-      - WALLET_SECRET_SALT=${WALLET_SECRET_SALT:-default_salt}
-      - SOL_RPC_URL=${SOL_RPC_URL:-https://api.mainnet-beta.solana.com}
-      # Redis connection
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - AUCTION_MANAGER_URL=http://auction-manager:4001
     volumes:
       - ./characters:/app/storage/characters:rw
-      - ./db.sqlite:/app/storage/db/db.sqlite:rw
-      - ./packages/client-twitter/src/tweetcache:/app/packages/client-twitter/src/tweetcache:rw
-      - ./data:/app/storage/data:rw
-      # Development volumes
-      - ./src:/app/src:ro
-      - ./package.json:/app/package.json:ro
-      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./storage/eliza/db:/app/storage/db:rw
+      - ./storage/eliza/data:/app/storage/data:rw
+      - ./storage/eliza/cache:/app/storage/cache:rw
+      - ./eliza/src:/app/src:ro
+      - ./eliza/package.json:/app/package.json:ro
+      - ./eliza/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./eliza/tsconfig.json:/app/tsconfig.json:ro
     ports:
       - "3000:3000"
-      - "9464:9464" # Prometheus metrics endpoint
+      - "9464:9464"
     depends_on:
       redis:
         condition: service_healthy
-      prometheus:
-        condition: service_healthy
-    restart: always
+      auction-manager:
+        condition: service_started
     networks:
-      - eliza_net
+      - auction_net
 
-  # Redis for Caching
+  # Redis for Caching and Message Queue
   redis:
     image: redis:alpine
     command: redis-server --protected-mode no
     volumes:
-      - redis_data:/data
+      - ./storage/redis:/data:rw
     ports:
       - "6379:6379"
-    networks:
-      - eliza_net
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
     healthcheck:
@@ -63,13 +129,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - auction_net
 
   # Prometheus for Metrics
   prometheus:
     image: prom/prometheus:latest
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./storage/prometheus:/prometheus:rw
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -77,7 +145,7 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - eliza_net
+      - auction_net
 
   # Grafana for Monitoring
   grafana:
@@ -88,12 +156,13 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./storage/grafana:/var/lib/grafana:rw
     ports:
       - "3001:3000"
     networks:
-      - eliza_net
+      - auction_net
 
   # Node Exporter for Host Metrics
   node-exporter:
@@ -110,13 +179,8 @@ services:
     ports:
       - "9100:9100"
     networks:
-      - eliza_net
-
-volumes:
-  redis_data:
-  prometheus_data:
-  grafana_data:
+      - auction_net
 
 networks:
-  eliza_net:
+  auction_net:
     driver: bridge
