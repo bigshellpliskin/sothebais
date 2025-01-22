@@ -3,13 +3,13 @@ version: '3.8'
 
 services:
   traefik:
-    image: traefik:v2.10
+    image: traefik:v3.3
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
@@ -18,19 +18,23 @@ services:
       - "443:443"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./storage/traefik/letsencrypt:/letsencrypt"
+      - "./data/traefik/letsencrypt:/letsencrypt"
     networks:
       - auction_net
+    profiles:
+      - vps
 
   # NFT Auction Core Service
   auction-manager:
-    image: artifacts_auction-manager:latest
+    build:
+      context: ./apps/auction-manager
+      dockerfile: ${STAGE:-dev}.Dockerfile
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
       - SHAPE_L2_URL=http://shape-l2:4000
     volumes:
-      - ./storage/auction:/app/storage:rw
+      - ${STAGE:-dev}.volumes.auction-manager
     ports:
       - "4100:4100"
     depends_on:
@@ -38,108 +42,117 @@ services:
       - shape-l2
     networks:
       - auction_net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4100/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
+    command: ${STAGE:-dev}.command.auction-manager
 
   # Event Orchestration Service
   event-handler:
-    image: artifacts_event-handler:latest
+    build:
+      context: ./apps/event-handler
+      dockerfile: ${STAGE:-dev}.Dockerfile
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - AUCTION_MANAGER_URL=http://auction-manager:4100
-      - STREAM_MANAGER_URL=http://stream-manager:4200
-      - ELIZA_URL=http://eliza:3000
-      - SHAPE_L2_URL=http://shape-l2:4000
     ports:
       - "4300:4300"
-    depends_on:
-      - redis
-      - auction-manager
-      - stream-manager
-      - eliza
-      - shape-l2
     networks:
       - auction_net
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
+    command: ${STAGE:-dev}.command.event-handler
 
   # Stream Processing Service
   stream-manager:
-    image: artifacts_stream-manager:latest
+    build:
+      context: ./apps/stream-manager
+      dockerfile: ${STAGE:-dev}.Dockerfile
     environment:
-      - NODE_ENV=production
-      - TWITTER_USERNAME=${TWITTER_USERNAME}
-      - TWITTER_PASSWORD=${TWITTER_PASSWORD}
-      - TWITTER_EMAIL=${TWITTER_EMAIL}
+      - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - AUCTION_MANAGER_URL=http://auction-manager:4100
     volumes:
-      - ./storage/stream:/app/storage:rw
+      - ${STAGE:-dev}.volumes.stream-manager
     ports:
       - "4200:4200"
-    depends_on:
-      - redis
-      - auction-manager
     networks:
       - auction_net
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
+    command: ${STAGE:-dev}.command.stream-manager
 
   # Shape L2 Integration Service
   shape-l2:
-    image: artifacts_shape-l2:latest
+    build:
+      context: ./apps/shape-l2
+      dockerfile: ${STAGE:-dev}.Dockerfile
     environment:
-      - NODE_ENV=production
-      - WALLET_SECRET_SALT=${WALLET_SECRET_SALT:-default_salt}
-      - SOL_RPC_URL=${SOL_RPC_URL:-https://api.mainnet-beta.solana.com}
+      - NODE_ENV=${NODE_ENV:-development}
+      - USE_MOCK_BLOCKCHAIN=${USE_MOCK_BLOCKCHAIN:-true}
     volumes:
-      - ./storage/shape-l2:/app/storage:rw
+      - ${STAGE:-dev}.volumes.shape-l2
     ports:
       - "4000:4000"
     networks:
       - auction_net
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.75}
+          memory: ${RESOURCES_MEMORY:-1G}
+    command: ${STAGE:-dev}.command.shape-l2
 
   # ElizaOS VTuber Service
   eliza:
-    image: artifacts_eliza:latest
+    build:
+      context: ./apps/eliza
+      dockerfile: ${STAGE:-dev}.Dockerfile
     environment:
-      - NODE_ENV=production
-      - NODE_ENV_ADDITIONAL=development
-      - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
-      - DISCORD_API_TOKEN=${DISCORD_API_TOKEN}
-      - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
-      - TEE_MODE=${TEE_MODE:-default_value}
+      - NODE_ENV=${NODE_ENV:-development}
+      - USE_MOCK_APIS=${USE_MOCK_APIS:-true}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - AUCTION_MANAGER_URL=http://auction-manager:4100
     volumes:
-      - ./apps/eliza/characters:/app/storage/characters:rw
-      - ./storage/eliza/db:/app/storage/db:rw
-      - ./storage/eliza/data:/app/storage/data:rw
-      - ./storage/eliza/cache:/app/storage/cache:rw
+      - ${STAGE:-dev}.volumes.eliza
     ports:
       - "4400:4400"
-    depends_on:
-      - redis
-      - auction-manager
+    networks:
+      - auction_net
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-1.0}
+          memory: ${RESOURCES_MEMORY:-2G}
+    command: ${STAGE:-dev}.command.eliza
 
   # Admin Frontend Service
   admin-frontend:
-    image: artifacts_admin-frontend:latest
+    build:
+      context: ./apps/admin-frontend
+      dockerfile: ${STAGE:-dev}.Dockerfile
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
       - API_URL=http://event-handler:4300
       - MONITORING_URL=http://grafana:3001
     ports:
       - "3000:3000"
-    depends_on:
-      - event-handler
-      - grafana
     networks:
       - auction_net
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
+      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN:-localhost}`)"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
 
@@ -148,25 +161,23 @@ services:
     image: redis:alpine
     command: redis-server --requirepass ${REDIS_PASSWORD:-default_password} --protected-mode no
     volumes:
-      - ./storage/redis:/data:rw
+      - ./data/redis:/data:rw
     ports:
       - "6379:6379"
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+    networks:
+      - auction_net
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-default_password}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - auction_net
 
   # Prometheus for Metrics
   prometheus:
     image: prom/prometheus:latest
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./storage/prometheus:/prometheus:rw
+      - ./data/prometheus:/prometheus:rw
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -175,35 +186,27 @@ services:
       - "9090:9090"
     networks:
       - auction_net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${MONITORING_DOMAIN}`)"
-      - "traefik.http.routers.prometheus.entrypoints=websecure"
-      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
-      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    profiles:
+      - monitoring
 
   # Grafana for Monitoring
   grafana:
     image: grafana/grafana:latest
-    depends_on:
-      - prometheus
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SERVER_ROOT_URL=https://${MONITORING_DOMAIN}
+      - GF_SERVER_ROOT_URL=https://${MONITORING_DOMAIN:-localhost}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./storage/grafana:/var/lib/grafana:rw
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`${MONITORING_DOMAIN}`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - ./data/grafana:/var/lib/grafana:rw
+    ports:
+      - "3001:3000"
     networks:
       - auction_net
+    profiles:
+      - monitoring
 
   # Node Exporter for Host Metrics
   node-exporter:
@@ -222,9 +225,71 @@ services:
     networks:
       - auction_net
 
+  adminer:
+    image: adminer
+    ports:
+      - "6380:8080"
+    networks:
+      - auction_net
+    profiles:
+      - dev
+
+x-volumes:
+  dev.volumes.auction-manager: &dev-volumes
+    - ./apps/auction-manager/src:/app/src:ro
+    - ./apps/auction-manager/package.json:/app/package.json:ro
+    - ./data/auction:/app/storage:rw
+  
+  prod.volumes.auction-manager:
+    - ./data/auction:/app/storage:rw
+
+  dev.volumes.stream-manager:
+    - ./apps/stream-manager/src:/app/src:ro
+    - ./apps/stream-manager/package.json:/app/package.json:ro
+    - ./data/stream:/app/storage:rw
+
+  prod.volumes.stream-manager:
+    - ./data/stream:/app/storage:rw
+
+  dev.volumes.shape-l2:
+    - ./apps/shape-l2/src:/app/src:ro
+    - ./apps/shape-l2/package.json:/app/package.json:ro
+    - ./data/shape-l2:/app/storage:rw
+
+  prod.volumes.shape-l2:
+    - ./data/shape-l2:/app/storage:rw
+
+  dev.volumes.eliza:
+    - ./apps/eliza/src:/app/src:ro
+    - ./apps/eliza/package.json:/app/package.json:ro
+    - ./data/eliza:/app/storage:rw
+
+  prod.volumes.eliza:
+    - ./data/eliza:/app/storage:rw
+
+x-commands:
+  dev.command.auction-manager: &dev-command
+    npm run dev
+  
+  prod.command.auction-manager:
+    npm run start
+
+  dev.command.event-handler: *dev-command
+  prod.command.event-handler:
+    npm run start
+
+  dev.command.stream-manager: *dev-command
+  prod.command.stream-manager:
+    npm run start
+
+  dev.command.shape-l2: *dev-command
+  prod.command.shape-l2:
+    npm run start
+
+  dev.command.eliza: *dev-command
+  prod.command.eliza:
+    npm run start
+
 networks:
   auction_net:
-    driver: overlay
-    attachable: true
-    external: true
-    name: auction_net
+    driver: ${NETWORK_DRIVER:-bridge}
