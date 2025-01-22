@@ -13,6 +13,8 @@ services:
         limits:
           cpus: '0.50'
           memory: 512M
+    ports:
+      - "4100:4100"
 
   event-handler:
     restart: unless-stopped
@@ -26,6 +28,8 @@ services:
         limits:
           cpus: '0.50'
           memory: 512M
+    ports:
+      - "4300:4300"
 
   stream-manager:
     restart: unless-stopped
@@ -39,6 +43,8 @@ services:
         limits:
           cpus: '0.50'
           memory: 512M
+    ports:
+      - "4200:4200"
 
   shape-l2:
     restart: unless-stopped
@@ -52,6 +58,8 @@ services:
         limits:
           cpus: '0.75'
           memory: 1G
+    ports:
+      - "4000:4000"
 
   eliza:
     restart: unless-stopped
@@ -65,6 +73,23 @@ services:
         limits:
           cpus: '1.00'
           memory: 2G
+    ports:
+      - "4400:4400"
+
+  admin-frontend:
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    ports:
+      - "3000:3000"
 
   redis:
     restart: unless-stopped
@@ -74,6 +99,8 @@ services:
       options:
         max-size: "100m"
         max-file: "3"
+    ports:
+      - "6379:6379"
 
   prometheus:
     restart: unless-stopped
@@ -87,6 +114,8 @@ services:
         limits:
           cpus: '0.50'
           memory: 1G
+    ports:
+      - "9090:9090"
 
   grafana:
     restart: unless-stopped
@@ -100,10 +129,18 @@ services:
         limits:
           cpus: '0.50'
           memory: 512M
+    ports:
+      - "3001:3000"
 
   # Production-only services
   nginx:
-    image: nginx:alpine
+    profiles: []  # Enables the service in production
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
@@ -113,10 +150,9 @@ services:
     depends_on:
       - grafana
       - prometheus
-      - eliza
+      - admin-frontend
     networks:
       - auction_net
-    restart: unless-stopped
 
   backup:
     image: alpine

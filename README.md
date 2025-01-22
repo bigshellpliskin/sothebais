@@ -43,7 +43,6 @@ Development services will be available at:
 - ElizaOS: http://localhost:3000
 - Grafana: http://localhost:3001
 - Adminer: http://localhost:8080
-- Redis Commander: http://localhost:8081
 
 ### VPS Development (Staging) Setup
 

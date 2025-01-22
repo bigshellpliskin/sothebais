@@ -24,9 +24,7 @@ services:
 
   # NFT Auction Core Service
   auction-manager:
-    build:
-      context: ./apps/auction-manager
-      dockerfile: Dockerfile
+    image: artifacts_auction-manager:latest
     environment:
       - NODE_ENV=production
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
@@ -34,27 +32,31 @@ services:
     volumes:
       - ./storage/auction:/app/storage:rw
     ports:
-      - "4001:4001"
+      - "4100:4100"
     depends_on:
       - redis
       - shape-l2
     networks:
       - auction_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Event Orchestration Service
   event-handler:
-    build:
-      context: ./apps/event-handler
-      dockerfile: Dockerfile
+    image: artifacts_event-handler:latest
     environment:
       - NODE_ENV=production
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - AUCTION_MANAGER_URL=http://auction-manager:4001
-      - STREAM_MANAGER_URL=http://stream-manager:4002
+      - AUCTION_MANAGER_URL=http://auction-manager:4100
+      - STREAM_MANAGER_URL=http://stream-manager:4200
       - ELIZA_URL=http://eliza:3000
       - SHAPE_L2_URL=http://shape-l2:4000
     ports:
-      - "4003:4003"
+      - "4300:4300"
     depends_on:
       - redis
       - auction-manager
@@ -66,18 +68,18 @@ services:
 
   # Stream Processing Service
   stream-manager:
-    build:
-      context: ./apps/stream-manager
-      dockerfile: Dockerfile
+    image: artifacts_stream-manager:latest
     environment:
       - NODE_ENV=production
       - TWITTER_USERNAME=${TWITTER_USERNAME}
       - TWITTER_PASSWORD=${TWITTER_PASSWORD}
       - TWITTER_EMAIL=${TWITTER_EMAIL}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - AUCTION_MANAGER_URL=http://auction-manager:4001
+      - AUCTION_MANAGER_URL=http://auction-manager:4100
     volumes:
       - ./storage/stream:/app/storage:rw
+    ports:
+      - "4200:4200"
     depends_on:
       - redis
       - auction-manager
@@ -86,9 +88,7 @@ services:
 
   # Shape L2 Integration Service
   shape-l2:
-    build:
-      context: ./apps/shape-l2
-      dockerfile: Dockerfile
+    image: artifacts_shape-l2:latest
     environment:
       - NODE_ENV=production
       - WALLET_SECRET_SALT=${WALLET_SECRET_SALT:-default_salt}
@@ -102,9 +102,7 @@ services:
 
   # ElizaOS VTuber Service
   eliza:
-    build:
-      context: ./apps/eliza
-      dockerfile: Dockerfile
+    image: artifacts_eliza:latest
     environment:
       - NODE_ENV=production
       - NODE_ENV_ADDITIONAL=development
@@ -113,22 +111,37 @@ services:
       - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
       - TEE_MODE=${TEE_MODE:-default_value}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - AUCTION_MANAGER_URL=http://auction-manager:4001
+      - AUCTION_MANAGER_URL=http://auction-manager:4100
     volumes:
       - ./apps/eliza/characters:/app/storage/characters:rw
       - ./storage/eliza/db:/app/storage/db:rw
       - ./storage/eliza/data:/app/storage/data:rw
       - ./storage/eliza/cache:/app/storage/cache:rw
     ports:
-      - "3000:3000"
-      - "9464:9464"
+      - "4400:4400"
     depends_on:
-      redis:
-        condition: service_healthy
-      auction-manager:
-        condition: service_started
+      - redis
+      - auction-manager
+
+  # Admin Frontend Service
+  admin-frontend:
+    image: artifacts_admin-frontend:latest
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://event-handler:4300
+      - MONITORING_URL=http://grafana:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - event-handler
+      - grafana
     networks:
       - auction_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
+      - "traefik.http.routers.admin.entrypoints=websecure"
+      - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
 
   # Redis for Caching and Message Queue
   redis:
@@ -159,9 +172,15 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
     ports:
-      - "127.0.0.1:9090:9090"  # Only accessible locally
+      - "9090:9090"
     networks:
       - auction_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${MONITORING_DOMAIN}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   # Grafana for Monitoring
   grafana:
@@ -205,4 +224,7 @@ services:
 
 networks:
   auction_net:
-    driver: bridge
+    driver: overlay
+    attachable: true
+    external: true
+    name: auction_net

@@ -11,6 +11,8 @@ services:
       - ./apps/auction-manager/src:/app/src:ro
       - ./apps/auction-manager/package.json:/app/package.json:ro
       - ./storage/auction:/app/storage:rw
+    ports:
+      - "4100:4100"
     command: npm run dev
 
   event-handler:
@@ -22,6 +24,8 @@ services:
     volumes:
       - ./apps/event-handler/src:/app/src:ro
       - ./apps/event-handler/package.json:/app/package.json:ro
+    ports:
+      - "4300:4300"
     command: npm run dev
 
   stream-manager:
@@ -34,6 +38,8 @@ services:
       - ./apps/stream-manager/src:/app/src:ro
       - ./apps/stream-manager/package.json:/app/package.json:ro
       - ./storage/stream:/app/storage:rw
+    ports:
+      - "4200:4200"
     command: npm run dev
 
   shape-l2:
@@ -47,6 +53,8 @@ services:
       - ./apps/shape-l2/src:/app/src:ro
       - ./apps/shape-l2/package.json:/app/package.json:ro
       - ./storage/shape-l2:/app/storage:rw
+    ports:
+      - "4000:4000"
     command: npm run dev
 
   eliza:
@@ -65,7 +73,30 @@ services:
       - ./storage/eliza/db:/app/storage/db:rw
       - ./storage/eliza/data:/app/storage/data:rw
       - ./storage/eliza/cache:/app/storage/cache:rw
+    ports:
+      - "4400:4400"
     command: npm run dev
+
+  admin-frontend:
+    build:
+      context: ./apps/admin-frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://event-handler:4300
+      - MONITORING_URL=http://grafana:3001
+    volumes:
+      - ./apps/admin-frontend/src:/app/src:ro
+      - ./apps/admin-frontend/public:/app/public:ro
+      - ./apps/admin-frontend/package.json:/app/package.json:ro
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
+  adminer:
+    image: adminer
+    ports:
+      - "6380:8080"
 
 networks:
   auction_net:
