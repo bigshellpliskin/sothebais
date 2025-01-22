@@ -19,7 +19,7 @@ The system consists of several microservices:
 - Git
 - (Optional) AWS CLI for backups
 
-### Local Development Setup
+### Environment Setup
 
 1. Clone the repository:
 ```bash
@@ -27,72 +27,73 @@ git clone <repository-url>
 cd sothebais
 ```
 
-2. Set up environment:
+2. Initialize the environment:
 ```bash
-cp .env.example .env.dev
-# Edit .env.dev with your configuration
+# For local development
+./run.sh setup local --stage dev
+
+# For VPS development
+./run.sh setup vps --stage dev
+
+# For production
+./run.sh setup vps --stage prod
 ```
 
-3. Start development environment:
+3. Start the services:
 ```bash
-./scripts/setup.sh --env dev
-docker-compose -f docker-compose.yaml -f docker-compose.dev.yaml up
+# Start all services locally
+./run.sh start local --stage dev
+
+# Start specific service
+./run.sh start local --stage dev --service auction-manager
+
+# Start production services
+./run.sh start vps --stage prod
 ```
 
-Development services will be available at:
-- Admin Frontend: http://localhost:3000
+Services will be available at:
+- Admin Frontend: http://localhost:3000 (https://admin.${DOMAIN} in prod)
 - Auction Manager: http://localhost:4100
 - Event Handler: http://localhost:4300
 - Stream Manager: http://localhost:4200
 - Shape L2: http://localhost:4000
 - ElizaOS: http://localhost:4400
-- Grafana: http://localhost:3001
+- Grafana: http://localhost:3001 (https://${MONITORING_DOMAIN} in prod)
 - Prometheus: http://localhost:9090
 - Redis: http://localhost:6379
 - Adminer: http://localhost:6380
 
-### VPS Development (Staging) Setup
+## Environment Management
 
-1. Configure VPS:
+### Available Commands
 ```bash
-./scripts/vps-setup.sh --env dev
+# View service logs
+./run.sh logs local --service auction-manager --lines 100
+
+# Check service status
+./run.sh status local
+
+# Create backups
+./run.sh backup local --type full    # full backup
+./run.sh backup local --type db      # database only
+./run.sh backup local --type logs    # logs only
+
+# Clean up resources
+./run.sh clean local --clean all     # clean everything
+./run.sh clean local --clean docker  # clean docker resources
+./run.sh clean local --clean data    # clean data directory
+
+# Restart services
+./run.sh restart local --stage dev
 ```
-
-2. Deploy services:
-```bash
-./scripts/deploy-vps.sh --env dev
-```
-
-### Production Setup
-
-1. Configure production environment:
-```bash
-cp .env.example .env.prod
-# Edit .env.prod with production values
-```
-
-2. Set up VPS:
-```bash
-./scripts/vps-setup.sh --env prod
-```
-
-3. Deploy to production:
-```bash
-./scripts/deploy-vps.sh --env prod
-```
-
-Production services will be available at:
-- Admin Frontend: https://admin.${DOMAIN}
-- Grafana: https://${MONITORING_DOMAIN}
-- Prometheus: https://prometheus.${MONITORING_DOMAIN}
 
 ## Environment Configurations
 
-| Environment | Purpose | Configuration |
-|------------|---------|---------------|
-| Local Dev | Development and testing | docker-compose.dev.yaml |
-| VPS Dev | Staging and integration | docker-compose.yaml |
-| Production | Live deployment | docker-compose.prod.yaml |
+| Environment | Purpose | Stage | Usage |
+|------------|---------|-------|--------|
+| Local | Development and testing | dev | ./run.sh start local --stage dev |
+| VPS Dev | Staging and integration | dev | ./run.sh start vps --stage dev |
+| Production | Live deployment | prod | ./run.sh start vps --stage prod |
 
 See [Deployment Configuration](docs/deployment-config.md) for detailed environment information.
 
@@ -105,25 +106,7 @@ The system includes comprehensive monitoring:
 - **Node Exporter**: System metrics
 - **Custom Metrics**: Application-specific monitoring
 
-Access Grafana at:
-- Local/Dev: http://localhost:3001
-- Production: https://grafana.your-domain.com
-
-## Development Tools
-
-### Available Scripts
-- `setup.sh`: Initial environment setup
-- `dev.sh`: Start development environment
-- `deploy-vps.sh`: Deploy to VPS
-- `backup.sh`: Manage backups
-- `logs.sh`: View service logs
-- `cleanup.sh`: Clean up resources
-
-### Development Features
-- Hot reloading
-- Debug endpoints
-- Mock APIs
-- Development tools (Adminer, Redis Commander)
+Monitoring is automatically enabled in production environments.
 
 ## Security
 
@@ -141,11 +124,11 @@ Access Grafana at:
 ## Backup Strategy
 
 ### Development
+- Manual backups via `./run.sh backup local`
 - Volume mounts for persistence
-- No automated backups
 
 ### Production
-- Hourly backups to S3
+- Automated hourly backups
 - 30-day retention
 - Transaction log backups
 - Automated restore testing
@@ -154,7 +137,7 @@ Access Grafana at:
 
 1. Create a feature branch
 2. Make changes
-3. Run tests: `./scripts/test.sh`
+3. Run tests
 4. Submit PR
 
 ## License
