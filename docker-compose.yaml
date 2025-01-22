@@ -1,29 +1,122 @@
+# docker-compose.yaml
+version: '3.8'
+
 services:
-    eliza:
-        command: ["pnpm", "start", "--character=./characters/eliza.character.json"]
-        build:
-            context: .
-            dockerfile: Dockerfile
-        stdin_open: true
-        tty: true
-        volumes:
-            - ./data:/app/data
-        environment:
-            - OPENROUTER_API_KEY=
-            - ELEVENLABS_XI_API_KEY=
-            - ELEVENLABS_MODEL_ID=eleven_multilingual_v2
-            - ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
-            - ELEVENLABS_VOICE_STABILITY=0.5
-            - ELEVENLABS_VOICE_SIMILARITY_BOOST=0.9
-            - ELEVENLABS_VOICE_STYLE=0.66
-            - ELEVENLABS_VOICE_USE_SPEAKER_BOOST=false
-            - ELEVENLABS_OPTIMIZE_STREAMING_LATENCY=4
-            - ELEVENLABS_OUTPUT_FORMAT=pcm_16000
-            - SOL_ADDRESS=So11111111111111111111111111111111111111112
-            - SLIPPAGE=1
-            - SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-            - HELIUS_API_KEY=
-            - SERVER_PORT=3000
-        ports:
-            - "3000:3000"
-        restart: always
+  # Main ElizaOS Application
+  eliza:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      # Add development environment variable to ensure TypeScript is installed
+      - NODE_ENV_ADDITIONAL=development
+      # ElizaOS specific environment variables
+      - TWITTER_USERNAME=${TWITTER_USERNAME}
+      - TWITTER_PASSWORD=${TWITTER_PASSWORD}
+      - TWITTER_EMAIL=${TWITTER_EMAIL}
+      - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
+      - DISCORD_API_TOKEN=${DISCORD_API_TOKEN}
+      - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
+      - TEE_MODE=${TEE_MODE:-default_value}
+      # Auction system specific
+      - WALLET_SECRET_SALT=${WALLET_SECRET_SALT:-default_salt}
+      - SOL_RPC_URL=${SOL_RPC_URL:-https://api.mainnet-beta.solana.com}
+      # Redis connection
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+    volumes:
+      - ./characters:/app/storage/characters:rw
+      - ./db.sqlite:/app/storage/db/db.sqlite:rw
+      - ./packages/client-twitter/src/tweetcache:/app/packages/client-twitter/src/tweetcache:rw
+      - ./data:/app/storage/data:rw
+      # Development volumes
+      - ./src:/app/src:ro
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+    ports:
+      - "3000:3000"
+      - "9464:9464" # Prometheus metrics endpoint
+    depends_on:
+      redis:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    restart: always
+    networks:
+      - eliza_net
+
+  # Redis for Caching
+  redis:
+    image: redis:alpine
+    command: redis-server --protected-mode no
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - eliza_net
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - eliza_net
+
+  # Grafana for Monitoring
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3001:3000"
+    networks:
+      - eliza_net
+
+  # Node Exporter for Host Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - eliza_net
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  eliza_net:
+    driver: bridge
