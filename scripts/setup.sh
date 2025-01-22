@@ -45,12 +45,12 @@ echo "Setting up $ENVIRONMENT environment..."
 # Create necessary directories
 mkdir -p storage/{redis,prometheus,grafana,auction,stream,shape-l2,eliza/{db,data,cache}}
 mkdir -p monitoring/{prometheus,grafana/{dashboards,provisioning}}
-mkdir -p characters
+mkdir -p eliza/characters
 
 # Set correct permissions
 chmod -R 755 storage
 chmod -R 755 monitoring
-chmod -R 755 characters
+chmod -R 755 eliza/characters
 
 # Environment-specific setup
 case $ENVIRONMENT in

@@ -48,14 +48,20 @@ services:
 
   eliza:
     build:
-      context: ./eliza
+      context: ./apps/eliza
       dockerfile: Dockerfile.dev
     environment:
       - NODE_ENV=development
       - USE_MOCK_APIS=true
     volumes:
-      - ./eliza/src:/app/src:ro
-      - ./eliza/package.json:/app/package.json:ro
+      - ./apps/eliza/src:/app/src:ro
+      - ./apps/eliza/package.json:/app/package.json:ro
+      - ./apps/eliza/tsconfig.json:/app/tsconfig.json:ro
+      - ./apps/eliza/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./apps/eliza/characters:/app/storage/characters:rw
+      - ./storage/eliza/db:/app/storage/db:rw
+      - ./storage/eliza/data:/app/storage/data:rw
+      - ./storage/eliza/cache:/app/storage/cache:rw
     command: npm run dev
 
   # Development-only services

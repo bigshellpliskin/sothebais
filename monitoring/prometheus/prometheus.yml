@@ -1,0 +1,41 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  - job_name: 'auction-manager'
+    static_configs:
+      - targets: ['auction-manager:4001']
+    metrics_path: '/metrics'
+
+  - job_name: 'event-handler'
+    static_configs:
+      - targets: ['event-handler:4003']
+    metrics_path: '/metrics'
+
+  - job_name: 'stream-manager'
+    static_configs:
+      - targets: ['stream-manager:4002']
+    metrics_path: '/metrics'
+
+  - job_name: 'shape-l2'
+    static_configs:
+      - targets: ['shape-l2:4000']
+    metrics_path: '/metrics'
+
+  - job_name: 'elizaos'
+    static_configs:
+      - targets: ['eliza:9464']
+    metrics_path: '/metrics'

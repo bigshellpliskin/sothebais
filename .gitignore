@@ -31,3 +31,8 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Nginx SSL certificates
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.pem

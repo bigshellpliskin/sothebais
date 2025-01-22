@@ -95,7 +95,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
       - AUCTION_MANAGER_URL=http://auction-manager:4001
     volumes:
-      - ./characters:/app/storage/characters:rw
+      - ./eliza/characters:/app/storage/characters:rw
       - ./storage/eliza/db:/app/storage/db:rw
       - ./storage/eliza/data:/app/storage/data:rw
       - ./storage/eliza/cache:/app/storage/cache:rw
