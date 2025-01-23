@@ -7,14 +7,17 @@ RUN apk add --no-cache docker-cli
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first
 COPY package.json ./
 
-# Install dependencies (using npm install instead of npm ci)
+# Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy the rest of the application
 COPY . .
+
+# Create required Next.js directories if they don't exist
+RUN mkdir -p ./src/app
 
 # Build the application
 RUN npm run build
