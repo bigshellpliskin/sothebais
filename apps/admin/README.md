@@ -25,10 +25,8 @@ This service provides the administrative interface for managing and monitoring t
 2. Docker Service Monitoring
    - Real-time container status monitoring
    - Container health checks
-   - Resource usage metrics (CPU, Memory, Network)
    - Container start/stop/restart controls
    - Container logs streaming
-   - Service dependency visualization
 
 3. Log Management
    - Real-time log streaming for each service
