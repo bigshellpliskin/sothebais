@@ -7,9 +7,11 @@ RUN apk add --no-cache docker-cli
 # Set working directory
 WORKDIR /app
 
-# Install dependencies first (for better caching)
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Copy package files
+COPY package.json ./
+
+# Install dependencies (using npm install instead of npm ci)
+RUN npm install
 
 # Copy source code
 COPY . .
