@@ -22,6 +22,8 @@ services:
       - auction_net
     profiles:
       - vps
+    environment:
+      - "ACME_EMAIL=${ACME_EMAIL}"
 
   # NFT Auction Core Service
   auction-manager:
@@ -166,7 +168,8 @@ services:
           memory: ${RESOURCES_MEMORY:-512M}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.admin.rule=Host(`${ADMIN_SUBDOMAIN}`)"
+      - "traefik.http.services.admin.loadbalancer.server.port=3000"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
 
