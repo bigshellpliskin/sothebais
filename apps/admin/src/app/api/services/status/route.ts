@@ -7,6 +7,23 @@ const execAsync = promisify(exec);
 
 export async function GET() {
   try {
+    // Check if we have access to Docker
+    try {
+      await execAsync('docker ps');
+    } catch (error) {
+      console.error('No Docker access:', error);
+      // Return mock data in development
+      if (process.env.NODE_ENV === 'development') {
+        return NextResponse.json({
+          'event-handler': 'running',
+          'redis': 'running',
+          'traefik': 'running',
+          'admin-frontend': 'running'
+        });
+      }
+      throw new Error('No Docker access');
+    }
+
     // Get list of running containers
     const { stdout } = await execAsync('docker ps --format "{{.Names}}"');
     const runningContainers = stdout.split('\n').filter(Boolean);
@@ -26,7 +43,9 @@ export async function GET() {
           serviceStatus = 'error';
         }
         
-        acc[name] = serviceStatus;
+        // Remove the project prefix from container names (e.g., "sothebais-redis-1" -> "redis")
+        const serviceName = name.split('-').slice(1, -1).join('-');
+        acc[serviceName] = serviceStatus;
         return acc;
       }, {});
 

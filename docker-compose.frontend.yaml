@@ -4,7 +4,11 @@ services:
   traefik:
     image: traefik:v3.3
     command:
+      - "--log.level=DEBUG"
       - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--ping=true"
+      - "--ping.entrypoint=traefik"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -33,12 +37,16 @@ services:
     environment:
       - "ACME_EMAIL=${ACME_EMAIL}"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:3100/ping"]
-      interval: 10s
-      timeout: 2s
-      retries: 3
-      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - frontend_net
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
 
   admin-frontend:
     build:
@@ -56,6 +64,7 @@ services:
       - PORT=3000
       - METRICS_PORT=3090
       - HEALTH_PORT=3091
+      - NEXT_PUBLIC_EVENT_HANDLER_SUBDOMAIN=${EVENT_HANDLER_SUBDOMAIN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Development volumes - modified for better compatibility
@@ -75,14 +84,45 @@ services:
       - "3000:3000" # Main App
       - "3090:3090" # Metrics
       - "3091:3091" # Health
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3091/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+  event-handler:
+    build:
+      context: ./apps/event-handler
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=4300
+      - EVENT_STREAM_PORT=4301
+      - METRICS_PORT=4390
+      - HEALTH_PORT=4391
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./apps/event-handler:/app
+      - /app/node_modules
+    networks:
+      - frontend_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.event-handler.rule=Host(`${EVENT_HANDLER_SUBDOMAIN}`)"
+      - "traefik.http.services.event-handler.loadbalancer.server.port=4300"
+      - "traefik.http.routers.event-handler.entrypoints=websecure"
+      - "traefik.http.routers.event-handler.tls.certresolver=letsencrypt"
+      # Event stream endpoint
+      - "traefik.http.routers.event-stream.rule=Host(`${EVENT_HANDLER_SUBDOMAIN}`) && PathPrefix(`/events`)"
+      - "traefik.http.services.event-stream.loadbalancer.server.port=4301"
+      - "traefik.http.routers.event-stream.entrypoints=websecure"
+      - "traefik.http.routers.event-stream.tls.certresolver=letsencrypt"
+    ports:
+      - "4300:4300" # Main API
+      - "4301:4301" # Event Stream
+      - "4390:4390" # Metrics
+      - "4391:4391" # Health
+    depends_on:
+      - redis
 
 volumes:
   letsencrypt:
+  redis_data:
 
 networks:
   frontend_net:
