@@ -1,55 +1,38 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { ServiceStatus } from '@/types/service';
 
-const execAsync = promisify(exec);
+const SERVICES = {
+  'event-handler': 'http://event-handler:4300/health',
+  'redis': 'http://redis:6379',  // Redis doesn't have a health endpoint, we'll check connection
+  'traefik': 'http://traefik:8080/ping',
+  'admin-frontend': 'http://admin-frontend:3000/api/health'
+};
+
+async function checkServiceHealth(url: string): Promise<ServiceStatus> {
+  try {
+    const response = await fetch(url, { 
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    return response.ok ? 'running' : 'error';
+  } catch (error) {
+    console.error(`Error checking service health for ${url}:`, error);
+    return 'error';
+  }
+}
 
 export async function GET() {
   try {
-    // Check if we have access to Docker
-    try {
-      await execAsync('docker ps');
-    } catch (error) {
-      console.error('No Docker access:', error);
-      // Return mock data in development
-      if (process.env.NODE_ENV === 'development') {
-        return NextResponse.json({
-          'event-handler': 'running',
-          'redis': 'running',
-          'traefik': 'running',
-          'admin-frontend': 'running'
-        });
-      }
-      throw new Error('No Docker access');
-    }
+    const statuses: Record<string, ServiceStatus> = {};
+    
+    // Check each service in parallel
+    const checks = Object.entries(SERVICES).map(async ([service, url]) => {
+      statuses[service] = await checkServiceHealth(url);
+    });
+    
+    await Promise.all(checks);
 
-    // Get list of running containers
-    const { stdout } = await execAsync('docker ps --format "{{.Names}}"');
-    const runningContainers = stdout.split('\n').filter(Boolean);
-
-    // Get list of all containers (including stopped ones)
-    const { stdout: allContainersStdout } = await execAsync('docker ps -a --format "{{.Names}},{{.Status}}"');
-    const containerStatuses = allContainersStdout
-      .split('\n')
-      .filter(Boolean)
-      .reduce<Record<string, ServiceStatus>>((acc, line) => {
-        const [name, status] = line.split(',');
-        let serviceStatus: ServiceStatus = 'stopped';
-        
-        if (status.includes('Up')) {
-          serviceStatus = 'running';
-        } else if (status.includes('Exited') || status.includes('Error')) {
-          serviceStatus = 'error';
-        }
-        
-        // Remove the project prefix from container names (e.g., "sothebais-redis-1" -> "redis")
-        const serviceName = name.split('-').slice(1, -1).join('-');
-        acc[serviceName] = serviceStatus;
-        return acc;
-      }, {});
-
-    return NextResponse.json(containerStatuses);
+    return NextResponse.json(statuses);
   } catch (error) {
     console.error('Error fetching service status:', error);
     return NextResponse.json(

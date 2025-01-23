@@ -5,12 +5,34 @@ http:
         scheme: https
         permanent: true
         port: "443"
+    redirect-to-admin:
+      redirectRegex:
+        regex: "^https://sothebais\\.com/(.*)"
+        replacement: "https://admin.sothebais.com/${1}"
+        permanent: true
+
+  routers:
+    http-catchall:
+      rule: "HostRegexp(`{host:.+}`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+      priority: 1
+
+    root-domain:
+      rule: "Host(`sothebais.com`)"
+      middlewares:
+        - redirect-to-admin
+      entryPoints:
+        - websecure
+      service: noop@internal
+      tls: {}
+      priority: 2
 
 tls:
-  certificates:
-    - certResolver: letsencrypt
-      domains:
-        - main: "sothebais.com"
-          sans:
-            - "admin.sothebais.com"
-            - "events.sothebais.com" 
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true 

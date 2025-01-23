@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { StatusIndicator } from "@/components/ui/status-indicator";
+import { ServiceStatus } from "@/types/service";
 
 export function HeaderStatus() {
   const { user } = useUser();
   const [isOnline, setIsOnline] = useState(true);
-  const [isDockerConnected, setIsDockerConnected] = useState(false);
+  const [isSystemConnected, setIsSystemConnected] = useState(false);
 
   // Check internet connection
   useEffect(() => {
@@ -24,19 +25,31 @@ export function HeaderStatus() {
     };
   }, []);
 
-  // Check Docker connection
+  // Check system services connection
   useEffect(() => {
-    async function checkDockerConnection() {
+    async function checkSystemConnection() {
       try {
         const response = await fetch('/api/services/status');
-        setIsDockerConnected(response.ok);
+        if (!response.ok) {
+          setIsSystemConnected(false);
+          return;
+        }
+        
+        const statuses: Record<string, ServiceStatus> = await response.json();
+        // Check if core services are running
+        const coreServices = ['event-handler', 'redis', 'traefik'];
+        const allCoreServicesRunning = coreServices.every(
+          service => statuses[service] === 'running'
+        );
+        
+        setIsSystemConnected(allCoreServicesRunning);
       } catch {
-        setIsDockerConnected(false);
+        setIsSystemConnected(false);
       }
     }
 
-    checkDockerConnection();
-    const interval = setInterval(checkDockerConnection, 30000); // Check every 30 seconds
+    checkSystemConnection();
+    const interval = setInterval(checkSystemConnection, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
@@ -49,8 +62,8 @@ export function HeaderStatus() {
           label="Internet"
         />
         <StatusIndicator
-          status={isDockerConnected ? "online" : "offline"}
-          label="Docker"
+          status={isSystemConnected ? "online" : "offline"}
+          label="System"
         />
       </div>
       {user && (
