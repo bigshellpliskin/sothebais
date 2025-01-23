@@ -155,7 +155,6 @@ services:
       - DOCKER_SOCKET=/var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${STAGE:-dev}.volumes.admin-frontend
     ports:
       - "3000:3000"
     networks:
