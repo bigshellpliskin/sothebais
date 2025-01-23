@@ -21,14 +21,15 @@ interface LogEntry {
 }
 
 export function EventLog() {
-  const [containerLogs, setContainerLogs] = useState<{[key: string]: LogEntry[]}>({
-    'sothebais-event-handler-1': [],
-    'sothebais-traefik-1': [],
-    'sothebais-redis-1': [],
-    'sothebais-admin-frontend-1': []
-  });
+  const [containerLogs, setContainerLogs] = useState<{[key: string]: LogEntry[]}>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient to true on mount
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Get the base URL for the event handler
   const getEventHandlerUrl = () => {
@@ -60,6 +61,11 @@ export function EventLog() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Don't render anything until we're on the client
+  if (!isClient) {
+    return null;
+  }
 
   const renderLogContent = (entries: LogEntry[] | Event[] | undefined) => {
     if (!entries || entries.length === 0) {

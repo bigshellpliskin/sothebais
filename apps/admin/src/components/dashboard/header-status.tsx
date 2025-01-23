@@ -7,11 +7,15 @@ import { ServiceStatus } from "@/types/service";
 
 export function HeaderStatus() {
   const { user } = useUser();
-  const [isOnline, setIsOnline] = useState(true);
-  const [isSystemConnected, setIsSystemConnected] = useState(false);
+  // Initialize with null to avoid hydration mismatch
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
+  const [isSystemConnected, setIsSystemConnected] = useState<boolean | null>(null);
 
   // Check internet connection
   useEffect(() => {
+    // Set initial state
+    setIsOnline(navigator.onLine);
+    
     function updateOnlineStatus() {
       setIsOnline(navigator.onLine);
     }
@@ -53,6 +57,11 @@ export function HeaderStatus() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Don't render anything until we have client-side values
+  if (isOnline === null || isSystemConnected === null) {
+    return null;
+  }
 
   return (
     <div className="flex items-center gap-6">

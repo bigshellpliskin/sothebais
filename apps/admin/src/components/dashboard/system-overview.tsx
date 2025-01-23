@@ -10,7 +10,12 @@ import { useState, useEffect } from "react";
 export function SystemOverview() {
   const { serviceGroups, isLoading } = useServiceStore();
   const [refreshTimer, setRefreshTimer] = useState(10);
+  const [isClient, setIsClient] = useState(false);
   useServiceStatus();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (isLoading) setRefreshTimer(10);
@@ -22,6 +27,11 @@ export function SystemOverview() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Don't render until we're on the client
+  if (!isClient) {
+    return null;
+  }
 
   const allServices = serviceGroups.flatMap(group => group.services);
   const runningServices = allServices.filter(service => service.status === 'running');

@@ -44,6 +44,22 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Redis health check endpoint
+app.get('/health/redis', async (req, res) => {
+  try {
+    // Try to PING Redis
+    const result = await redisClient.ping();
+    if (result === 'PONG') {
+      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    } else {
+      res.status(500).json({ status: 'error', message: 'Redis not responding correctly' });
+    }
+  } catch (error) {
+    console.error('Redis health check failed:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // Get container logs endpoint
 app.get('/logs', async (req, res) => {
   try {

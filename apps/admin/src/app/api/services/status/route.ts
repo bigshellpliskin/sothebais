@@ -3,7 +3,8 @@ import { ServiceStatus } from '@/types/service';
 
 const SERVICES = {
   'event-handler': 'http://event-handler:4300/health',
-  'traefik': 'http://traefik:3100/ping'
+  'traefik': 'http://traefik:3100/ping',
+  'redis': 'http://event-handler:4300/health/redis'
 };
 
 async function checkServiceHealth(url: string): Promise<ServiceStatus> {
@@ -34,9 +35,6 @@ export async function GET() {
     });
     
     await Promise.all(checks);
-
-    // Add Redis status based on environment variable
-    statuses['redis'] = process.env.REDIS_URL ? 'running' : 'error';
 
     return NextResponse.json(statuses);
   } catch (error) {
