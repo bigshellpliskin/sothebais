@@ -56,16 +56,61 @@ cd sothebais
 ```
 
 Services will be available at:
+
+### Port Allocation Strategy
+
+Our port allocation follows a systematic approach for security, scalability, and ease of management:
+
+#### Public Services (80-443)
+- Traefik: 80, 443 (HTTP/HTTPS gateway)
+
+#### Management & Monitoring (3000-3999)
 - Admin Frontend: http://localhost:3000 (https://admin.${DOMAIN} in prod)
-- Auction Manager: http://localhost:4100
-- Event Handler: http://localhost:4300
-- Stream Manager: http://localhost:4200
-- Shape L2: http://localhost:4000
-- ElizaOS: http://localhost:4400
 - Grafana: http://localhost:3001 (https://${MONITORING_DOMAIN} in prod)
-- Prometheus: http://localhost:9090
-- Redis: http://localhost:6379
-- Adminer: http://localhost:6380
+- Traefik Dashboard: http://localhost:3100 (admin only)
+
+#### Core Application Services (4000-4999)
+Each service gets a 100-port range for main service and auxiliary endpoints:
+- Shape L2: 4000-4099
+  - Main API: http://localhost:4000
+  - Metrics: http://localhost:4090
+  - Health: http://localhost:4091
+- Auction Manager: 4100-4199
+  - Main API: http://localhost:4100
+  - Metrics: http://localhost:4190
+  - Health: http://localhost:4191
+- Stream Manager: 4200-4299
+  - Main API: http://localhost:4200
+  - WebSocket: http://localhost:4201
+  - Metrics: http://localhost:4290
+  - Health: http://localhost:4291
+- Event Handler: 4300-4399
+  - Main API: http://localhost:4300
+  - Event Stream: http://localhost:4301
+  - Metrics: http://localhost:4390
+  - Health: http://localhost:4391
+- ElizaOS: 4400-4499
+  - Main API: http://localhost:4400
+  - WebSocket: http://localhost:4401
+  - Metrics: http://localhost:4490
+  - Health: http://localhost:4491
+
+#### Infrastructure Services (6000-9999)
+- Redis: http://localhost:6379 (standard Redis port)
+- Adminer: http://localhost:6380 (database management)
+- Prometheus: http://localhost:9090 (metrics collection)
+- Node Exporter: http://localhost:9100 (system metrics)
+
+#### Port Range Conventions
+- xx90: Prometheus metrics endpoint
+- xx91: Health check endpoint
+- xx01: WebSocket/Stream endpoint (if applicable)
+- Main service port ends in 00
+
+#### Development vs Production
+- Development: All ports are exposed as listed above
+- Production: Only ports 80/443 exposed publicly, all internal communication via Docker network
+- Staging: Limited port exposure based on testing needs
 
 ## Environment Management
 

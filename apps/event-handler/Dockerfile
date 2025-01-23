@@ -12,15 +12,15 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Expose ports (4400: Main API, 4401: WebSocket, 4490: Metrics, 4491: Health)
-EXPOSE 4400
-EXPOSE 4401
-EXPOSE 4490
-EXPOSE 4491
+# Expose ports (4300: Main API, 4301: Event Stream, 4390: Metrics, 4391: Health)
+EXPOSE 4300
+EXPOSE 4301
+EXPOSE 4390
+EXPOSE 4391
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:4491/health || exit 1
+    CMD curl -f http://localhost:4391/health || exit 1
 
 # Start development server
 CMD ["npm", "run", "dev"] 

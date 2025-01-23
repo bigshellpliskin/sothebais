@@ -9,13 +9,19 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.traefik.address=:3100"
       # Certificate Resolver
       - "--certificatesresolvers.letsencrypt.acme.email=iroquoispliskin222@gmail.com"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      # Metrics
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"     # HTTP
+      - "443:443"   # HTTPS
+      - "3100:3100" # Dashboard
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./data/traefik/letsencrypt:/letsencrypt"
@@ -25,6 +31,11 @@ services:
       - vps
     environment:
       - "ACME_EMAIL=${ACME_EMAIL}"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3100/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # NFT Auction Core Service
   auction-manager:
@@ -36,10 +47,15 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
       - LOG_LEVEL=${LOG_LEVEL:-debug}
       - SHAPE_L2_URL=http://shape-l2:4000
+      - PORT=4100
+      - METRICS_PORT=4190
+      - HEALTH_PORT=4191
     volumes:
       - ${STAGE:-dev}.volumes.auction-manager
     ports:
-      - "4100:4100"
+      - "4100:4100" # Main API
+      - "4190:4190" # Metrics
+      - "4191:4191" # Health
     depends_on:
       - redis
       - shape-l2
@@ -51,6 +67,11 @@ services:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
     command: ${STAGE:-dev}.command.auction-manager
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4191/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Event Orchestration Service
   event-handler:
@@ -60,8 +81,15 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - PORT=4300
+      - EVENT_STREAM_PORT=4301
+      - METRICS_PORT=4390
+      - HEALTH_PORT=4391
     ports:
-      - "4300:4300"
+      - "4300:4300" # Main API
+      - "4301:4301" # Event Stream
+      - "4390:4390" # Metrics
+      - "4391:4391" # Health
     networks:
       - auction_net
     deploy:
@@ -70,6 +98,11 @@ services:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
     command: ${STAGE:-dev}.command.event-handler
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Stream Processing Service
   stream-manager:
@@ -79,10 +112,17 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - PORT=4200
+      - WS_PORT=4201
+      - METRICS_PORT=4290
+      - HEALTH_PORT=4291
     volumes:
       - ${STAGE:-dev}.volumes.stream-manager
     ports:
-      - "4200:4200"
+      - "4200:4200" # Main API
+      - "4201:4201" # WebSocket
+      - "4290:4290" # Metrics
+      - "4291:4291" # Health
     networks:
       - auction_net
     deploy:
@@ -91,6 +131,11 @@ services:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
     command: ${STAGE:-dev}.command.stream-manager
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Shape L2 Integration Service
   shape-l2:
@@ -104,13 +149,23 @@ services:
       - SHAPE_L2_NETWORK=${SHAPE_L2_NETWORK:-testnet}
       - SHAPE_L2_CONTRACT=${SHAPE_L2_CONTRACT}
       - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - PORT=4000
+      - METRICS_PORT=4090
+      - HEALTH_PORT=4091
     volumes:
       - ${STAGE:-dev}.volumes.shape-l2
     ports:
-      - "4000:4000"
+      - "4000:4000" # Main API
+      - "4090:4090" # Metrics
+      - "4091:4091" # Health
     networks:
       - auction_net
     command: ${STAGE:-dev}.command.shape-l2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ElizaOS VTuber Service
   eliza:
@@ -126,13 +181,25 @@ services:
       - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
       - TEE_MODE=${TEE_MODE:-development}
       - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - PORT=4400
+      - WS_PORT=4401
+      - METRICS_PORT=4490
+      - HEALTH_PORT=4491
     volumes:
       - ${STAGE:-dev}.volumes.eliza
     ports:
-      - "4400:4400"
+      - "4400:4400" # Main API
+      - "4401:4401" # WebSocket
+      - "4490:4490" # Metrics
+      - "4491:4491" # Health
     networks:
       - auction_net
     command: ${STAGE:-dev}.command.eliza
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4491/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Admin Frontend Service
   admin-frontend:
@@ -146,10 +213,15 @@ services:
       - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
       - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
       - DOCKER_SOCKET=/var/run/docker.sock
+      - PORT=3000
+      - METRICS_PORT=3090
+      - HEALTH_PORT=3091
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - "3000:3000"
+      - "3000:3000" # Main App
+      - "3090:3090" # Metrics
+      - "3091:3091" # Health
     networks:
       - auction_net
     labels:
@@ -158,6 +230,11 @@ services:
       - "traefik.http.services.admin.loadbalancer.server.port=3000"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Redis for Caching and Message Queue
   redis:
@@ -191,6 +268,11 @@ services:
       - auction_net
     profiles:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Grafana for Monitoring
   grafana:
@@ -200,16 +282,22 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SERVER_ROOT_URL=https://${MONITORING_DOMAIN:-localhost}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_HTTP_PORT=3001
     volumes:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./data/grafana:/var/lib/grafana:rw
     ports:
-      - "3001:3000"
+      - "3001:3001"
     networks:
       - auction_net
     profiles:
       - monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Node Exporter for Host Metrics
   node-exporter:
@@ -227,6 +315,11 @@ services:
       - "9100:9100"
     networks:
       - auction_net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   adminer:
     image: adminer
@@ -236,6 +329,11 @@ services:
       - auction_net
     profiles:
       - dev
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 x-volumes:
   dev.volumes.auction-manager: &dev-volumes

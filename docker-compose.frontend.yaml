@@ -9,7 +9,7 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.traefik.address=:8081"
+      - "--entrypoints.traefik.address=:3100"
       # HTTP to HTTPS redirect
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
@@ -17,10 +17,14 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      # Metrics
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
     ports:
-      - "80:80"
-      - "443:443"
-      - "8081:8081"
+      - "80:80"     # HTTP
+      - "443:443"   # HTTPS
+      - "3100:3100" # Dashboard
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "letsencrypt:/letsencrypt"
@@ -30,7 +34,7 @@ services:
       - "ACME_EMAIL=${ACME_EMAIL}"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8081/ping"]
+      test: ["CMD", "wget", "--spider", "http://localhost:3100/ping"]
       interval: 10s
       timeout: 2s
       retries: 3
@@ -49,6 +53,9 @@ services:
       - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
       - DOCKER_SOCKET=/var/run/docker.sock
       - WATCHPACK_POLLING=true
+      - PORT=3000
+      - METRICS_PORT=3090
+      - HEALTH_PORT=3091
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Development volumes - modified for better compatibility
@@ -65,7 +72,14 @@ services:
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
     command: npm run dev
     ports:
-      - "3000:3000"
+      - "3000:3000" # Main App
+      - "3090:3090" # Metrics
+      - "3091:3091" # Health
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   letsencrypt:
