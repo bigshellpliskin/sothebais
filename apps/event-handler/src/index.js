@@ -61,7 +61,8 @@ app.get('/logs', async (req, res) => {
           stdout: true,
           stderr: true,
           tail: 100,
-          timestamps: true
+          timestamps: true,
+          follow: false
         });
 
         // Parse the logs into individual lines
@@ -69,21 +70,34 @@ app.get('/logs', async (req, res) => {
           .split('\n')
           .filter(line => line.trim())
           .map(line => {
-            // Remove the first 8 bytes which contain Docker log type information
-            const cleanLine = line.substring(8);
-            // Split timestamp and content
-            const [timestamp, ...contentParts] = cleanLine.split(' ');
-            const content = contentParts.join(' ');
-            
-            return {
-              id: Date.now() + Math.random().toString(36).substring(7),
-              timestamp,
-              content,
-              source: containerName
-            };
-          });
+            try {
+              // Extract the stream type (stdout/stderr) from the first byte
+              const streamType = line.charCodeAt(0) === 1 ? 'stdout' : 'stderr';
+              
+              // Remove the header (first 8 bytes)
+              const cleanLine = line.slice(8);
+              
+              // Split timestamp and content
+              const spaceIndex = cleanLine.indexOf(' ');
+              const timestamp = cleanLine.slice(0, spaceIndex);
+              const content = cleanLine.slice(spaceIndex + 1);
+              
+              return {
+                id: Date.now() + Math.random().toString(36).substring(7),
+                timestamp: new Date(timestamp).toISOString(),
+                content,
+                source: containerName,
+                type: streamType
+              };
+            } catch (err) {
+              console.error('Error parsing log line:', err);
+              return null;
+            }
+          })
+          .filter(line => line !== null);
 
         logs[containerName] = logLines;
+        console.log(`Retrieved ${logLines.length} logs for ${containerName}`);
       } catch (err) {
         console.error(`Error getting logs for ${containerName}:`, err);
         logs[containerName] = [];
@@ -93,7 +107,7 @@ app.get('/logs', async (req, res) => {
     res.json(logs);
   } catch (error) {
     console.error('Error getting container logs:', error);
-    res.status(500).json({ error: 'Failed to get container logs' });
+    res.status(500).json({ error: 'Failed to get container logs', details: error.message });
   }
 });
 

@@ -23,13 +23,10 @@ interface LogEntry {
 export function EventLog() {
   const [events, setEvents] = useState<Event[]>([]);
   const [containerLogs, setContainerLogs] = useState<{[key: string]: LogEntry[]}>({
-    'event-handler': [],
-    'traefik': [],
-    'redis': [],
-    'admin-frontend': [],
-    'sothebais-admin-frontend-1': [],
     'sothebais-event-handler-1': [],
-    'sothebais-redis-1': []
+    'sothebais-traefik-1': [],
+    'sothebais-redis-1': [],
+    'sothebais-admin-frontend-1': []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +130,13 @@ export function EventLog() {
     }
 
     return entries.map((entry: any) => {
-      const timestamp = new Date(entry.timestamp).toISOString();
+      const date = new Date(entry.timestamp);
+      const timestamp = date.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
       const content = entry.content || JSON.stringify(entry.data, null, 2);
       
       return (
@@ -142,7 +145,7 @@ export function EventLog() {
           className="font-mono text-xs leading-relaxed border-b border-border/50 last:border-0"
         >
           <span className="text-muted-foreground">[{timestamp}]</span>{' '}
-          <span className="text-green-500">$</span>{' '}
+          <span className="text-primary">$</span>{' '}
           <span className="text-foreground whitespace-pre-wrap">{content}</span>
         </div>
       );
@@ -164,15 +167,17 @@ export function EventLog() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="events" className="w-full">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="events">Events</TabsTrigger>
-            <TabsTrigger value="event-handler">Event Handler</TabsTrigger>
-            <TabsTrigger value="traefik">Traefik</TabsTrigger>
-            <TabsTrigger value="redis">Redis</TabsTrigger>
-            <TabsTrigger value="admin-frontend">Admin Frontend</TabsTrigger>
-          </TabsList>
+          <div className="border-b mb-4 overflow-x-auto">
+            <TabsList className="w-full justify-start inline-flex whitespace-nowrap">
+              <TabsTrigger value="events">Events</TabsTrigger>
+              <TabsTrigger value="event-handler">Event Handler</TabsTrigger>
+              <TabsTrigger value="traefik">Traefik</TabsTrigger>
+              <TabsTrigger value="redis">Redis</TabsTrigger>
+              <TabsTrigger value="admin-frontend">Admin Frontend</TabsTrigger>
+            </TabsList>
+          </div>
 
-          <ScrollArea className="h-[400px] bg-black/90 rounded-md mt-4 p-4">
+          <ScrollArea className="h-[400px] border rounded-md mt-4 p-4">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -187,16 +192,16 @@ export function EventLog() {
                   {renderLogContent(events)}
                 </TabsContent>
                 <TabsContent value="event-handler" className="mt-0">
-                  {renderLogContent(containerLogs['event-handler'])}
+                  {renderLogContent(containerLogs['sothebais-event-handler-1'])}
                 </TabsContent>
                 <TabsContent value="traefik" className="mt-0">
-                  {renderLogContent(containerLogs['traefik'])}
+                  {renderLogContent(containerLogs['sothebais-traefik-1'])}
                 </TabsContent>
                 <TabsContent value="redis" className="mt-0">
-                  {renderLogContent(containerLogs['redis'])}
+                  {renderLogContent(containerLogs['sothebais-redis-1'])}
                 </TabsContent>
                 <TabsContent value="admin-frontend" className="mt-0">
-                  {renderLogContent(containerLogs['admin-frontend'])}
+                  {renderLogContent(containerLogs['sothebais-admin-frontend-1'])}
                 </TabsContent>
               </>
             )}
