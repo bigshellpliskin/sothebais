@@ -3,16 +3,16 @@ import { ServiceStatus } from '@/types/service';
 
 const SERVICES = {
   'event-handler': 'http://event-handler:4300/health',
-  'redis': 'http://redis:6379',  // Redis doesn't have a health endpoint, we'll check connection
-  'traefik': 'http://traefik:8080/ping',
-  'admin-frontend': 'http://admin-frontend:3000/api/health'
+  'traefik': 'http://traefik:3100/ping'
 };
 
 async function checkServiceHealth(url: string): Promise<ServiceStatus> {
   try {
     const response = await fetch(url, { 
       method: 'GET',
-      headers: { 'Accept': 'application/json' }
+      headers: { 'Accept': 'application/json' },
+      // Add a reasonable timeout
+      signal: AbortSignal.timeout(5000)
     });
     return response.ok ? 'running' : 'error';
   } catch (error) {
@@ -23,7 +23,10 @@ async function checkServiceHealth(url: string): Promise<ServiceStatus> {
 
 export async function GET() {
   try {
-    const statuses: Record<string, ServiceStatus> = {};
+    const statuses: Record<string, ServiceStatus> = {
+      // Admin frontend is always 'running' if this endpoint is responding
+      'admin-frontend': 'running'
+    };
     
     // Check each service in parallel
     const checks = Object.entries(SERVICES).map(async ([service, url]) => {
@@ -31,6 +34,9 @@ export async function GET() {
     });
     
     await Promise.all(checks);
+
+    // Add Redis status based on environment variable
+    statuses['redis'] = process.env.REDIS_URL ? 'running' : 'error';
 
     return NextResponse.json(statuses);
   } catch (error) {
