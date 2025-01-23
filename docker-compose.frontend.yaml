@@ -97,6 +97,7 @@ services:
       - HEALTH_PORT=4391
       - REDIS_URL=redis://redis:6379
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./apps/event-handler:/app
       - /app/node_modules
     networks:

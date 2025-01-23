@@ -1,5 +1,6 @@
 const express = require('express');
 const Redis = require('redis');
+const Docker = require('dockerode');
 
 // Initialize Express app
 const app = express();
@@ -8,6 +9,9 @@ const app = express();
 const redisClient = Redis.createClient({
   url: process.env.REDIS_URL || 'redis://redis:6379'
 });
+
+// Initialize Docker client
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 redisClient.on('error', (err) => console.error('Redis Client Error', err));
 redisClient.on('connect', () => console.log('Redis Client Connected'));
@@ -38,6 +42,59 @@ app.use(setCorsHeaders);
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Get container logs endpoint
+app.get('/logs', async (req, res) => {
+  try {
+    const containers = await docker.listContainers();
+    const logs = {};
+    
+    // Get logs for each container
+    for (const container of containers) {
+      const containerName = container.Names[0].replace('/', '');
+      const containerInstance = docker.getContainer(container.Id);
+      
+      try {
+        // Get last 100 log lines
+        const logStream = await containerInstance.logs({
+          stdout: true,
+          stderr: true,
+          tail: 100,
+          timestamps: true
+        });
+
+        // Parse the logs into individual lines
+        const logLines = logStream.toString('utf8')
+          .split('\n')
+          .filter(line => line.trim())
+          .map(line => {
+            // Remove the first 8 bytes which contain Docker log type information
+            const cleanLine = line.substring(8);
+            // Split timestamp and content
+            const [timestamp, ...contentParts] = cleanLine.split(' ');
+            const content = contentParts.join(' ');
+            
+            return {
+              id: Date.now() + Math.random().toString(36).substring(7),
+              timestamp,
+              content,
+              source: containerName
+            };
+          });
+
+        logs[containerName] = logLines;
+      } catch (err) {
+        console.error(`Error getting logs for ${containerName}:`, err);
+        logs[containerName] = [];
+      }
+    }
+
+    res.json(logs);
+  } catch (error) {
+    console.error('Error getting container logs:', error);
+    res.status(500).json({ error: 'Failed to get container logs' });
+  }
 });
 
 // Event ingestion endpoint
