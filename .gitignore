@@ -38,3 +38,6 @@ pnpm-debug.log*
 nginx/ssl/*.key
 nginx/ssl/*.crt
 nginx/ssl/*.pem
+
+# Next.js build output
+.next/

@@ -1,29 +1,28 @@
-# Use Node.js 20 Alpine as base
-FROM node:20-alpine
-
-# Install system dependencies
-RUN apk add --no-cache docker-cli
-
-# Set working directory
+# Development stage
+FROM node:20-alpine AS development
 WORKDIR /app
 
-# Copy package files first
+# Install dependencies first (better layer caching)
 COPY package.json ./
-
-# Install dependencies
 RUN npm install
+
+# Add node_modules/.bin to PATH
+ENV PATH /app/node_modules/.bin:$PATH
 
 # Copy the rest of the application
 COPY . .
 
-# Create required Next.js directories if they don't exist
-RUN mkdir -p ./src/app
-
-# Build the application
-RUN npm run build
-
-# Expose port
+# Expose port 3000
 EXPOSE 3000
 
-# Start the application
+# Use npm run dev as the default command
+CMD ["npm", "run", "dev"]
+
+# Production stage
+FROM node:20-alpine AS production
+WORKDIR /app
+COPY package.json ./
+RUN npm install --production
+COPY . .
+RUN npm run build
 CMD ["npm", "start"] 

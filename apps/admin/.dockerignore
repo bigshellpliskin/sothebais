@@ -8,3 +8,4 @@ README.md
 Dockerfile
 .eslintrc.json
 .gitignore 
+.next/*

@@ -4,14 +4,15 @@ services:
   traefik:
     image: traefik:v3.3
     command:
+      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
+      # Certificate Resolver
+      - "--certificatesresolvers.letsencrypt.acme.email=iroquoispliskin222@gmail.com"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
     ports:
       - "80:80"
       - "443:443"
@@ -109,11 +110,6 @@ services:
       - "4000:4000"
     networks:
       - auction_net
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-0.75}
-          memory: ${RESOURCES_MEMORY:-1G}
     command: ${STAGE:-dev}.command.shape-l2
 
   # ElizaOS VTuber Service
@@ -136,11 +132,6 @@ services:
       - "4400:4400"
     networks:
       - auction_net
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-1.0}
-          memory: ${RESOURCES_MEMORY:-2G}
     command: ${STAGE:-dev}.command.eliza
 
   # Admin Frontend Service
@@ -161,11 +152,6 @@ services:
       - "3000:3000"
     networks:
       - auction_net
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-0.5}
-          memory: ${RESOURCES_MEMORY:-512M}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.admin.rule=Host(`${ADMIN_SUBDOMAIN}`)"
