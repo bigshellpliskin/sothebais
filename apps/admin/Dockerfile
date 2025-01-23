@@ -7,8 +7,7 @@ RUN apk add --no-cache curl
 
 # Install dependencies first (better layer caching)
 COPY package.json ./
-RUN npm install && \
-    npm install @radix-ui/react-scroll-area class-variance-authority clsx tailwind-merge
+RUN npm install
 
 # Add node_modules/.bin to PATH
 ENV PATH /app/node_modules/.bin:$PATH

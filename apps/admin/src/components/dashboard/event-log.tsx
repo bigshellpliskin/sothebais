@@ -21,7 +21,6 @@ interface LogEntry {
 }
 
 export function EventLog() {
-  const [events, setEvents] = useState<Event[]>([]);
   const [containerLogs, setContainerLogs] = useState<{[key: string]: LogEntry[]}>({
     'sothebais-event-handler-1': [],
     'sothebais-traefik-1': [],
@@ -39,68 +38,6 @@ export function EventLog() {
     return `https://${process.env.NEXT_PUBLIC_EVENT_HANDLER_SUBDOMAIN}`;
   };
 
-  // Load historical events
-  useEffect(() => {
-    const loadHistoricalEvents = async () => {
-      try {
-        const response = await fetch(`${getEventHandlerUrl()}/events/recent`);
-        if (!response.ok) throw new Error('Failed to load events');
-        const historicalEvents = await response.json();
-        setEvents(historicalEvents);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to load historical events:', err);
-        setError('Failed to load historical events');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadHistoricalEvents();
-  }, []);
-
-  // Set up real-time event stream
-  useEffect(() => {
-    let retryCount = 0;
-    const maxRetries = 5;
-    const connectEventSource = () => {
-      const eventSource = new EventSource(`${getEventHandlerUrl()}/events`);
-
-      eventSource.onmessage = (event) => {
-        const newEvent = JSON.parse(event.data);
-        setEvents((prevEvents) => [newEvent, ...prevEvents].slice(0, 100));
-        setError(null);
-        retryCount = 0;
-      };
-
-      eventSource.onopen = () => {
-        setError(null);
-        retryCount = 0;
-      };
-
-      eventSource.onerror = (error) => {
-        console.error('EventSource failed:', error);
-        eventSource.close();
-        
-        if (retryCount < maxRetries) {
-          retryCount++;
-          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-          setTimeout(connectEventSource, delay);
-          setError(`Connection lost. Retrying in ${delay/1000}s...`);
-        } else {
-          setError('Failed to connect to event stream. Please refresh the page.');
-        }
-      };
-
-      return eventSource;
-    };
-
-    const eventSource = connectEventSource();
-    return () => {
-      eventSource.close();
-    };
-  }, []);
-
   // Load container logs
   useEffect(() => {
     const loadContainerLogs = async () => {
@@ -109,8 +46,12 @@ export function EventLog() {
         if (!response.ok) throw new Error('Failed to load container logs');
         const logs = await response.json();
         setContainerLogs(logs);
+        setError(null);
       } catch (err) {
         console.error('Failed to load container logs:', err);
+        setError('Failed to load container logs');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -166,10 +107,9 @@ export function EventLog() {
         )}
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="events" className="w-full">
+        <Tabs defaultValue="event-handler" className="w-full">
           <div className="border-b mb-4 overflow-x-auto">
             <TabsList className="w-full justify-start inline-flex whitespace-nowrap">
-              <TabsTrigger value="events">Events</TabsTrigger>
               <TabsTrigger value="event-handler">Event Handler</TabsTrigger>
               <TabsTrigger value="traefik">Traefik</TabsTrigger>
               <TabsTrigger value="redis">Redis</TabsTrigger>
@@ -188,9 +128,6 @@ export function EventLog() {
               </div>
             ) : (
               <>
-                <TabsContent value="events" className="mt-0">
-                  {renderLogContent(events)}
-                </TabsContent>
                 <TabsContent value="event-handler" className="mt-0">
                   {renderLogContent(containerLogs['sothebais-event-handler-1'])}
                 </TabsContent>

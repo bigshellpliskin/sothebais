@@ -1,0 +1,16 @@
+http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+        port: "443"
+
+tls:
+  certificates:
+    - certResolver: letsencrypt
+      domains:
+        - main: "sothebais.com"
+          sans:
+            - "admin.sothebais.com"
+            - "events.sothebais.com" 
