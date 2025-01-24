@@ -60,7 +60,9 @@ services:
       - PORT=4100
       - METRICS_PORT=4190
       - HEALTH_PORT=4191
-      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
     volumes:
       - ./apps/auction-manager:/app
       - /app/node_modules

@@ -6,12 +6,17 @@ const logger = createLogger('auction-manager');
 
 export class AuctionManager {
   private redis: RedisService;
+  private currentMarathonId: string | null = null;
 
   constructor() {
     this.redis = new RedisService();
   }
 
-  async startAuctionMarathon(config: MarathonConfig): Promise<void> {
+  async getCurrentAuction(marathonId: string): Promise<AuctionState | null> {
+    return await this.redis.getCurrentAuction(marathonId);
+  }
+
+  async startAuctionMarathon(config: MarathonConfig): Promise<string> {
     await this.redis.setMarathonConfig(config);
     
     const marathonId = new Date().getTime().toString();
@@ -25,7 +30,9 @@ export class AuctionManager {
     };
 
     await this.redis.setCurrentAuction(state);
+    this.currentMarathonId = marathonId;
     logger.info({ marathonId }, 'Started new auction marathon');
+    return marathonId;
   }
 
   async startDailyAuction(marathonId: string): Promise<void> {
@@ -38,8 +45,8 @@ export class AuctionManager {
     logger.info({ marathonId, dayNumber: state.dayNumber }, 'Started daily auction');
   }
 
-  async processBid(bid: TwitterBid): Promise<boolean> {
-    const state = await this.getCurrentAuctionState();
+  async processBid(marathonId: string, bid: TwitterBid): Promise<boolean> {
+    const state = await this.redis.getCurrentAuction(marathonId);
     if (!state) throw new Error('No active auction found');
     if (state.status !== 'ACTIVE') throw new Error('Auction not active');
 
@@ -52,17 +59,13 @@ export class AuctionManager {
       userId: bid.userId,
       tweetId: bid.tweetId,
       amount: bid.amount,
-      timestamp: bid.timestamp,
+      timestamp: new Date(bid.timestamp),
     };
 
     await this.redis.addBid(state.marathonId, state.dayNumber, formattedBid);
     await this.redis.addUserBid(bid.userId, formattedBid);
 
-    const highestBid = await this.redis.getHighestBid(state.marathonId, state.dayNumber);
-    if (highestBid && highestBid.amount >= bid.amount) {
-      return false;
-    }
-
+    // Update auction state with the new highest bid
     state.currentBid = formattedBid;
     await this.redis.setCurrentAuction(state);
     logger.info({ bid }, 'New highest bid accepted');
@@ -103,35 +106,60 @@ export class AuctionManager {
   }
 
   private async getCurrentAuctionState(): Promise<AuctionState | null> {
-    const config = await this.redis.getMarathonConfig();
-    if (!config) return null;
-
-    const marathons = await this.redis.getCurrentAuction(config.toString());
-    return marathons;
+    if (!this.currentMarathonId) {
+      return null;
+    }
+    return await this.redis.getCurrentAuction(this.currentMarathonId);
   }
 
   private isValidBid(bid: TwitterBid, state: AuctionState): boolean {
-    if (bid.timestamp < state.startTime || bid.timestamp > state.endTime) {
+    const bidTime = new Date(bid.timestamp);
+    if (bidTime < state.startTime || bidTime > state.endTime) {
+      logger.info({
+        bid: {
+          timestamp: bidTime,
+          amount: bid.amount
+        },
+        auction: {
+          startTime: state.startTime,
+          endTime: state.endTime
+        }
+      }, 'Bid rejected: Outside auction time window');
       return false;
     }
 
     if (state.currentBid && bid.amount <= state.currentBid.amount) {
+      logger.info({
+        bid: {
+          amount: bid.amount
+        },
+        currentBid: {
+          amount: state.currentBid.amount
+        }
+      }, 'Bid rejected: Not higher than current bid');
       return false;
     }
 
-    // TODO: Add more validation (user eligibility, etc.)
+    logger.info({
+      bid: {
+        timestamp: bidTime,
+        amount: bid.amount
+      }
+    }, 'Bid validation passed');
     return true;
   }
 
   private getAuctionStartTime(config: MarathonConfig): Date {
-    // TODO: Implement proper timezone handling
-    return new Date();
+    const now = new Date();
+    // For testing, set start time to 15 minutes ago
+    now.setMinutes(now.getMinutes() - 15);
+    return now;
   }
 
   private getAuctionEndTime(config: MarathonConfig): Date {
-    // TODO: Implement proper timezone handling
-    const end = new Date();
-    end.setHours(end.getHours() + 1);
-    return end;
+    const now = new Date();
+    // For testing, set end time to 45 minutes from now
+    now.setMinutes(now.getMinutes() + 45);
+    return now;
   }
 } 

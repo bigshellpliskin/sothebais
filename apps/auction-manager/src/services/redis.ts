@@ -5,7 +5,85 @@ export class RedisService {
   private client: Redis;
 
   constructor() {
-    this.client = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+    const redisPassword = process.env.REDIS_PASSWORD || 'default_password';
+    const redisHost = process.env.REDIS_HOST || 'redis';
+    const redisPort = process.env.REDIS_PORT || '6379';
+    
+    this.client = new Redis({
+      host: redisHost,
+      port: parseInt(redisPort),
+      password: redisPassword,
+      retryStrategy: (times) => {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      }
+    });
+
+    // Log connection events
+    this.client.on('connect', () => {
+      console.log('Connected to Redis');
+    });
+
+    this.client.on('error', (err) => {
+      console.error('Redis connection error:', err);
+    });
+  }
+
+  // Health Check Methods
+  async checkHealth(): Promise<{status: string; details: any}> {
+    try {
+      const pingResult = await this.ping();
+      const info = await this.getRedisInfo();
+      const memoryUsage = await this.getMemoryUsage();
+      
+      return {
+        status: pingResult ? 'healthy' : 'unhealthy',
+        details: {
+          ping: pingResult,
+          connected: this.client.status === 'ready',
+          memoryUsage,
+          info: {
+            version: info.redis_version,
+            uptime: info.uptime_in_seconds,
+            connectedClients: info.connected_clients,
+            usedMemory: info.used_memory_human,
+          }
+        }
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        details: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          connected: false
+        }
+      };
+    }
+  }
+
+  private async ping(): Promise<boolean> {
+    try {
+      const result = await this.client.ping();
+      return result === 'PONG';
+    } catch {
+      return false;
+    }
+  }
+
+  private async getRedisInfo(): Promise<any> {
+    const info = await this.client.info();
+    return info.split('\r\n').reduce((acc: any, line) => {
+      const [key, value] = line.split(':');
+      if (key && value) {
+        acc[key.trim()] = value.trim();
+      }
+      return acc;
+    }, {});
+  }
+
+  private async getMemoryUsage(): Promise<number> {
+    const info = await this.getRedisInfo();
+    return parseInt(info.used_memory || '0', 10);
   }
 
   // Marathon Config
@@ -56,5 +134,100 @@ export class RedisService {
     const key = `users:${userId}:bids`;
     const bids = await this.client.zrange(key, 0, -1);
     return bids.map(bid => JSON.parse(bid));
+  }
+
+  // Backup Methods
+  async createSnapshot(marathonId: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const snapshotKey = `backup:${marathonId}:${timestamp}`;
+    
+    // Get all relevant data
+    const [config, currentState, bids] = await Promise.all([
+      this.getMarathonConfig(),
+      this.getCurrentAuction(marathonId),
+      this.getAllBids(marathonId)
+    ]);
+
+    // Store snapshot
+    await this.client.set(snapshotKey, JSON.stringify({
+      timestamp,
+      config,
+      currentState,
+      bids
+    }));
+
+    // Keep only last 24 snapshots
+    await this.pruneSnapshots(marathonId);
+  }
+
+  private async getAllBids(marathonId: string): Promise<{[key: string]: Bid[]}> {
+    const state = await this.getCurrentAuction(marathonId);
+    if (!state) return {};
+
+    const bids: {[key: string]: Bid[]} = {};
+    for (let day = 1; day <= state.dayNumber; day++) {
+      bids[day] = await this.getBidHistory(marathonId, day);
+    }
+    return bids;
+  }
+
+  private async pruneSnapshots(marathonId: string, keepLast: number = 24): Promise<void> {
+    const pattern = `backup:${marathonId}:*`;
+    const keys = await this.client.keys(pattern);
+    
+    if (keys.length > keepLast) {
+      const toDelete = keys
+        .sort()
+        .slice(0, keys.length - keepLast);
+      
+      if (toDelete.length > 0) {
+        await this.client.del(...toDelete);
+      }
+    }
+  }
+
+  async restoreFromSnapshot(marathonId: string, timestamp?: string): Promise<boolean> {
+    try {
+      const snapshotKey = timestamp 
+        ? `backup:${marathonId}:${timestamp}`
+        : await this.getLatestSnapshotKey(marathonId);
+
+      if (!snapshotKey) {
+        throw new Error('No snapshot found');
+      }
+
+      const snapshot = await this.client.get(snapshotKey);
+      if (!snapshot) {
+        throw new Error('Snapshot data not found');
+      }
+
+      const data = JSON.parse(snapshot);
+      
+      // Restore data
+      await Promise.all([
+        data.config && this.setMarathonConfig(data.config),
+        data.currentState && this.setCurrentAuction(data.currentState),
+        this.restoreBids(marathonId, data.bids)
+      ]);
+
+      return true;
+    } catch (error) {
+      console.error('Restore failed:', error);
+      return false;
+    }
+  }
+
+  private async getLatestSnapshotKey(marathonId: string): Promise<string | null> {
+    const pattern = `backup:${marathonId}:*`;
+    const keys = await this.client.keys(pattern);
+    return keys.sort().pop() || null;
+  }
+
+  private async restoreBids(marathonId: string, bids: {[key: string]: Bid[]}): Promise<void> {
+    for (const [day, dayBids] of Object.entries(bids)) {
+      for (const bid of dayBids) {
+        await this.addBid(marathonId, parseInt(day), bid);
+      }
+    }
   }
 } 
