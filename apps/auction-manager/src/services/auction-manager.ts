@@ -86,11 +86,14 @@ export class AuctionManager {
 
     // Prepare for next day
     if (state.dayNumber < 30) {
+      const config = await this.redis.getMarathonConfig();
+      if (!config) throw new Error('Marathon configuration not found');
+
       state.dayNumber += 1;
       state.status = 'PENDING';
       state.currentBid = null;
-      state.startTime = this.getAuctionStartTime(await this.redis.getMarathonConfig());
-      state.endTime = this.getAuctionEndTime(await this.redis.getMarathonConfig());
+      state.startTime = this.getAuctionStartTime(config);
+      state.endTime = this.getAuctionEndTime(config);
     } else {
       state.status = 'COMPLETED';
     }

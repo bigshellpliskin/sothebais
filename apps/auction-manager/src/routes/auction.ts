@@ -12,7 +12,8 @@ auctionRouter.post('/marathon/start', async (req, res) => {
     await auctionManager.startAuctionMarathon(config);
     res.json({ status: 'success', message: 'Auction marathon started' });
   } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    res.status(500).json({ status: 'error', message });
   }
 });
 
@@ -23,7 +24,8 @@ auctionRouter.post('/daily/start/:marathonId', async (req, res) => {
     await auctionManager.startDailyAuction(marathonId);
     res.json({ status: 'success', message: 'Daily auction started' });
   } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    res.status(500).json({ status: 'error', message });
   }
 });
 
@@ -34,7 +36,8 @@ auctionRouter.post('/daily/end/:marathonId', async (req, res) => {
     await auctionManager.endDailyAuction(marathonId);
     res.json({ status: 'success', message: 'Daily auction ended' });
   } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    res.status(500).json({ status: 'error', message });
   }
 });
 
@@ -49,6 +52,7 @@ auctionRouter.post('/bid', async (req, res) => {
       message: result ? 'Bid accepted' : 'Bid rejected'
     });
   } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    res.status(500).json({ status: 'error', message });
   }
 }); 
