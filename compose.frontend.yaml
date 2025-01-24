@@ -51,6 +51,67 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    networks:
+      - frontend_net
+    depends_on:
+      - redis
+    command: --redis.addr=redis://redis:6379
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.redis-metrics.rule=Host(`${MONITORING_SUBDOMAIN}`) && PathPrefix(`/redis-metrics`)"
+      - "traefik.http.services.redis-metrics.loadbalancer.server.port=9121"
+      - "traefik.http.routers.redis-metrics.entrypoints=websecure"
+      - "traefik.http.routers.redis-metrics.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.redis-metrics.middlewares=redis-metrics-strip"
+      - "traefik.http.middlewares.redis-metrics-strip.stripprefix.prefixes=/redis-metrics"
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.external-url=https://${MONITORING_SUBDOMAIN}/prometheus"
+      - "--web.route-prefix=/prometheus"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    networks:
+      - frontend_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`${MONITORING_SUBDOMAIN}`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_ROOT_URL=https://${MONITORING_SUBDOMAIN}
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-metrics.json
+    networks:
+      - frontend_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${MONITORING_SUBDOMAIN}`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+    depends_on:
+      - prometheus
+
   admin-frontend:
     build:
       context: ./apps/admin
@@ -68,6 +129,7 @@ services:
       - METRICS_PORT=3090
       - HEALTH_PORT=3091
       - NEXT_PUBLIC_EVENT_HANDLER_SUBDOMAIN=${EVENT_HANDLER_SUBDOMAIN}
+      - PROMETHEUS_URL=http://prometheus:9090
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Development volumes - modified for better compatibility
@@ -127,6 +189,8 @@ services:
 volumes:
   letsencrypt:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   frontend_net:

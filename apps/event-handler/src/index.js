@@ -5,16 +5,48 @@ const Docker = require('dockerode');
 // Initialize Express app
 const app = express();
 
+// Redis connection state
+let redisConnectionState = {
+  isConnected: false,
+  lastError: null,
+  lastErrorTime: null,
+  reconnectAttempts: 0
+};
+
 // Initialize Redis client
 const redisClient = Redis.createClient({
-  url: process.env.REDIS_URL || 'redis://redis:6379'
+  url: process.env.REDIS_URL || 'redis://redis:6379',
+  socket: {
+    reconnectStrategy: (retries) => {
+      redisConnectionState.reconnectAttempts = retries;
+      // Exponential backoff with max delay of 5 seconds
+      return Math.min(retries * 50, 5000);
+    }
+  }
 });
 
 // Initialize Docker client
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
-redisClient.on('connect', () => console.log('Redis Client Connected'));
+// Redis event handlers
+redisClient.on('error', (err) => {
+  console.error('Redis Client Error', err);
+  redisConnectionState.isConnected = false;
+  redisConnectionState.lastError = err.message;
+  redisConnectionState.lastErrorTime = new Date().toISOString();
+});
+
+redisClient.on('connect', () => {
+  console.log('Redis Client Connected');
+  redisConnectionState.isConnected = true;
+  redisConnectionState.lastError = null;
+  redisConnectionState.lastErrorTime = null;
+  redisConnectionState.reconnectAttempts = 0;
+});
+
+redisClient.on('reconnecting', () => {
+  console.log(`Redis Client Reconnecting (Attempt ${redisConnectionState.reconnectAttempts + 1})`);
+});
 
 // Connect to Redis
 redisClient.connect().catch(console.error);
@@ -47,16 +79,38 @@ app.get('/health', (req, res) => {
 // Redis health check endpoint
 app.get('/health/redis', async (req, res) => {
   try {
+    if (!redisConnectionState.isConnected) {
+      return res.status(500).json({ 
+        status: 'error', 
+        message: 'Redis disconnected',
+        lastError: redisConnectionState.lastError,
+        lastErrorTime: redisConnectionState.lastErrorTime,
+        reconnectAttempts: redisConnectionState.reconnectAttempts
+      });
+    }
+
     // Try to PING Redis
     const result = await redisClient.ping();
     if (result === 'PONG') {
-      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+      res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        connectionState: redisConnectionState
+      });
     } else {
-      res.status(500).json({ status: 'error', message: 'Redis not responding correctly' });
+      res.status(500).json({ 
+        status: 'error', 
+        message: 'Redis not responding correctly',
+        connectionState: redisConnectionState
+      });
     }
   } catch (error) {
     console.error('Redis health check failed:', error);
-    res.status(500).json({ status: 'error', message: error.message });
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message,
+      connectionState: redisConnectionState
+    });
   }
 });
 

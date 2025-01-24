@@ -1,182 +1,242 @@
-# Monitoring Frontend Implementation Plan
+# Monitoring Frontend Implementation
 
 ## Overview
-A secure, authenticated interface for monitoring the NFT Auction System using Traefik as a reverse proxy with automatic SSL and Docker integration.
+A comprehensive monitoring solution for the NFT Auction System with:
+- Real-time metrics in the admin dashboard
+- Detailed system monitoring through Grafana
+- Prometheus for metrics collection
+- Redis metrics exporter
+- Traefik metrics integration
 
 ## Architecture
 
-### Components
-1. **Traefik**
-   - Automatic SSL/TLS with Let's Encrypt
-   - Basic auth protection
-   - Docker-native service discovery
-   - Automatic routing
+```mermaid
+graph TD
+    subgraph Frontend Infrastructure
+        T[Traefik] --> |Expose metrics :3100| P
+        AF[Admin Frontend :3090] --> |Expose metrics| P
+        EH[Event Handler :4390] --> |Expose metrics| P
+        R[Redis :6379] --> |Expose metrics| RE[Redis Exporter]
+        RE --> P
+    end
 
-2. **Grafana**
-   - System dashboards
-   - Built-in authentication
-   - Metrics visualization
+    subgraph Monitoring Stack
+        P[Prometheus :9090] --> |Collect metrics| G[Grafana :3000]
+        G --> |Display| D1[System Dashboards]
+        G --> |Display| D2[Application Metrics]
+        G --> |Display| D3[Business Metrics]
+    end
+
+    subgraph Access Layer
+        U[Users] --> |HTTPS| T
+        A[Admins] --> |"monitoring.domain.com"| G
+    end
+```
+
+### Components
+1. **Admin Dashboard Integration**
+   - Real-time system metrics widget
+   - CPU, Memory, Request Rate, and Redis metrics
+   - Trend indicators for each metric
+   - Auto-refresh every 5 seconds
+
+2. **Traefik**
+   - Automatic SSL/TLS with Let's Encrypt
+   - Metrics exposure on port 3100
+   - Request rate monitoring
+   - Service discovery
 
 3. **Prometheus**
-   - Metrics collection
-   - Internal access only (via Grafana)
+   - Central metrics collection
+   - Accessible via `/prometheus` path
+   - Query API for real-time data
+   - 15-second scrape interval
 
-## Implementation Steps
+4. **Grafana**
+   - System dashboards
+   - Auto-provisioned configurations
+   - Default system metrics dashboard
+   - Dark theme by default
 
-### 1. Update Docker Compose
-Add to the existing docker-compose.yaml:
+5. **Redis Exporter**
+   - Redis metrics collection
+   - Memory usage monitoring
+   - Accessible via `/redis-metrics` path
+
+## Implementation Details
+
+### 1. Docker Services Configuration
 
 ```yaml
 services:
   traefik:
-    image: traefik:v2.10
+    image: traefik:v3.3
     command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.email=your@email.com"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./storage/traefik/letsencrypt:/letsencrypt"
-    networks:
-      - auction_net
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+    # ... other Traefik configurations ...
 
-  grafana:
-    # Update existing Grafana service
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    command: --redis.addr=redis://redis:6379
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`monitoring.yourdomain.com`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SERVER_ROOT_URL=https://monitoring.yourdomain.com
-      - GF_USERS_ALLOW_SIGN_UP=false
+      - "traefik.http.routers.redis-metrics.rule=Host(`${MONITORING_SUBDOMAIN}`) && PathPrefix(`/redis-metrics`)"
 
   prometheus:
-    # Update existing Prometheus service
-    # Remove external port mapping for security
-    ports:
-      - "127.0.0.1:9090:9090"  # Only accessible locally
+    image: prom/prometheus:v2.48.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.external-url=https://${MONITORING_SUBDOMAIN}/prometheus"
+      - "--web.route-prefix=/prometheus"
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_ROOT_URL=https://${MONITORING_SUBDOMAIN}
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-metrics.json
 ```
 
-### 2. Environment Variables
-Add to your .env file:
+### 2. Prometheus Configuration
 
+```yaml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'traefik'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['traefik:3100']
+
+  - job_name: 'admin-frontend'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['admin-frontend:3090']
+
+  - job_name: 'event-handler'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['event-handler:4390']
+
+  - job_name: 'redis'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['redis-exporter:9121']
+```
+
+### 3. Admin Dashboard Integration
+
+The admin dashboard includes a new SystemMetrics component that displays:
+- CPU Usage across services
+- Memory Usage (in MB)
+- Request Rate (requests/second)
+- Redis Memory Usage (in MB)
+
+Features:
+- Real-time updates every 5 seconds
+- Loading states with spinner
+- Error handling and display
+- Trend indicators (up/down/stable)
+- Responsive grid layout
+
+### 4. Environment Variables
+
+Required environment variables:
 ```bash
-GRAFANA_ADMIN_USER=admin
+MONITORING_SUBDOMAIN=monitoring.yourdomain.com
+GRAFANA_ADMIN_USER=your_admin_user
 GRAFANA_ADMIN_PASSWORD=your_secure_password
-DOMAIN=yourdomain.com
+PROMETHEUS_URL=http://prometheus:9090 # For admin frontend
 ```
 
-### 3. Required Dashboards
+## Access Points
 
-1. **System Overview**
-   ```yaml
-   - Node Exporter Full
-   - Docker Container Metrics
-   - Host System Metrics
-   ```
+1. **Admin Dashboard**
+   - System metrics widget in main dashboard
+   - Real-time updates
+   - Trend visualization
 
-2. **Application Metrics**
-   ```yaml
-   - Service Response Times
-   - Error Rates
-   - Redis Queue Metrics
-   - Active Auctions/Bids
-   ```
+2. **Grafana**
+   - URL: `https://monitoring.yourdomain.com`
+   - Default dashboard: System Metrics
+   - Custom dashboard support
 
-3. **Business Metrics**
-   ```yaml
-   - Transaction Volume
-   - User Activity
-   - Auction Performance
-   - NFT Transfer Stats
-   ```
+3. **Prometheus**
+   - URL: `https://monitoring.yourdomain.com/prometheus`
+   - Direct query interface
+   - Metric exploration
 
-## Deployment Steps
-
-1. **Domain Setup**
-   ```bash
-   # Update your DNS A record
-   monitoring.yourdomain.com -> your_vps_ip
-   ```
-
-2. **Initial Deployment**
-   ```bash
-   # Create required directories
-   mkdir -p storage/traefik/letsencrypt
-
-   # Deploy the stack
-   docker-compose up -d
-   ```
-
-3. **Access Grafana**
-   - Visit https://monitoring.yourdomain.com
-   - Login with configured credentials
-   - Import recommended dashboards
+4. **Redis Metrics**
+   - URL: `https://monitoring.yourdomain.com/redis-metrics`
+   - Raw metrics endpoint
 
 ## Security Considerations
 
 1. **Access Control**
-   - Use strong Grafana admin password
-   - Create separate user accounts per team member
-   - Regular password rotation
-   - Enable 2FA in Grafana
+   - Grafana authentication required
+   - Admin dashboard authentication via Clerk
+   - No direct Prometheus access (proxied through Traefik)
 
 2. **Network Security**
-   - Automatic TLS with Let's Encrypt
-   - Internal-only Prometheus access
-   - Container network isolation
-   - Regular security updates
+   - All endpoints secured with SSL/TLS
+   - Internal services not directly exposed
+   - Metrics endpoints protected by authentication
+
+3. **Data Security**
+   - Persistent volumes for metrics data
+   - Regular backups recommended
+   - Sensitive data encryption
 
 ## Maintenance
 
-1. **Backups**
-   ```bash
-   # Backup volumes
-   ./storage/grafana      # Grafana data
-   ./storage/prometheus   # Prometheus data
-   ```
+1. **Backup Volumes**
+```bash
+# Important directories to backup
+./grafana/dashboards/     # Dashboard configurations
+./prometheus/             # Prometheus configurations
+./storage/grafana/        # Grafana data
+./storage/prometheus/     # Prometheus data
+```
 
 2. **Updates**
-   ```bash
-   # Update images
-   docker-compose pull
-   docker-compose up -d
-   ```
+```bash
+# Update images and restart services
+docker compose -f compose.frontend.yaml pull
+docker compose -f compose.frontend.yaml up -d
+```
 
-## Next Steps
-
-1. Deploy initial stack with Traefik
-2. Configure Grafana admin password
-3. Import essential dashboards
-4. Set up team member accounts
-5. Configure alerting
-6. Test monitoring metrics
+3. **Monitoring the Monitors**
+- Check Prometheus targets status
+- Monitor Grafana logs
+- Verify metrics collection
+- Check SSL certificate renewal
 
 ## Troubleshooting
 
-1. **Certificate Issues**
-   - Check Traefik logs: `docker-compose logs traefik`
-   - Verify DNS settings
-   - Ensure ports 80/443 are open
+1. **Metrics Not Showing**
+   - Check Prometheus targets status
+   - Verify service endpoints
+   - Check network connectivity
+   - Review service logs
 
-2. **Grafana Access**
-   - Check Grafana logs: `docker-compose logs grafana`
-   - Verify environment variables
-   - Check Traefik dashboard for routing issues
+2. **Dashboard Errors**
+   - Check browser console
+   - Verify API responses
+   - Check Prometheus connection
+   - Review error messages
 
-3. **Metrics Collection**
-   - Check Prometheus targets
-   - Verify container connectivity
-   - Check service discovery labels 
+3. **Performance Issues**
+   - Check retention settings
+   - Monitor disk usage
+   - Review query performance
+   - Adjust scrape intervals if needed 

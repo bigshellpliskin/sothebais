@@ -2,15 +2,15 @@
 graph TD
     %% Core System Components
     subgraph CoreSystem[Core System Components]
-        AM[Auction Manager<br>- NFT Lifecycle<br>- Bid Processing]
+        AM[Auction Manager<br>- NFT Lifecycle Control<br>- Bid Processing<br>- Business Logic<br>- System Orchestration]
         SM[Stream Manager<br>- Twitter Integration<br>- Bid Monitoring]
         EL[ElizaOS<br>- Character Assets<br>- Visual Output]
         SL[Shape L2 Integration<br>- Smart Contracts<br>- NFT Transfers]
     end
 
     %% Event System
-    subgraph EventSystem[Event Orchestration]
-        EH[Event Handler<br>- System Orchestration<br>- State Sync<br>- Component Communication]
+    subgraph EventSystem[Event Collection & State]
+        EH[Event Handler<br>- Event Aggregation<br>- State Collection<br>- External Integration]
     end
 
     %% State Management
@@ -24,26 +24,31 @@ graph TD
         GF[Grafana<br>- Dashboards<br>- Visualization]
     end
 
-    %% External Interactions
+    %% External Services
     subgraph ExternalServices[External Services]
         TS[Twitter Stream<br>- User Interaction]
         SO[Stream Output<br>- Visual Feed]
         SC[Smart Contracts<br>- Blockchain]
     end
 
-    %% Core Connections through Event Handler
-    EH --> AM
-    EH --> SM
-    EH --> EL
-    EH --> SL
+    %% Core Control Flow - Auction Manager Driven
+    AM --> SM
+    AM --> EL
+    AM --> SL
     
-    %% External Service Connections
+    %% Event Handler as Aggregator
+    EH --> AM
+    TS --> EH
+    SC --> EH
+    
+    %% Component to External Flow
     SM --> TS
     EL --> SO
     SL --> SC
     
     %% State Connections
-    DB --> EH
+    DB --> AM
+    AM --> DB
     
     %% Monitoring Connections
     PR --> AM
@@ -66,3 +71,34 @@ graph TD
     class PR,GF monitoring
     class TS,SO,SC external
 ```
+## Component Requirements
+
+### EilzaOS
+- Agent stream interaction using LLM and TTS
+    - 
+- Character assets  
+    - Stable Diffusion pre-rendered images
+- Visual output
+- External API integration
+
+### Auction Manager
+- NFT Lifecycle Control
+    - 
+- Bid Processing
+    - Read tweets responding to auction tweet
+- Business Logic
+- System Orchestration
+
+### Shape L2 Integration
+- Smart Contracts monitoring
+    - Look at smart contract from auction contract
+- NFT Transfers
+- Changes handled and monitored by Event Handler and served to Auction Manager
+
+### Twitter External Feed
+- User Interaction Monitoring
+- Bid Monitoring
+- Changes handled and monitored by Event Handler and served to Auction Manager
+
+### Livestream Manager
+- Compose livestream from auction manager 
