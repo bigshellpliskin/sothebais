@@ -51,6 +51,35 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
+  auction-manager:
+    build:
+      context: ./apps/auction-manager
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=4100
+      - METRICS_PORT=4190
+      - HEALTH_PORT=4191
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./apps/auction-manager:/app
+      - /app/node_modules
+    networks:
+      - frontend_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auction-manager.rule=Host(`${AUCTION_MANAGER_SUBDOMAIN}`)"
+      - "traefik.http.services.auction-manager.loadbalancer.server.port=4100"
+      - "traefik.http.routers.auction-manager.entrypoints=websecure"
+      - "traefik.http.routers.auction-manager.tls.certresolver=letsencrypt"
+    ports:
+      - "4100:4100" # Main API
+      - "4190:4190" # Metrics
+      - "4191:4191" # Health
+    depends_on:
+      - redis
+    command: npm run dev
+
   redis-exporter:
     image: oliver006/redis_exporter:v1.55.0
     networks:

@@ -2,10 +2,10 @@
 graph TD
     %% Core System Components
     subgraph CoreSystem[Core System Components]
-        AM[Auction Manager<br>- NFT Lifecycle Control<br>- Bid Processing<br>- Business Logic<br>- System Orchestration]
-        SM[Stream Manager<br>- Twitter Integration<br>- Bid Monitoring]
-        EL[ElizaOS<br>- Character Assets<br>- Visual Output]
-        SL[Shape L2 Integration<br>- Smart Contracts<br>- NFT Transfers]
+        AM[Auction Manager<br>- Auction Lifecycle Control<br>- Daily Bid Windows<br>- Bid Processing<br>- System Orchestration]
+        LM[Livestream Manager<br>- Stream Composition<br>- Layer Management<br>- Twitter Stream Output]
+        EL[ElizaOS<br>- LLM Integration<br>- TTS System<br>- Stable Diffusion<br>- Character Assets<br>- Livestream Agent]
+        SL[Shape L2 Integration<br>- Smart Contract Monitor<br>- NFT Transfers<br>- Wallet Tracking]
     end
 
     %% Event System
@@ -26,13 +26,13 @@ graph TD
 
     %% External Services
     subgraph ExternalServices[External Services]
-        TS[Twitter Stream<br>- User Interaction]
-        SO[Stream Output<br>- Visual Feed]
-        SC[Smart Contracts<br>- Blockchain]
+        TS[Twitter Stream<br>- User Interaction<br>- Bid Monitoring<br>- Tweet Format Validation]
+        SO[Stream Output<br>- Host Layer<br>- Assistant Layer<br>- Visual Feed Layer]
+        SC[Smart Contracts<br>- Auction Contract<br>- NFT Wallet]
     end
 
     %% Core Control Flow - Auction Manager Driven
-    AM --> SM
+    AM --> LM
     AM --> EL
     AM --> SL
     
@@ -42,8 +42,9 @@ graph TD
     SC --> EH
     
     %% Component to External Flow
-    SM --> TS
-    EL --> SO
+    LM --> TS
+    LM --> SO
+    EL --> LM
     SL --> SC
     
     %% State Connections
@@ -52,7 +53,7 @@ graph TD
     
     %% Monitoring Connections
     PR --> AM
-    PR --> SM
+    PR --> LM
     PR --> EL
     PR --> SL
     PR --> EH
@@ -65,7 +66,7 @@ graph TD
     classDef monitoring fill:#fce4ec,stroke:#880e4f
     classDef external fill:#f3e5f5,stroke:#4a148c
     
-    class AM,SM,EL,SL core
+    class AM,LM,EL,SL core
     class DB state
     class EH event
     class PR,GF monitoring
@@ -74,24 +75,30 @@ graph TD
 ## Component Requirements
 
 ### EilzaOS
-- Agent stream interaction using LLM and TTS
-    - 
-- Character assets  
-    - Stable Diffusion pre-rendered images
-- Visual output
-- External API integration
-
+- Livestream Agent System enabling realtime stream/user interaction using:
+        - LLM
+        - TTS
+        - Stable Diffusion pre-rendered images. 
+- Character Assets
+    - Anime/Vtuber aesthetic
+    - Auction Host
+    - Auction Assistants
+        - Male and Female
+        - Silly, professional art interns
+        
 ### Auction Manager
-- NFT Lifecycle Control
-    - 
-- Bid Processing
+- Auction Lifecycle Management
+    - Preset time duration of stream/auction marathon . "Every day for n days." Ex: 30 days.
+    - Daily bid start and end time. Ex: 3PM - 4PM EST.
+- Bid Processing & Logic
     - Read tweets responding to auction tweet
-- Business Logic
+    - Only accepts bids/tweets with certain format.
 - System Orchestration
+    - Main control system for auction and application process.
 
 ### Shape L2 Integration
 - Smart Contracts monitoring
-    - Look at smart contract from auction contract
+    - Look at auction contract/wallet that holds the NFT.
 - NFT Transfers
 - Changes handled and monitored by Event Handler and served to Auction Manager
 
@@ -101,4 +108,9 @@ graph TD
 - Changes handled and monitored by Event Handler and served to Auction Manager
 
 ### Livestream Manager
-- Compose livestream from auction manager 
+- Compose livestream from auction manager
+- Stream Composition Layers (Front to Back)
+    - Auction Host
+    - Auction Assistants
+    - Visual Feeds
+- Stream to X/twitter

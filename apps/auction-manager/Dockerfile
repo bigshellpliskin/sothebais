@@ -12,6 +12,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Build TypeScript
+RUN npm run build
+
 # Expose ports (4100: Main API, 4190: Metrics, 4191: Health)
 EXPOSE 4100
 EXPOSE 4190
