@@ -1,4 +1,5 @@
-const logger = require('pino')();
+const { createLogger } = require('../utils/logger');
+const logger = createLogger('event-router');
 
 class EventRouter {
   constructor(redisClient) {
@@ -9,21 +10,30 @@ class EventRouter {
   // Register an event handler
   on(eventType, handler) {
     this.handlers.set(eventType, handler);
+    logger.info({ eventType }, 'Event handler registered');
   }
 
   // Process an incoming event
   async processEvent(event) {
-    const { type, payload } = event;
+    const { type, payload, source } = event;
     const startTime = process.hrtime();
+    const eventContext = {
+      eventId: event.id || Date.now().toString(),
+      eventType: type,
+      source: source || 'unknown',
+      payloadSize: JSON.stringify(payload).length,
+    };
 
     try {
       const handler = this.handlers.get(type);
       if (!handler) {
-        logger.warn({ eventType: type }, 'No handler registered for event type');
+        logger.warn({ ...eventContext }, 'No handler registered for event type');
         return;
       }
 
+      logger.info({ ...eventContext, state: 'processing' }, 'Processing event');
       await handler(payload);
+      
       const [seconds, nanoseconds] = process.hrtime(startTime);
       const duration = seconds + nanoseconds / 1e9;
 
@@ -32,9 +42,10 @@ class EventRouter {
       eventProcessingDuration.observe({ type }, duration);
 
       logger.info({ 
-        eventType: type, 
+        ...eventContext,
         duration,
-        success: true 
+        success: true,
+        state: 'completed'
       }, 'Event processed successfully');
 
     } catch (error) {
@@ -46,10 +57,11 @@ class EventRouter {
       eventProcessingDuration.observe({ type }, duration);
 
       logger.error({ 
-        eventType: type,
+        ...eventContext,
         error: error.message,
         stack: error.stack,
-        duration
+        duration,
+        state: 'failed'
       }, 'Error processing event');
 
       throw error;
@@ -58,6 +70,12 @@ class EventRouter {
 
   // Broadcast an event to all connected clients
   async broadcast(event) {
+    const eventContext = {
+      eventId: event.id || Date.now().toString(),
+      eventType: event.type,
+      source: event.source || 'unknown'
+    };
+
     try {
       // Store event in Redis for persistence
       await this.redisClient.lPush('events:history', JSON.stringify(event));
@@ -66,11 +84,15 @@ class EventRouter {
       const message = JSON.stringify(event);
       // Implementation of broadcasting will depend on how we store connected clients
       
-      logger.info({ eventType: event.type }, 'Event broadcasted successfully');
+      logger.info({ 
+        ...eventContext,
+        state: 'broadcasted'
+      }, 'Event broadcasted successfully');
     } catch (error) {
       logger.error({ 
-        eventType: event.type,
-        error: error.message 
+        ...eventContext,
+        error: error.message,
+        state: 'broadcast_failed'
       }, 'Error broadcasting event');
       throw error;
     }

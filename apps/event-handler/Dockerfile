@@ -1,24 +1,44 @@
-FROM node:18
+# syntax=docker/dockerfile:1
 
+# Base stage with common dependencies
+FROM node:18-alpine AS base
 WORKDIR /app
+RUN apk add --no-cache curl
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
-# Copy package files
-COPY package*.json ./
-
+# Development stage
+FROM base AS development
 # Install dependencies
+COPY package*.json ./
 RUN npm install
-
 # Copy source code
 COPY . .
-
-# Expose ports
+# Expose ports (4300: Main API, 4301: Event Stream, 4390: Metrics, 4391: Health)
 EXPOSE 4300 4301 4390 4391
-
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:4300/health || exit 1
+    CMD curl -f http://localhost:4391/health || exit 1
+# Start development server with hot reload
+CMD ["npm", "run", "dev"]
 
+# Build stage
+FROM base AS builder
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM base AS production
+# Copy package files and install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+# Copy built files from builder
+COPY --from=builder /app/dist ./dist
+# Expose ports
+EXPOSE 4300 4301 4390 4391
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:4391/health || exit 1
+# Start production server
+CMD ["npm", "run", "start"] 
 CMD ["npm", "run", "dev"] 

@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: PropsWithChildren) {
           <h1 className="text-xl font-bold">SothebAI Admin</h1>
           <div className="flex items-center gap-6">
             <HeaderStatus />
-            <UserButton fallbackRedirectUrl="/sign-in" />
+            <UserButton />
           </div>
         </div>
       </header>

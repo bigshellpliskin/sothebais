@@ -18,6 +18,26 @@ scrape_configs:
     static_configs:
       - targets: ['event-handler:4390']
 
+  - job_name: 'auction-manager'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['auction-manager:4190']
+
+  - job_name: 'stream-manager'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['stream-manager:4290']
+
+  - job_name: 'shape-l2'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['shape-l2:4090']
+
+  - job_name: 'eliza'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['eliza:4490']
+
   - job_name: 'redis'
     metrics_path: /metrics
     static_configs:
@@ -26,4 +46,9 @@ scrape_configs:
   - job_name: 'prometheus'
     metrics_path: /prometheus/metrics
     static_configs:
-      - targets: ['localhost:9090'] 
+      - targets: ['localhost:9090']
+
+  - job_name: 'grafana'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['grafana:9000'] 

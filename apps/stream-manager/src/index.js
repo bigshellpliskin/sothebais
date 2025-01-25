@@ -1,5 +1,8 @@
 const express = require('express');
 const { createClient } = require('redis');
+const { createLogger } = require('./utils/logger');
+
+const logger = createLogger('app');
 const app = express();
 
 app.use(express.json());
@@ -13,18 +16,62 @@ const redisClient = createClient({
   url: REDIS_URL
 });
 
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
+redisClient.on('error', (err) => {
+  logger.error({ 
+    error: err.message,
+    component: 'redis',
+    state: 'error'
+  }, 'Redis client error');
+});
+
+redisClient.on('connect', () => {
+  logger.info({
+    component: 'redis',
+    state: 'connected'
+  }, 'Redis client connected');
+});
+
+redisClient.on('reconnecting', () => {
+  logger.warn({
+    component: 'redis',
+    state: 'reconnecting'
+  }, 'Redis client reconnecting');
+});
 
 // Connect to Redis
 (async () => {
-  await redisClient.connect();
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    logger.error({
+      error: err.message,
+      component: 'redis',
+      state: 'connection_failed'
+    }, 'Failed to connect to Redis');
+    process.exit(1);
+  }
 })();
 
 // Basic health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  const health = {
+    status: 'ok',
+    redis: redisClient.isOpen ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  };
+  
+  logger.info({
+    component: 'health',
+    ...health
+  }, 'Health check performed');
+  
+  res.json(health);
 });
 
 app.listen(PORT, () => {
-  console.log(`Stream Manager service listening on port ${PORT}`);
+  logger.info({
+    component: 'server',
+    port: PORT,
+    state: 'started'
+  }, 'Stream Manager service started');
 }); 

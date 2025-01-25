@@ -41,7 +41,8 @@ services:
   auction-manager:
     build:
       context: ./apps/auction-manager
-      dockerfile: ${STAGE:-dev}.Dockerfile
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
@@ -77,7 +78,8 @@ services:
   event-handler:
     build:
       context: ./apps/event-handler
-      dockerfile: ${STAGE:-dev}.Dockerfile
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
@@ -85,6 +87,9 @@ services:
       - EVENT_STREAM_PORT=4301
       - METRICS_PORT=4390
       - HEALTH_PORT=4391
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${STAGE:-dev}.volumes.event-handler
     ports:
       - "4300:4300" # Main API
       - "4301:4301" # Event Stream
@@ -108,7 +113,8 @@ services:
   stream-manager:
     build:
       context: ./apps/stream-manager
-      dockerfile: ${STAGE:-dev}.Dockerfile
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
@@ -141,7 +147,8 @@ services:
   shape-l2:
     build:
       context: ./apps/shape-l2
-      dockerfile: ${STAGE:-dev}.Dockerfile
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - USE_MOCK_BLOCKCHAIN=${USE_MOCK_BLOCKCHAIN:-true}
@@ -171,7 +178,8 @@ services:
   eliza:
     build:
       context: ./apps/eliza
-      dockerfile: ${STAGE:-dev}.Dockerfile
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - USE_MOCK_APIS=${USE_MOCK_APIS:-true}
@@ -216,6 +224,7 @@ services:
       - PORT=3000
       - METRICS_PORT=3090
       - HEALTH_PORT=3091
+      - PROMETHEUS_URL=http://localhost:9090
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
@@ -251,6 +260,24 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Redis Exporter for Prometheus
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+    ports:
+      - "9121:9121"
+    networks:
+      - auction_net
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Prometheus for Metrics
   prometheus:
@@ -376,6 +403,14 @@ x-volumes:
 
   prod.volumes.admin-frontend:
     - ./apps/admin/.next:/app/.next
+
+  dev.volumes.event-handler:
+    - ./apps/event-handler/src:/app/src:ro
+    - ./apps/event-handler/package.json:/app/package.json:ro
+    - ./data/event-handler:/app/storage:rw
+
+  prod.volumes.event-handler:
+    - ./data/event-handler:/app/storage:rw
 
 x-commands:
   dev.command.auction-manager: &dev-command

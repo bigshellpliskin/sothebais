@@ -1,9 +1,60 @@
 const express = require('express');
 const Redis = require('redis');
 const Docker = require('dockerode');
+const cors = require('cors');
+const { createLogger } = require('./utils/logger');
+const { metricsMiddleware, metricsEndpoint, metrics } = require('./middleware/metrics');
+
+// Store system logs in memory (last 1000 logs)
+const systemLogs = [];
+const MAX_LOGS = 1000;
+
+// Create a custom transport to store logs in memory
+const customTransport = {
+  write: (log) => {
+    try {
+      const parsedLog = JSON.parse(log);
+      systemLogs.unshift({
+        id: Date.now().toString(),
+        timestamp: parsedLog.time,
+        level: parsedLog.level,
+        component: parsedLog.name,
+        service: parsedLog.service,
+        state: parsedLog.state || 'unknown',
+        message: parsedLog.msg,
+        context: { ...parsedLog }
+      });
+      
+      // Keep only last MAX_LOGS entries
+      if (systemLogs.length > MAX_LOGS) {
+        systemLogs.pop();
+      }
+    } catch (err) {
+      console.error('Error processing log:', err);
+    }
+  }
+};
+
+// Initialize logger with custom transport
+const logger = createLogger('app', [{ stream: customTransport }]);
 
 // Initialize Express app
 const app = express();
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.NODE_ENV === 'development' 
+    ? ['http://localhost:3000'] 
+    : [process.env.FRONTEND_URL],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+  credentials: true
+}));
+
+// Add metrics middleware
+app.use(metricsMiddleware);
+
+app.use(express.json());
 
 // Redis connection state
 let redisConnectionState = {
@@ -30,46 +81,60 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 // Redis event handlers
 redisClient.on('error', (err) => {
-  console.error('Redis Client Error', err);
+  logger.error({ 
+    error: err.message,
+    component: 'redis',
+    state: 'error'
+  }, 'Redis client error');
   redisConnectionState.isConnected = false;
   redisConnectionState.lastError = err.message;
   redisConnectionState.lastErrorTime = new Date().toISOString();
+  metrics.redisConnectionGauge.set(0);
 });
 
 redisClient.on('connect', () => {
-  console.log('Redis Client Connected');
+  logger.info({
+    component: 'redis',
+    state: 'connected'
+  }, 'Redis client connected');
   redisConnectionState.isConnected = true;
   redisConnectionState.lastError = null;
   redisConnectionState.lastErrorTime = null;
   redisConnectionState.reconnectAttempts = 0;
+  metrics.redisConnectionGauge.set(1);
 });
 
-redisClient.on('reconnecting', () => {
-  console.log(`Redis Client Reconnecting (Attempt ${redisConnectionState.reconnectAttempts + 1})`);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  logger.error({
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  }, 'Server error');
+  
+  res.status(500).json({
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
-// Connect to Redis
-redisClient.connect().catch(console.error);
+// Endpoint to get system logs
+app.get('/system-logs', (_req, res) => {
+  try {
+    res.json(systemLogs);
+  } catch (error) {
+    logger.error({
+      error: error.message,
+      component: 'api',
+      path: '/system-logs'
+    }, 'Error fetching system logs');
+    res.status(500).json({ error: 'Failed to fetch system logs' });
+  }
+});
 
 // Store connected SSE clients
 const clients = new Set();
-
-// CORS headers for development
-const setCorsHeaders = (req, res, next) => {
-  // Allow local development
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-};
-
-// Middleware
-app.use(express.json());
-app.use(setCorsHeaders);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -114,6 +179,29 @@ app.get('/health/redis', async (req, res) => {
   }
 });
 
+const parseTimestamp = (timestamp) => {
+  try {
+    // Handle Docker timestamp format
+    if (typeof timestamp === 'string') {
+      // Remove nanoseconds if present (Docker can include them)
+      const cleanTimestamp = timestamp.split('.')[0];
+      const date = new Date(cleanTimestamp);
+      if (isNaN(date.getTime())) {
+        return new Date().toISOString(); // Fallback to current time if invalid
+      }
+      return date.toISOString();
+    }
+    return new Date().toISOString(); // Fallback to current time if not a string
+  } catch (err) {
+    logger.error({
+      error: err.message,
+      component: 'docker',
+      timestamp
+    }, 'Error parsing timestamp');
+    return new Date().toISOString(); // Fallback to current time
+  }
+};
+
 // Get container logs endpoint
 app.get('/logs', async (req, res) => {
   try {
@@ -154,30 +242,47 @@ app.get('/logs', async (req, res) => {
               
               return {
                 id: Date.now() + Math.random().toString(36).substring(7),
-                timestamp: new Date(timestamp).toISOString(),
+                timestamp: parseTimestamp(timestamp),
                 content,
                 source: containerName,
                 type: streamType
               };
             } catch (err) {
-              console.error('Error parsing log line:', err);
+              logger.error({
+                error: err.message,
+                component: 'docker',
+                container: containerName,
+                line
+              }, 'Error parsing log line');
               return null;
             }
           })
           .filter(line => line !== null);
 
         logs[containerName] = logLines;
-        console.log(`Retrieved ${logLines.length} logs for ${containerName}`);
+        logger.info({
+          component: 'docker',
+          container: containerName,
+          logCount: logLines.length
+        }, `Retrieved logs for container`);
       } catch (err) {
-        console.error(`Error getting logs for ${containerName}:`, err);
+        logger.error({
+          error: err.message,
+          component: 'docker',
+          container: containerName
+        }, 'Error getting container logs');
         logs[containerName] = [];
       }
     }
 
     res.json(logs);
   } catch (error) {
-    console.error('Error getting container logs:', error);
-    res.status(500).json({ error: 'Failed to get container logs', details: error.message });
+    logger.error({
+      error: error.message,
+      component: 'api',
+      path: '/logs'
+    }, 'Error getting container logs');
+    res.status(500).json({ error: 'Failed to get container logs' });
   }
 });
 
@@ -221,6 +326,14 @@ app.get('/events/recent', async (req, res) => {
   }
 });
 
+// Update active clients metric when clients connect/disconnect
+function updateActiveClientsMetric() {
+  metrics.activeClientsGauge.set(clients.size);
+}
+
+// Expose metrics endpoint
+app.get('/metrics', metricsEndpoint);
+
 // SSE endpoint for real-time events
 app.get('/events', (req, res) => {
   // SSE Setup
@@ -237,8 +350,9 @@ app.get('/events', (req, res) => {
     res
   };
 
-  // Add client to Set
+  // Add client to Set and update metrics
   clients.add(client);
+  updateActiveClientsMetric();
   console.log(`Client connected: ${client.id}`);
 
   // Send initial heartbeat
@@ -247,13 +361,30 @@ app.get('/events', (req, res) => {
   // Handle client disconnect
   req.on('close', () => {
     clients.delete(client);
+    updateActiveClientsMetric();
     console.log(`Client disconnected: ${client.id}`);
   });
 });
 
 // Start server
-const port = process.env.PORT || 4300;
+const metricsPort = process.env.METRICS_PORT || 4390;
+const apiPort = process.env.PORT || 4300;
 
-app.listen(port, () => {
-  console.log(`Event Handler service listening on port ${port}`);
+// Create a separate server for metrics
+const metricsApp = express();
+metricsApp.get('/metrics', metricsEndpoint);
+metricsApp.listen(metricsPort, () => {
+  logger.info({
+    component: 'metrics',
+    port: metricsPort
+  }, 'Metrics server started');
+});
+
+// Start main API server
+app.listen(apiPort, () => {
+  logger.info({
+    component: 'server',
+    port: apiPort,
+    env: process.env.NODE_ENV
+  }, 'Event Handler service started');
 }); 

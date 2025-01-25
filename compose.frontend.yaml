@@ -36,17 +36,18 @@ services:
       - "letsencrypt:/letsencrypt"
       - "./traefik:/etc/traefik"
     networks:
-      - frontend_net
+      - auction_net
     environment:
       - "ACME_EMAIL=${ACME_EMAIL}"
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-default_password}
     ports:
       - "6379:6379"
     networks:
-      - frontend_net
+      - auction_net
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -55,6 +56,7 @@ services:
     build:
       context: ./apps/auction-manager
       dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=development
       - PORT=4100
@@ -67,7 +69,7 @@ services:
       - ./apps/auction-manager:/app
       - /app/node_modules
     networks:
-      - frontend_net
+      - auction_net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auction-manager.rule=Host(`${AUCTION_MANAGER_SUBDOMAIN}`)"
@@ -85,10 +87,10 @@ services:
   redis-exporter:
     image: oliver006/redis_exporter:v1.55.0
     networks:
-      - frontend_net
+      - auction_net
     depends_on:
       - redis
-    command: --redis.addr=redis://redis:6379
+    command: --redis.addr=redis://redis:6379 --redis.password=${REDIS_PASSWORD:-default_password}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.redis-metrics.rule=Host(`${MONITORING_SUBDOMAIN}`) && PathPrefix(`/redis-metrics`)"
@@ -111,7 +113,9 @@ services:
       - ./monitoring/prometheus:/etc/prometheus
       - prometheus_data:/prometheus
     networks:
-      - frontend_net
+      - auction_net
+    ports:
+      - "9090:9090"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.prometheus.rule=Host(`${MONITORING_SUBDOMAIN}`) && PathPrefix(`/prometheus`)"
@@ -123,20 +127,26 @@ services:
     image: grafana/grafana:10.2.2
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_SERVER_ROOT_URL=https://${MONITORING_SUBDOMAIN}
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-metrics.json
       - GF_SERVER_HTTP_PORT=9000
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DATASOURCES_DATASOURCES_YML_REMOVE_EXISTING=true
+      # Configure Prometheus datasource
+      - GF_DATASOURCES_DATASOURCES_0_NAME=Prometheus
+      - GF_DATASOURCES_DATASOURCES_0_TYPE=prometheus
+      - GF_DATASOURCES_DATASOURCES_0_URL=http://prometheus:9090/prometheus
+      - GF_DATASOURCES_DATASOURCES_0_ACCESS=proxy
+      - GF_DATASOURCES_DATASOURCES_0_IS_DEFAULT=true
     ports:
       - "9000:9000"
     networks:
-      - frontend_net
+      - auction_net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`${MONITORING_SUBDOMAIN}`)"
@@ -150,57 +160,37 @@ services:
     build:
       context: ./apps/admin
       dockerfile: Dockerfile
-      target: development
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
-      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-      - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
-      - DOCKER_SOCKET=/var/run/docker.sock
-      - WATCHPACK_POLLING=true
-      - PORT=3000
-      - METRICS_PORT=3090
-      - HEALTH_PORT=3091
-      - NEXT_PUBLIC_EVENT_HANDLER_SUBDOMAIN=${EVENT_HANDLER_SUBDOMAIN}
+      - GRAFANA_URL=http://grafana:9000
       - PROMETHEUS_URL=http://prometheus:9090
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Development volumes - modified for better compatibility
       - ./apps/admin:/app
       - /app/node_modules
-      - /app/.next
-    networks:
-      - frontend_net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`${ADMIN_SUBDOMAIN}`)"
-      - "traefik.http.services.admin.loadbalancer.server.port=3000"
-      - "traefik.http.routers.admin.entrypoints=websecure"
-      - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
-    command: npm run dev
     ports:
-      - "3000:3000" # Main App
-      - "3090:3090" # Metrics
-      - "3091:3091" # Health
+      - "3000:3000"
+      - "3090:3090"
+    networks:
+      - auction_net
 
   event-handler:
     build:
       context: ./apps/event-handler
       dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=development
       - PORT=4300
       - EVENT_STREAM_PORT=4301
       - METRICS_PORT=4390
       - HEALTH_PORT=4391
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./apps/event-handler:/app
       - /app/node_modules
     networks:
-      - frontend_net
+      - auction_net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.event-handler.rule=Host(`${EVENT_HANDLER_SUBDOMAIN}`)"
@@ -227,5 +217,5 @@ volumes:
   grafana_data:
 
 networks:
-  frontend_net:
-    driver: bridge 
+  auction_net:
+    external: true 
