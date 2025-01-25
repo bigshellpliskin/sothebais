@@ -369,6 +369,7 @@ app.get('/events', (req, res) => {
 // Start server
 const metricsPort = process.env.METRICS_PORT || 4390;
 const apiPort = process.env.PORT || 4300;
+const healthPort = process.env.HEALTH_PORT || 4391;
 
 // Create a separate server for metrics
 const metricsApp = express();
@@ -378,6 +379,18 @@ metricsApp.listen(metricsPort, () => {
     component: 'metrics',
     port: metricsPort
   }, 'Metrics server started');
+});
+
+// Create a separate server for health checks
+const healthApp = express();
+healthApp.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+healthApp.listen(healthPort, () => {
+  logger.info({
+    component: 'health',
+    port: healthPort
+  }, 'Health check server started');
 });
 
 // Start main API server

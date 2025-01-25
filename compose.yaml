@@ -13,24 +13,35 @@ services:
       # Certificate Resolver
       - "--certificatesresolvers.letsencrypt.acme.email=iroquoispliskin222@gmail.com"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
       # Metrics
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.addEntryPointsLabels=true"
       - "--metrics.prometheus.addServicesLabels=true"
+      # Health Check
+      - "--ping=true"
     ports:
       - "80:80"     # HTTP
       - "443:443"   # HTTPS
-      - "3100:3100" # Dashboard
+      - "3100:3100" # Dashboard/API/Metrics
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./data/traefik/letsencrypt:/letsencrypt"
     networks:
       - auction_net
-    profiles:
-      - vps
     environment:
       - "ACME_EMAIL=${ACME_EMAIL}"
+    labels:
+      - "traefik.enable=true"
+      # Expose metrics on the API port
+      - "traefik.http.routers.traefik-metrics.rule=Host(`admin.sothebais.com`) && PathPrefix(`/metrics`)"
+      - "traefik.http.routers.traefik-metrics.service=prometheus@internal"
+      - "traefik.http.routers.traefik-metrics.entrypoints=traefik"
+      # Health check endpoint
+      - "traefik.http.routers.traefik-health.rule=Host(`admin.sothebais.com`) && PathPrefix(`/ping`)"
+      - "traefik.http.routers.traefik-health.service=ping@internal"
+      - "traefik.http.routers.traefik-health.entrypoints=traefik"
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:3100/ping"]
       interval: 10s
@@ -220,7 +231,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
       - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
@@ -228,9 +239,10 @@ services:
       - PORT=3000
       - METRICS_PORT=3090
       - HEALTH_PORT=3091
-      - PROMETHEUS_URL=http://localhost:9090
+      - PROMETHEUS_URL=http://prometheus:9090
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./.env:/app/.env:ro
     ports:
       - "3000:3000" # Main App
       - "3090:3090" # Metrics
@@ -244,10 +256,11 @@ services:
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3091/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   # Redis for Caching and Message Queue
   redis:
@@ -288,10 +301,11 @@ services:
       - redis
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:9121/metrics"]
+      test: ["CMD", "curl", "-f", "http://localhost:9121/metrics"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   # Prometheus for Metrics
   prometheus:
@@ -320,7 +334,7 @@ services:
       - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
       - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "wget", "--spider", "http://localhost:9090/prometheus/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3

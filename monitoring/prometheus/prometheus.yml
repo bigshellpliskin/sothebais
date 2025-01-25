@@ -3,10 +3,40 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
+  - job_name: 'traefik'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['traefik:3100']
+
   - job_name: 'admin-frontend'
     metrics_path: /metrics
     static_configs:
       - targets: ['admin-frontend:3090']
+
+  - job_name: 'auction-manager'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['auction-manager:4190']
+
+  - job_name: 'event-handler'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['event-handler:4390']
+
+  - job_name: 'stream-manager'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['stream-manager:4290']
+
+  - job_name: 'shape-l2'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['shape-l2:4090']
+
+  - job_name: 'eliza'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['eliza:4490']
 
   - job_name: 'prometheus'
     metrics_path: /metrics
@@ -16,4 +46,14 @@ scrape_configs:
   - job_name: 'redis'
     metrics_path: /metrics
     static_configs:
-      - targets: ['redis:6379'] 
+      - targets: ['redis-exporter:9121']
+
+  - job_name: 'grafana'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['grafana:3001']
+
+  - job_name: 'node-exporter'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['node-exporter:9100'] 

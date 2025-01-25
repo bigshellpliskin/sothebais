@@ -39,6 +39,25 @@ function calculateTrend(current: number, previous: number): "up" | "down" | "sta
   return "stable";
 }
 
+// Handle POST requests for custom queries
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { query } = body;
+
+    if (!query) {
+      return NextResponse.json({ error: "Query is required" }, { status: 400 });
+    }
+
+    const value = await queryPrometheus(query);
+    return NextResponse.json({ value });
+  } catch (error) {
+    console.error("Error in metrics POST route:", error);
+    return NextResponse.json({ error: "Failed to execute query" }, { status: 500 });
+  }
+}
+
+// Handle GET requests for predefined metrics
 export async function GET() {
   try {
     // Verify Prometheus connection first

@@ -179,7 +179,11 @@ export function EventLog() {
         hour12: false
       });
       const content = entry.content || JSON.stringify(entry.data, null, 2);
-      const uniqueKey = `${entry.id}-${entry.timestamp}`;
+      // Create a more unique key by combining id, timestamp and a hash of the content
+      const contentHash = content.split('').reduce((acc: number, char: string) => {
+        return ((acc << 5) - acc) + char.charCodeAt(0) | 0;
+      }, 0);
+      const uniqueKey = `${entry.id}-${entry.timestamp}-${contentHash}`;
       
       return (
         <div
@@ -208,61 +212,63 @@ export function EventLog() {
         )}
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="system" className="w-full">
-          <div className="border-b mb-4 overflow-x-auto">
-            <TabsList className="w-full justify-start inline-flex whitespace-nowrap">
-              <TabsTrigger value="system">System Logs</TabsTrigger>
-              <TabsTrigger value="event-handler">Event Handler</TabsTrigger>
-              <TabsTrigger value="auction-manager">Auction Manager</TabsTrigger>
-              <TabsTrigger value="traefik">Traefik</TabsTrigger>
-              <TabsTrigger value="redis">Redis</TabsTrigger>
-              <TabsTrigger value="prometheus">Prometheus</TabsTrigger>
-              <TabsTrigger value="grafana">Grafana</TabsTrigger>
-              <TabsTrigger value="admin-frontend">Admin Frontend</TabsTrigger>
-            </TabsList>
-          </div>
+        {isClient && (
+          <Tabs key="event-log-tabs" defaultValue="system" className="w-full">
+            <div className="border-b mb-4 overflow-x-auto">
+              <TabsList className="w-full justify-start inline-flex whitespace-nowrap">
+                <TabsTrigger value="system">System Logs</TabsTrigger>
+                <TabsTrigger value="event-handler">Event Handler</TabsTrigger>
+                <TabsTrigger value="auction-manager">Auction Manager</TabsTrigger>
+                <TabsTrigger value="traefik">Traefik</TabsTrigger>
+                <TabsTrigger value="redis">Redis</TabsTrigger>
+                <TabsTrigger value="prometheus">Prometheus</TabsTrigger>
+                <TabsTrigger value="grafana">Grafana</TabsTrigger>
+                <TabsTrigger value="admin-frontend">Admin Frontend</TabsTrigger>
+              </TabsList>
+            </div>
 
-          <ScrollArea className="h-[400px] border rounded-md mt-4 p-4">
-            {loading && !containerLogs && !systemLogs && (
-              <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Loading..." />
-              </div>
-            )}
-            {error && (
-              <div className="text-center text-red-500 py-4">
-                {error}
-              </div>
-            )}
-            {!loading && !error && (
-              <>
-                <TabsContent value="system" className="mt-0">
-                  {renderSystemLogs(systemLogs)}
-                </TabsContent>
-                <TabsContent value="event-handler" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-event-handler-1'])}
-                </TabsContent>
-                <TabsContent value="auction-manager" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-auction-manager-1'])}
-                </TabsContent>
-                <TabsContent value="traefik" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-traefik-1'])}
-                </TabsContent>
-                <TabsContent value="redis" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-redis-1'])}
-                </TabsContent>
-                <TabsContent value="prometheus" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-prometheus-1'])}
-                </TabsContent>
-                <TabsContent value="grafana" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-grafana-1'])}
-                </TabsContent>
-                <TabsContent value="admin-frontend" className="mt-0">
-                  {renderLogContent(containerLogs['sothebais-admin-frontend-1'])}
-                </TabsContent>
-              </>
-            )}
-          </ScrollArea>
-        </Tabs>
+            <ScrollArea className="h-[400px] border rounded-md mt-4 p-4">
+              {loading && !containerLogs && !systemLogs && (
+                <div className="flex justify-center items-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Loading..." />
+                </div>
+              )}
+              {error && (
+                <div className="text-center text-red-500 py-4">
+                  {error}
+                </div>
+              )}
+              {!loading && !error && (
+                <>
+                  <TabsContent value="system" className="mt-0">
+                    {renderSystemLogs(systemLogs)}
+                  </TabsContent>
+                  <TabsContent value="event-handler" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-event-handler-1'])}
+                  </TabsContent>
+                  <TabsContent value="auction-manager" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-auction-manager-1'])}
+                  </TabsContent>
+                  <TabsContent value="traefik" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-traefik-1'])}
+                  </TabsContent>
+                  <TabsContent value="redis" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-redis-1'])}
+                  </TabsContent>
+                  <TabsContent value="prometheus" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-prometheus-1'])}
+                  </TabsContent>
+                  <TabsContent value="grafana" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-grafana-1'])}
+                  </TabsContent>
+                  <TabsContent value="admin-frontend" className="mt-0">
+                    {renderLogContent(containerLogs['sothebais-admin-frontend-1'])}
+                  </TabsContent>
+                </>
+              )}
+            </ScrollArea>
+          </Tabs>
+        )}
       </CardContent>
     </Card>
   );

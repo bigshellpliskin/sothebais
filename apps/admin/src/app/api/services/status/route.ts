@@ -6,39 +6,27 @@ const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://prometheus:9090';
 
 interface ServiceConfig {
   name: string;
-  healthPort: number;
   metricsPort: number;
 }
 
 const SERVICES: ServiceConfig[] = [
-  { name: 'auction-manager', healthPort: 4191, metricsPort: 4190 },
-  { name: 'event-handler', healthPort: 4391, metricsPort: 4390 },
-  { name: 'stream-manager', healthPort: 4291, metricsPort: 4290 },
-  { name: 'shape-l2', healthPort: 4091, metricsPort: 4090 },
-  { name: 'eliza', healthPort: 4491, metricsPort: 4490 },
-  { name: 'admin-frontend', healthPort: 3091, metricsPort: 3090 }
+  // Core Services
+  { name: 'auction-manager', metricsPort: 4190 },
+  { name: 'event-handler', metricsPort: 4390 },
+  { name: 'stream-manager', metricsPort: 4290 },
+  { name: 'shape-l2', metricsPort: 4090 },
+  { name: 'eliza', metricsPort: 4490 },
+  { name: 'admin-frontend', metricsPort: 3090 },
+  // Infrastructure Services
+  { name: 'traefik', metricsPort: 3100 },
+  { name: 'prometheus', metricsPort: 9090 },
+  { name: 'grafana', metricsPort: 3001 },
+  { name: 'node-exporter', metricsPort: 9100 }
 ];
-
-async function checkHealthEndpoint(service: ServiceConfig): Promise<boolean> {
-  try {
-    const response = await fetch(`http://${service.name}:${service.healthPort}/health`, {
-      signal: AbortSignal.timeout(2000)
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
 
 async function getServiceStatus(service: ServiceConfig): Promise<ServiceStatus> {
   try {
-    // First try the health endpoint
-    const isHealthy = await checkHealthEndpoint(service);
-    if (isHealthy) {
-      return 'running';
-    }
-
-    // If health check fails, check Prometheus metrics
+    // Check service status via Prometheus up metric
     const query = `up{instance="${service.name}:${service.metricsPort}"}`;
     const url = `${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`;
     
@@ -66,7 +54,6 @@ async function getServiceStatus(service: ServiceConfig): Promise<ServiceStatus> 
 
 async function getRedisStatus(): Promise<ServiceStatus> {
   try {
-    // Check redis-exporter metrics
     const query = 'redis_up';
     const url = `${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`;
     
