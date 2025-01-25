@@ -8,8 +8,8 @@ RUN apk add --no-cache curl
 COPY package.json ./
 RUN npm install
 
-# Add node_modules/.bin to PATH
-ENV PATH /app/node_modules/.bin:$PATH
+# Add node_modules/.bin to PATH and set other environment variables
+ENV PATH="/app/node_modules/.bin:$PATH"
 
 # Copy the rest of the application
 COPY . .

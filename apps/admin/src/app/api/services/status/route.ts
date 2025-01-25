@@ -4,10 +4,10 @@ import { ServiceStatus } from '@/types/service';
 const SERVICES = {
   'event-handler': 'http://event-handler:4300/health',
   'traefik': 'http://traefik:3100/ping',
-  'redis': 'http://event-handler:4300/health/redis',
+  'redis': 'http://redis-exporter:9121/metrics',
   'auction-manager': 'http://auction-manager:4191/health',
-  'prometheus': 'http://prometheus:9090/-/healthy',
-  'grafana': 'http://grafana:3000/api/health'
+  'prometheus': 'http://prometheus:9090/prometheus/-/healthy',
+  'grafana': process.env.GRAFANA_URL + '/api/health'
 };
 
 async function checkServiceHealth(url: string): Promise<ServiceStatus> {

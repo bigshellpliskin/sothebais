@@ -47,18 +47,20 @@ export async function GET() {
         next: { revalidate: 0 }
       });
       if (!healthCheck.ok) {
-        throw new Error(`Prometheus health check failed: ${healthCheck.status}`);
+        const errorText = await healthCheck.text();
+        throw new Error(`Prometheus health check failed: ${healthCheck.status}, Response: ${errorText}`);
       }
       const healthData = await healthCheck.json();
       if (healthData.status !== "success") {
-        throw new Error(`Prometheus returned error: ${healthData.error || 'Unknown error'}`);
+        throw new Error(`Prometheus returned error: ${healthData.error || 'Unknown error'}, Data: ${JSON.stringify(healthData)}`);
       }
     } catch (error) {
       console.error("Prometheus connection error:", error);
       return NextResponse.json({
         error: "Prometheus connection failed",
         prometheus_url: PROMETHEUS_URL,
-        message: error instanceof Error ? error.message : "Unknown error"
+        message: error instanceof Error ? error.message : "Unknown error",
+        cause: error instanceof Error ? error.cause : undefined
       }, { status: 500 });
     }
 
@@ -75,37 +77,29 @@ export async function GET() {
     const requestRate = await queryPrometheus(requestRateQuery);
 
     // Redis Memory Usage (in MB)
-    const redisMemoryQuery = 'redis_memory_used_bytes{job="redis-exporter"} / 1024 / 1024';
+    const redisMemoryQuery = 'redis_memory_used_bytes{job="redis"} / 1024 / 1024';
     const redisMemory = await queryPrometheus(redisMemoryQuery);
-
-    // Get previous values (5 minutes ago) for trend calculation
-    const [prevCpu, prevMemory, prevRequestRate, prevRedisMemory] = await Promise.all([
-      queryPrometheus(`${cpuQuery} offset 5m`),
-      queryPrometheus(`${memoryQuery} offset 5m`),
-      queryPrometheus(`${requestRateQuery} offset 5m`),
-      queryPrometheus(`${redisMemoryQuery} offset 5m`)
-    ]);
 
     return NextResponse.json({
       cpu: {
         value: Number(cpu.toFixed(1)),
         unit: "%",
-        trend: calculateTrend(cpu, prevCpu),
+        trend: "stable",
       },
       memory: {
         value: Number(memory.toFixed(1)),
         unit: "MB",
-        trend: calculateTrend(memory, prevMemory),
+        trend: "stable",
       },
       requestRate: {
         value: Number(requestRate.toFixed(2)),
         unit: "req/s",
-        trend: calculateTrend(requestRate, prevRequestRate),
+        trend: "stable",
       },
       redisMemory: {
         value: Number(redisMemory.toFixed(1)),
         unit: "MB",
-        trend: calculateTrend(redisMemory, prevRedisMemory),
+        trend: "stable",
       },
     });
   } catch (error) {
