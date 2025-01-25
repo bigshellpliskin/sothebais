@@ -3,8 +3,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useEffect, useState } from "react";
-import { Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Loader2, TrendingDown, TrendingUp, Minus, Server, Box, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatusCard } from "@/components/ui/status-card";
+import { useServiceStore } from "@/store/services";
+import { useServiceStatus } from "@/hooks/useServiceStatus";
 
 interface MetricData {
   value: number;
@@ -68,17 +71,48 @@ export function SystemMetrics() {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { serviceGroups, isLoading: servicesLoading } = useServiceStore();
+  useServiceStatus();
 
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/services/metrics");
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to fetch from Prometheus first
+        const prometheusResponse = await fetch("/api/metrics/prometheus");
+        if (prometheusResponse.ok) {
+          const prometheusData = await prometheusResponse.json();
+          setMetrics({
+            cpu: {
+              value: prometheusData.cpu_usage_percent,
+              unit: "%",
+              trend: prometheusData.cpu_trend
+            },
+            memory: {
+              value: prometheusData.memory_usage_mb,
+              unit: "MB",
+              trend: prometheusData.memory_trend
+            },
+            requestRate: {
+              value: prometheusData.request_rate,
+              unit: "req/s",
+              trend: prometheusData.request_trend
+            },
+            redisMemory: {
+              value: prometheusData.redis_memory_mb,
+              unit: "MB",
+              trend: prometheusData.redis_trend
+            }
+          });
+        } else {
+          // Fallback to legacy metrics endpoint
+          const response = await fetch("/api/services/metrics");
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          setMetrics(data);
         }
-        const data = await response.json();
-        setMetrics(data);
         setError(null);
       } catch (error) {
         console.error("Failed to fetch metrics:", error);
@@ -94,6 +128,12 @@ export function SystemMetrics() {
     return () => clearInterval(interval);
   }, []);
 
+  // Calculate service statistics
+  const allServices = serviceGroups.flatMap(group => group.services);
+  const runningServices = allServices.filter(service => service.status === 'running');
+  const errorServices = allServices.filter(service => service.status === 'error');
+  const systemLoad = Math.min(100, Math.round((runningServices.length / allServices.length) * 100));
+
   const LoadingCard = ({ title }: { title: string }) => (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
       <div className="flex items-center justify-between">
@@ -107,70 +147,136 @@ export function SystemMetrics() {
   );
 
   return (
-    <Card>
+    <Card className="mb-6">
       <CardHeader>
-        <CardTitle>System Metrics</CardTitle>
-        <CardDescription>Real-time system performance metrics</CardDescription>
+        <CardTitle>System Overview</CardTitle>
+        <CardDescription>Real-time system performance and service status</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading && !metrics && (
-          <div className="flex justify-center items-center min-h-[200px]">
-            <Icon 
-              icon={Loader2} 
-              className="animate-spin text-muted-foreground h-8 w-8" 
-              aria-label="Loading metrics..."
+        <div className="space-y-6">
+          {/* Service Status Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatusCard
+              title="Active Services"
+              value={`${runningServices.length}/${allServices.length}`}
+              icon={Server}
+              loading={servicesLoading}
+            />
+            <StatusCard
+              title="Services in Error"
+              value={errorServices.length.toString()}
+              icon={Box}
+              loading={servicesLoading}
+            />
+            <StatusCard
+              title="System Load"
+              value={`${systemLoad}%`}
+              icon={Activity}
+              loading={servicesLoading}
             />
           </div>
-        )}
-        {error && (
-          <div className="text-center text-red-500 py-4">
-            {error}
+
+          {/* System Metrics */}
+          {loading && !metrics && (
+            <div className="flex justify-center items-center min-h-[200px]">
+              <Icon 
+                icon={Loader2} 
+                className="animate-spin text-muted-foreground h-8 w-8" 
+                aria-label="Loading metrics..."
+              />
+            </div>
+          )}
+          {error && (
+            <div className="text-center text-red-500 py-4">
+              {error}
+            </div>
+          )}
+          {metrics && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {metrics.cpu && metrics.cpu.value !== undefined ? (
+                <MetricCard
+                  title="CPU Usage"
+                  value={metrics.cpu.value}
+                  unit={metrics.cpu.unit}
+                  trend={metrics.cpu.trend}
+                />
+              ) : (
+                <LoadingCard title="CPU Usage" />
+              )}
+              {metrics.memory && metrics.memory.value !== undefined ? (
+                <MetricCard
+                  title="Memory Usage"
+                  value={metrics.memory.value}
+                  unit={metrics.memory.unit}
+                  trend={metrics.memory.trend}
+                />
+              ) : (
+                <LoadingCard title="Memory Usage" />
+              )}
+              {metrics.requestRate && metrics.requestRate.value !== undefined ? (
+                <MetricCard
+                  title="Request Rate"
+                  value={metrics.requestRate.value}
+                  unit={metrics.requestRate.unit}
+                  trend={metrics.requestRate.trend}
+                />
+              ) : (
+                <LoadingCard title="Request Rate" />
+              )}
+              {metrics.redisMemory && metrics.redisMemory.value !== undefined ? (
+                <MetricCard
+                  title="Redis Memory"
+                  value={metrics.redisMemory.value}
+                  unit={metrics.redisMemory.unit}
+                  trend={metrics.redisMemory.trend}
+                />
+              ) : (
+                <LoadingCard title="Redis Memory" />
+              )}
+            </div>
+          )}
+
+          {/* Service Groups Overview */}
+          <div className="grid grid-cols-2 gap-6 pt-4 border-t">
+            {serviceGroups.map((group) => (
+              <div key={group.name} className="min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-semibold whitespace-nowrap">{group.name}</h3>
+                  <div className="h-px bg-gray-200 flex-grow" />
+                </div>
+                <div className="space-y-1">
+                  {group.services.map((service) => (
+                    <div
+                      key={service.name}
+                      className="bg-white/50 rounded px-2 py-1.5 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div 
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            service.status === 'running' ? 'bg-green-500' :
+                            service.status === 'error' ? 'bg-red-500' :
+                            'bg-gray-500'
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{service.name}</p>
+                          <p className="text-[10px] text-gray-500 truncate">{service.description}</p>
+                        </div>
+                      </div>
+                      <div className={`ml-2 px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${
+                        service.status === 'running' ? 'bg-green-100 text-green-800' :
+                        service.status === 'error' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {service.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-        {metrics && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {metrics.cpu && metrics.cpu.value !== undefined ? (
-              <MetricCard
-                title="CPU Usage"
-                value={metrics.cpu.value}
-                unit={metrics.cpu.unit}
-                trend={metrics.cpu.trend}
-              />
-            ) : (
-              <LoadingCard title="CPU Usage" />
-            )}
-            {metrics.memory && metrics.memory.value !== undefined ? (
-              <MetricCard
-                title="Memory Usage"
-                value={metrics.memory.value}
-                unit={metrics.memory.unit}
-                trend={metrics.memory.trend}
-              />
-            ) : (
-              <LoadingCard title="Memory Usage" />
-            )}
-            {metrics.requestRate && metrics.requestRate.value !== undefined ? (
-              <MetricCard
-                title="Request Rate"
-                value={metrics.requestRate.value}
-                unit={metrics.requestRate.unit}
-                trend={metrics.requestRate.trend}
-              />
-            ) : (
-              <LoadingCard title="Request Rate" />
-            )}
-            {metrics.redisMemory && metrics.redisMemory.value !== undefined ? (
-              <MetricCard
-                title="Redis Memory"
-                value={metrics.redisMemory.value}
-                unit={metrics.redisMemory.unit}
-                trend={metrics.redisMemory.trend}
-              />
-            ) : (
-              <LoadingCard title="Redis Memory" />
-            )}
-          </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
