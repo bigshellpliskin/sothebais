@@ -1,14 +1,22 @@
 import { useEffect, useCallback } from 'react';
 import { useServiceStore } from '@/store/services';
 import { ServiceStatus } from '@/types/service';
+import { useAuth } from '@clerk/nextjs';
 
 export function useServiceStatus() {
   const { setLoading, setError, updateAllStatuses } = useServiceStore();
+  const { getToken } = useAuth();
 
   const fetchServiceStatuses = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/services/status');
+      const token = await getToken();
+      const response = await fetch('/api/services/status', {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch service statuses');
       }
@@ -19,7 +27,7 @@ export function useServiceStatus() {
     } finally {
       setLoading(false);
     }
-  }, [setLoading, setError, updateAllStatuses]);
+  }, [setLoading, setError, updateAllStatuses, getToken]);
 
   useEffect(() => {
     fetchServiceStatuses();

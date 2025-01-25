@@ -179,10 +179,11 @@ export function EventLog() {
         hour12: false
       });
       const content = entry.content || JSON.stringify(entry.data, null, 2);
+      const uniqueKey = `${entry.id}-${entry.timestamp}`;
       
       return (
         <div
-          key={entry.id}
+          key={uniqueKey}
           className="font-mono text-xs leading-relaxed border-b border-border/50 last:border-0"
         >
           <span className="text-muted-foreground">[{timestamp}]</span>{' '}

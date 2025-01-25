@@ -5,15 +5,20 @@ import { useUser } from "@clerk/nextjs";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { ServiceStatus } from "@/types/service";
 
+const RETRY_DELAY = 5000; // 5 seconds
+const MAX_RETRIES = 3;
+
+// List of actual core services that must be running
+const CORE_SERVICES = ['event-handler', 'redis'];
+
 export function HeaderStatus() {
   const { user } = useUser();
-  // Initialize with null to avoid hydration mismatch
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [isSystemConnected, setIsSystemConnected] = useState<boolean | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Check internet connection
   useEffect(() => {
-    // Set initial state
     setIsOnline(navigator.onLine);
     
     function updateOnlineStatus() {
@@ -31,32 +36,57 @@ export function HeaderStatus() {
 
   // Check system services connection
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     async function checkSystemConnection() {
       try {
-        const response = await fetch('/api/services/status');
+        const response = await fetch('/api/services/status', {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
         if (!response.ok) {
+          console.warn('Service status check failed:', response.status);
           setIsSystemConnected(false);
+          
+          // Retry on error if we haven't exceeded max retries
+          if (retryCount < MAX_RETRIES) {
+            setRetryCount(count => count + 1);
+            timeoutId = setTimeout(checkSystemConnection, RETRY_DELAY);
+          }
           return;
         }
         
         const statuses: Record<string, ServiceStatus> = await response.json();
-        // Check if core services are running
-        const coreServices = ['event-handler', 'redis', 'traefik'];
-        const allCoreServicesRunning = coreServices.every(
+        // Only check services that actually exist
+        const allCoreServicesRunning = CORE_SERVICES.every(
           service => statuses[service] === 'running'
         );
         
         setIsSystemConnected(allCoreServicesRunning);
-      } catch {
+        setRetryCount(0); // Reset retry count on success
+      } catch (error) {
+        console.error('Error checking system status:', error);
         setIsSystemConnected(false);
+        
+        // Retry on error if we haven't exceeded max retries
+        if (retryCount < MAX_RETRIES) {
+          setRetryCount(count => count + 1);
+          timeoutId = setTimeout(checkSystemConnection, RETRY_DELAY);
+        }
       }
     }
 
     checkSystemConnection();
-    const interval = setInterval(checkSystemConnection, 30000); // Check every 30 seconds
+    const interval = setInterval(checkSystemConnection, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeoutId);
+    };
+  }, [retryCount]);
 
   // Don't render anything until we have client-side values
   if (isOnline === null || isSystemConnected === null) {

@@ -3,37 +3,17 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'traefik'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['traefik:3100']
-
   - job_name: 'admin-frontend'
     metrics_path: /metrics
     static_configs:
       - targets: ['admin-frontend:3090']
 
-  - job_name: 'event-handler'
+  - job_name: 'prometheus'
     metrics_path: /metrics
     static_configs:
-      - targets: ['event-handler:4390']
-
-  - job_name: 'auction-manager'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['auction-manager:4190']
+      - targets: ['localhost:9090']
 
   - job_name: 'redis'
     metrics_path: /metrics
     static_configs:
-      - targets: ['redis-exporter:9121']
-
-  - job_name: 'prometheus'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['localhost:9090']
-
-  - job_name: 'grafana'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['grafana:9000'] 
+      - targets: ['redis:6379'] 

@@ -47,19 +47,20 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
       - LOG_LEVEL=${LOG_LEVEL:-debug}
-      - SHAPE_L2_URL=http://shape-l2:4000
+      - SHAPE_L2_URL=http://localhost:4000 # Using localhost since shape-l2 is not running
       - PORT=4100
       - METRICS_PORT=4190
       - HEALTH_PORT=4191
     volumes:
-      - ${STAGE:-dev}.volumes.auction-manager
+      - ./apps/auction-manager/src:/app/src:ro
+      - ./apps/auction-manager/package.json:/app/package.json:ro
+      - ./data/auction:/app/storage:rw
     ports:
       - "4100:4100" # Main API
       - "4190:4190" # Metrics
       - "4191:4191" # Health
     depends_on:
       - redis
-      - shape-l2
     networks:
       - auction_net
     deploy:
@@ -87,9 +88,12 @@ services:
       - EVENT_STREAM_PORT=4301
       - METRICS_PORT=4390
       - HEALTH_PORT=4391
+      - FRONTEND_URL=http://localhost:3000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${STAGE:-dev}.volumes.event-handler
+      - ./apps/event-handler/src:/app/src:ro
+      - ./apps/event-handler/package.json:/app/package.json:ro
+      - ./data/event-handler:/app/storage:rw
     ports:
       - "4300:4300" # Main API
       - "4301:4301" # Event Stream
@@ -102,7 +106,7 @@ services:
         limits:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
-    command: ${STAGE:-dev}.command.event-handler
+    command: npm run dev
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
       interval: 30s
@@ -110,104 +114,104 @@ services:
       retries: 3
 
   # Stream Processing Service
-  stream-manager:
-    build:
-      context: ./apps/stream-manager
-      dockerfile: Dockerfile
-      target: ${NODE_ENV:-development}
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - PORT=4200
-      - WS_PORT=4201
-      - METRICS_PORT=4290
-      - HEALTH_PORT=4291
-    volumes:
-      - ${STAGE:-dev}.volumes.stream-manager
-    ports:
-      - "4200:4200" # Main API
-      - "4201:4201" # WebSocket
-      - "4290:4290" # Metrics
-      - "4291:4291" # Health
-    networks:
-      - auction_net
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-0.5}
-          memory: ${RESOURCES_MEMORY:-512M}
-    command: ${STAGE:-dev}.command.stream-manager
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # stream-manager:
+  #   build:
+  #     context: ./apps/stream-manager
+  #     dockerfile: Dockerfile
+  #     target: ${NODE_ENV:-development}
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+  #     - PORT=4200
+  #     - WS_PORT=4201
+  #     - METRICS_PORT=4290
+  #     - HEALTH_PORT=4291
+  #   volumes:
+  #     - ${STAGE:-dev}.volumes.stream-manager
+  #   ports:
+  #     - "4200:4200" # Main API
+  #     - "4201:4201" # WebSocket
+  #     - "4290:4290" # Metrics
+  #     - "4291:4291" # Health
+  #   networks:
+  #     - auction_net
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: ${RESOURCES_CPU:-0.5}
+  #         memory: ${RESOURCES_MEMORY:-512M}
+  #   command: ${STAGE:-dev}.command.stream-manager
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Shape L2 Integration Service
-  shape-l2:
-    build:
-      context: ./apps/shape-l2
-      dockerfile: Dockerfile
-      target: ${NODE_ENV:-development}
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - USE_MOCK_BLOCKCHAIN=${USE_MOCK_BLOCKCHAIN:-true}
-      - SOL_RPC_URL=${SOL_RPC_URL}
-      - SHAPE_L2_NETWORK=${SHAPE_L2_NETWORK:-testnet}
-      - SHAPE_L2_CONTRACT=${SHAPE_L2_CONTRACT}
-      - LOG_LEVEL=${LOG_LEVEL:-debug}
-      - PORT=4000
-      - METRICS_PORT=4090
-      - HEALTH_PORT=4091
-    volumes:
-      - ${STAGE:-dev}.volumes.shape-l2
-    ports:
-      - "4000:4000" # Main API
-      - "4090:4090" # Metrics
-      - "4091:4091" # Health
-    networks:
-      - auction_net
-    command: ${STAGE:-dev}.command.shape-l2
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4091/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # shape-l2:
+  #   build:
+  #     context: ./apps/shape-l2
+  #     dockerfile: Dockerfile
+  #     target: ${NODE_ENV:-development}
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - USE_MOCK_BLOCKCHAIN=${USE_MOCK_BLOCKCHAIN:-true}
+  #     - SOL_RPC_URL=${SOL_RPC_URL}
+  #     - SHAPE_L2_NETWORK=${SHAPE_L2_NETWORK:-testnet}
+  #     - SHAPE_L2_CONTRACT=${SHAPE_L2_CONTRACT}
+  #     - LOG_LEVEL=${LOG_LEVEL:-debug}
+  #     - PORT=4000
+  #     - METRICS_PORT=4090
+  #     - HEALTH_PORT=4091
+  #   volumes:
+  #     - ${STAGE:-dev}.volumes.shape-l2
+  #   ports:
+  #     - "4000:4000" # Main API
+  #     - "4090:4090" # Metrics
+  #     - "4091:4091" # Health
+  #   networks:
+  #     - auction_net
+  #   command: ${STAGE:-dev}.command.shape-l2
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4091/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # ElizaOS VTuber Service
-  eliza:
-    build:
-      context: ./apps/eliza
-      dockerfile: Dockerfile
-      target: ${NODE_ENV:-development}
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - USE_MOCK_APIS=${USE_MOCK_APIS:-true}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
-      - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
-      - DISCORD_API_TOKEN=${DISCORD_API_TOKEN}
-      - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
-      - TEE_MODE=${TEE_MODE:-development}
-      - LOG_LEVEL=${LOG_LEVEL:-debug}
-      - PORT=4400
-      - WS_PORT=4401
-      - METRICS_PORT=4490
-      - HEALTH_PORT=4491
-    volumes:
-      - ${STAGE:-dev}.volumes.eliza
-    ports:
-      - "4400:4400" # Main API
-      - "4401:4401" # WebSocket
-      - "4490:4490" # Metrics
-      - "4491:4491" # Health
-    networks:
-      - auction_net
-    command: ${STAGE:-dev}.command.eliza
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4491/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # eliza:
+  #   build:
+  #     context: ./apps/eliza
+  #     dockerfile: Dockerfile
+  #     target: ${NODE_ENV:-development}
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - USE_MOCK_APIS=${USE_MOCK_APIS:-true}
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+  #     - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
+  #     - DISCORD_API_TOKEN=${DISCORD_API_TOKEN}
+  #     - ELEVENLABS_XI_API_KEY=${ELEVENLABS_XI_API_KEY}
+  #     - TEE_MODE=${TEE_MODE:-development}
+  #     - LOG_LEVEL=${LOG_LEVEL:-debug}
+  #     - PORT=4400
+  #     - WS_PORT=4401
+  #     - METRICS_PORT=4490
+  #     - HEALTH_PORT=4491
+  #   volumes:
+  #     - ${STAGE:-dev}.volumes.eliza
+  #   ports:
+  #     - "4400:4400" # Main API
+  #     - "4401:4401" # WebSocket
+  #     - "4490:4490" # Metrics
+  #     - "4491:4491" # Health
+  #   networks:
+  #     - auction_net
+  #   command: ${STAGE:-dev}.command.eliza
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4491/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Admin Frontend Service
   admin-frontend:
@@ -247,14 +251,23 @@ services:
 
   # Redis for Caching and Message Queue
   redis:
-    image: redis:alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD:-default_password} --protected-mode no
+    image: redis:7-alpine
+    command: >
+      redis-server 
+      --requirepass ${REDIS_PASSWORD:-default_password}
+      --protected-mode yes
+      --bind 0.0.0.0
+      --tcp-backlog 511
+      --maxclients 10000
+      --timeout 0
+      --tcp-keepalive 300
     volumes:
-      - ./data/redis:/data:rw
+      - redis_data:/data
     ports:
       - "6379:6379"
     networks:
       - auction_net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-default_password}", "ping"]
       interval: 5s
@@ -263,7 +276,7 @@ services:
 
   # Redis Exporter for Prometheus
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.55.0
     environment:
       - REDIS_ADDR=redis://redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
@@ -273,6 +286,7 @@ services:
       - auction_net
     depends_on:
       - redis
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:9121/metrics"]
       interval: 30s
@@ -281,20 +295,30 @@ services:
 
   # Prometheus for Metrics
   prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./data/prometheus:/prometheus:rw
+    image: prom/prometheus:v2.48.0
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.external-url=/prometheus'
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
     ports:
       - "9090:9090"
     networks:
       - auction_net
-    profiles:
-      - monitoring
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
+      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -303,23 +327,31 @@ services:
 
   # Grafana for Monitoring
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.3
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SERVER_ROOT_URL=https://${MONITORING_DOMAIN:-localhost}
+      - GF_SERVER_ROOT_URL=/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_HTTP_PORT=3001
     volumes:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./data/grafana:/var/lib/grafana:rw
+      - grafana_data:/var/lib/grafana
     ports:
       - "3001:3001"
     networks:
       - auction_net
-    profiles:
-      - monitoring
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.middlewares=grafana-strip"
+      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=/grafana"
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:3001/api/health"]
       interval: 30s
@@ -371,29 +403,29 @@ x-volumes:
   prod.volumes.auction-manager:
     - ./data/auction:/app/storage:rw
 
-  dev.volumes.stream-manager:
-    - ./apps/stream-manager/src:/app/src:ro
-    - ./apps/stream-manager/package.json:/app/package.json:ro
-    - ./data/stream:/app/storage:rw
+  # dev.volumes.stream-manager:
+  #   - ./apps/stream-manager/src:/app/src:ro
+  #   - ./apps/stream-manager/package.json:/app/package.json:ro
+  #   - ./data/stream:/app/storage:rw
 
-  prod.volumes.stream-manager:
-    - ./data/stream:/app/storage:rw
+  # prod.volumes.stream-manager:
+  #   - ./data/stream:/app/storage:rw
 
-  dev.volumes.shape-l2:
-    - ./apps/shape-l2/src:/app/src:ro
-    - ./apps/shape-l2/package.json:/app/package.json:ro
-    - ./data/shape-l2:/app/storage:rw
+  # dev.volumes.shape-l2:
+  #   - ./apps/shape-l2/src:/app/src:ro
+  #   - ./apps/shape-l2/package.json:/app/package.json:ro
+  #   - ./data/shape-l2:/app/storage:rw
 
-  prod.volumes.shape-l2:
-    - ./data/shape-l2:/app/storage:rw
+  # prod.volumes.shape-l2:
+  #   - ./data/shape-l2:/app/storage:rw
 
-  dev.volumes.eliza:
-    - ./apps/eliza/src:/app/src:ro
-    - ./apps/eliza/package.json:/app/package.json:ro
-    - ./data/eliza:/app/storage:rw
+  # dev.volumes.eliza:
+  #   - ./apps/eliza/src:/app/src:ro
+  #   - ./apps/eliza/package.json:/app/package.json:ro
+  #   - ./data/eliza:/app/storage:rw
 
-  prod.volumes.eliza:
-    - ./data/eliza:/app/storage:rw
+  # prod.volumes.eliza:
+  #   - ./data/eliza:/app/storage:rw
 
   dev.volumes.admin-frontend:
     - ./apps/admin/src:/app/src:ro
@@ -423,17 +455,22 @@ x-commands:
   prod.command.event-handler:
     npm run start
 
-  dev.command.stream-manager: *dev-command
-  prod.command.stream-manager:
-    npm run start
+  # dev.command.stream-manager: *dev-command
+  # prod.command.stream-manager:
+  #   npm run start
 
-  dev.command.shape-l2: *dev-command
-  prod.command.shape-l2:
-    npm run start
+  # dev.command.shape-l2: *dev-command
+  # prod.command.shape-l2:
+  #   npm run start
 
-  dev.command.eliza: *dev-command
-  prod.command.eliza:
-    npm run start
+  # dev.command.eliza: *dev-command
+  # prod.command.eliza:
+  #   npm run start
+
+volumes:
+  redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   auction_net:
