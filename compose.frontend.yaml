@@ -132,12 +132,15 @@ services:
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_SERVER_ROOT_URL=https://${MONITORING_SUBDOMAIN}
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/system-metrics.json
+      - GF_SERVER_HTTP_PORT=9000
+    ports:
+      - "9000:9000"
     networks:
       - frontend_net
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.grafana.rule=Host(`${MONITORING_SUBDOMAIN}`)"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.services.grafana.loadbalancer.server.port=9000"
       - "traefik.http.routers.grafana.entrypoints=websecure"
       - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
     depends_on:

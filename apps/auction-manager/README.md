@@ -173,8 +173,4 @@ The Auction Manager is the core orchestration system for the NFT auction platfor
      - [ ] Transaction logs
      - [ ] Bid history archives
    - [ ] Document recovery procedures
-
-## API Design
-
-### Internal APIs
 ```

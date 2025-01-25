@@ -88,7 +88,7 @@ graph TD
         
 ### Auction Manager
 - Auction Lifecycle Management
-    - Preset time duration of stream/auction marathon . "Every day for n days." Ex: 30 days.
+    - Preset time duration of stream/auction marathon. "Every day for n days." Ex: 30 days.
     - Daily bid start and end time. Ex: 3PM - 4PM EST.
 - Bid Processing & Logic
     - Read tweets responding to auction tweet
