@@ -129,38 +129,67 @@ services:
       retries: 3
 
   # Stream Processing Service
-  # stream-manager:
-  #   build:
-  #     context: ./apps/stream-manager
-  #     dockerfile: Dockerfile
-  #     target: ${NODE_ENV:-development}
-  #   environment:
-  #     - NODE_ENV=${NODE_ENV:-development}
-  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-  #     - PORT=4200
-  #     - WS_PORT=4201
-  #     - METRICS_PORT=4290
-  #     - HEALTH_PORT=4291
-  #   volumes:
-  #     - ${STAGE:-dev}.volumes.stream-manager
-  #   ports:
-  #     - "4200:4200" # Main API
-  #     - "4201:4201" # WebSocket
-  #     - "4290:4290" # Metrics
-  #     - "4291:4291" # Health
-  #   networks:
-  #     - auction_net
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: ${RESOURCES_CPU:-0.5}
-  #         memory: ${RESOURCES_MEMORY:-512M}
-  #   command: ${STAGE:-dev}.command.stream-manager
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  stream-manager:
+    build:
+      context: ./apps/stream-manager
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - PORT=4200
+      - WS_PORT=4201
+      - METRICS_PORT=4290
+      - HEALTH_PORT=4291
+      - TWITTER_API_KEY=${TWITTER_API_KEY}
+      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
+      - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET}
+      - MAX_LAYERS=${MAX_LAYERS:-50}
+      - TARGET_FPS=${TARGET_FPS:-30}
+      - RENDER_QUALITY=${RENDER_QUALITY:-high}
+    volumes:
+      - type: bind
+        source: ./.env
+        target: /app/.env
+        read_only: true
+      - type: bind
+        source: ./apps/stream-manager/src
+        target: /app/src
+        read_only: true
+      - type: bind
+        source: ./apps/stream-manager/package.json
+        target: /app/package.json
+        read_only: true
+      - type: volume
+        source: stream_storage
+        target: /app/storage
+    ports:
+      - "4200:4200" # Main API
+      - "4201:4201" # WebSocket
+      - "4290:4290" # Metrics
+      - "4291:4291" # Health
+    networks:
+      - auction_net
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
+    depends_on:
+      - redis
+      - event-handler
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.stream-manager.rule=Host(`${DOMAIN}`) && PathPrefix(`/stream`)"
+      - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
+      - "traefik.http.routers.stream-manager.entrypoints=websecure"
+      - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Shape L2 Integration Service
   # shape-l2:
@@ -421,29 +450,27 @@ x-volumes:
   prod.volumes.auction-manager:
     - ./data/auction:/app/storage:rw
 
-  # dev.volumes.stream-manager:
-  #   - ./apps/stream-manager/src:/app/src:ro
-  #   - ./apps/stream-manager/package.json:/app/package.json:ro
-  #   - ./data/stream:/app/storage:rw
+  dev.volumes.stream-manager:
+    - type: bind
+      source: ./.env
+      target: /app/.env
+      read_only: true
+    - type: bind
+      source: ./apps/stream-manager/src
+      target: /app/src
+      read_only: true
+    - type: bind
+      source: ./apps/stream-manager/package.json
+      target: /app/package.json
+      read_only: true
+    - type: volume
+      source: stream_storage
+      target: /app/storage
 
-  # prod.volumes.stream-manager:
-  #   - ./data/stream:/app/storage:rw
-
-  # dev.volumes.shape-l2:
-  #   - ./apps/shape-l2/src:/app/src:ro
-  #   - ./apps/shape-l2/package.json:/app/package.json:ro
-  #   - ./data/shape-l2:/app/storage:rw
-
-  # prod.volumes.shape-l2:
-  #   - ./data/shape-l2:/app/storage:rw
-
-  # dev.volumes.eliza:
-  #   - ./apps/eliza/src:/app/src:ro
-  #   - ./apps/eliza/package.json:/app/package.json:ro
-  #   - ./data/eliza:/app/storage:rw
-
-  # prod.volumes.eliza:
-  #   - ./data/eliza:/app/storage:rw
+  prod.volumes.stream-manager:
+    - type: volume
+      source: stream_storage
+      target: /app/storage
 
   dev.volumes.admin-frontend:
     - ./apps/admin/src:/app/src:ro
@@ -473,22 +500,11 @@ x-commands:
   prod.command.event-handler:
     npm run start
 
-  # dev.command.stream-manager: *dev-command
-  # prod.command.stream-manager:
-  #   npm run start
-
-  # dev.command.shape-l2: *dev-command
-  # prod.command.shape-l2:
-  #   npm run start
-
-  # dev.command.eliza: *dev-command
-  # prod.command.eliza:
-  #   npm run start
-
 volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  stream_storage:
 
 networks:
   auction_net:

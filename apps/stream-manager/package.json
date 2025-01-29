@@ -1,18 +1,41 @@
 {
   "name": "stream-manager",
   "version": "1.0.0",
-  "description": "Stream Processing Service",
-  "main": "src/index.js",
+  "description": "Stream Processing Service for NFT Auction System",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint . --ext .ts",
+    "test": "jest",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.51",
     "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
+    "pino": "^8.16.0",
     "redis": "^4.6.12",
-    "pino": "^8.16.0"
+    "twitter-api-v2": "^1.15.2",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.5",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.1.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 } 
