@@ -1,22 +1,20 @@
 export type ServiceStatus = 'running' | 'stopped' | 'error';
 
 export interface ServiceMetrics {
-  requestRate?: number;      // Requests per second
-  errorRate?: number;        // Errors per second
-  cpuUsage?: number;        // CPU usage percentage
-  memoryUsage?: number;     // Memory usage in MB
-  uptime?: number;          // Uptime in seconds
-  lastReload?: number;      // Last config reload timestamp (for Traefik)
-  connectionCount?: number; // Active connections (for Redis/DBs)
+  requestRate: number;      // Requests per second
+  errorRate: number;        // Errors per second
+  cpuUsage: number;        // CPU usage percentage
+  memoryUsage: number;     // Memory usage in MB
+  uptime: number;          // Uptime in seconds
+  lastReload: number;      // Last config reload timestamp (for Traefik)
+  connectionCount: number; // Active connections (for Redis/DBs)
 }
 
 export interface ServiceHealth {
   status: ServiceStatus;
-  metrics: {
-    [K in keyof ServiceMetrics]: number;
-  };
+  metrics: Partial<ServiceMetrics>;  // Make metrics partial since not all services have all metrics
   lastCheck: string;        // ISO timestamp string
-  message?: string;         // Optional status message
+  message: string;         // Status message, empty string if none
 }
 
 export interface ServiceInfo {
