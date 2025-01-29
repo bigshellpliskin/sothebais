@@ -3,19 +3,47 @@ import { getConfig } from '../config';
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
-interface LoggerOptions {
+export interface LogContext {
+  requestId?: string;
+  userId?: string;
+  service?: string;
+  component?: string;
+  [key: string]: any;
+}
+
+export interface LoggerOptions {
   name?: string;
   level?: LogLevel;
   prettyPrint?: boolean;
+  context?: LogContext;
 }
 
 class Logger {
   private static instance: Logger;
-  private logger!: pino.Logger;
+  private logger: pino.Logger;
   private initialized = false;
+  private context: LogContext = {};
+  private metricsLogInterval = 10000; // Log metrics every 10 seconds
+  private lastMetricsLog = 0;
 
   private constructor() {
-    // Defer logger creation until initialize is called
+    this.logger = this.createDefaultLogger();
+  }
+
+  private createDefaultLogger(): pino.Logger {
+    return pino({
+      name: 'stream-manager',
+      level: 'info',
+      transport: {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname,service,env',
+          messageFormat: '{msg}',
+        }
+      }
+    });
   }
 
   public initialize(config: any): void {
@@ -24,10 +52,11 @@ class Logger {
     }
 
     const isDevEnv = config.NODE_ENV === 'development';
+    const logLevel = process.env.LOG_LEVEL || (isDevEnv ? 'debug' : 'info');
 
     this.logger = pino({
       name: 'stream-manager',
-      level: isDevEnv ? 'debug' : 'info',
+      level: logLevel,
       timestamp: pino.stdTimeFunctions.isoTime,
       formatters: {
         level: (label: string) => {
@@ -43,7 +72,8 @@ class Logger {
         options: {
           colorize: true,
           translateTime: 'SYS:standard',
-          ignore: 'pid,hostname',
+          ignore: 'pid,hostname,service,env',
+          messageFormat: '{msg}',
         }
       } : undefined
     });
@@ -51,77 +81,114 @@ class Logger {
     this.initialized = true;
   }
 
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      throw new Error('Logger not initialized. Call initialize() first.');
+  private ensureLogger(): void {
+    if (!this.logger) {
+      this.logger = this.createDefaultLogger();
     }
   }
 
   public static getInstance(options?: LoggerOptions): Logger {
     if (!Logger.instance) {
       Logger.instance = new Logger();
+      if (options?.context) {
+        Logger.instance.setContext(options.context);
+      }
     }
     return Logger.instance;
   }
 
-  // Update all logging methods to check initialization
-  public fatal(obj: object | string, msg?: string): void {
-    this.ensureInitialized();
+  public setContext(context: LogContext): void {
+    this.context = { ...this.context, ...context };
+  }
+
+  public clearContext(): void {
+    this.context = {};
+  }
+
+  public withContext(context: LogContext): Logger {
+    const newLogger = Logger.getInstance();
+    newLogger.setContext({ ...this.context, ...context });
+    return newLogger;
+  }
+
+  private formatLogObject(obj: object | string, msg?: string): object {
     if (typeof obj === 'string') {
-      this.logger.fatal(obj);
+      return {
+        msg: obj,
+        context: this.context,
+      };
+    }
+    
+    // Filter out sensitive or verbose data
+    const filteredObj: Record<string, any> = { ...obj };
+    delete filteredObj['config'];
+    delete filteredObj['context'];
+    
+    return {
+      ...filteredObj,
+      context: this.context,
+      msg: msg || '',
+    };
+  }
+
+  public fatal(obj: object | string, msg?: string, error?: Error): void {
+    this.ensureLogger();
+    const logObj = this.formatLogObject(obj, msg);
+    if (error) {
+      this.logger.fatal({ ...logObj, error: this.formatError(error) });
     } else {
-      this.logger.fatal(obj, msg);
+      this.logger.fatal(logObj);
     }
   }
 
-  public error(obj: object | string, msg?: string): void {
-    this.ensureInitialized();
-    if (typeof obj === 'string') {
-      this.logger.error(obj);
+  public error(obj: object | string, msg?: string, error?: Error): void {
+    this.ensureLogger();
+    const logObj = this.formatLogObject(obj, msg);
+    if (error) {
+      this.logger.error({ ...logObj, error: this.formatError(error) });
     } else {
-      this.logger.error(obj, msg);
+      this.logger.error(logObj);
     }
   }
 
   public warn(obj: object | string, msg?: string): void {
-    this.ensureInitialized();
-    if (typeof obj === 'string') {
-      this.logger.warn(obj);
-    } else {
-      this.logger.warn(obj, msg);
-    }
+    this.ensureLogger();
+    this.logger.warn(this.formatLogObject(obj, msg));
   }
 
   public info(obj: object | string, msg?: string): void {
-    this.ensureInitialized();
-    if (typeof obj === 'string') {
-      this.logger.info(obj);
-    } else {
-      this.logger.info(obj, msg);
-    }
+    this.ensureLogger();
+    this.logger.info(this.formatLogObject(obj, msg));
   }
 
   public debug(obj: object | string, msg?: string): void {
-    this.ensureInitialized();
-    if (typeof obj === 'string') {
-      this.logger.debug(obj);
-    } else {
-      this.logger.debug(obj, msg);
-    }
+    this.ensureLogger();
+    this.logger.debug(this.formatLogObject(obj, msg));
   }
 
   public trace(obj: object | string, msg?: string): void {
-    this.ensureInitialized();
-    if (typeof obj === 'string') {
-      this.logger.trace(obj);
-    } else {
-      this.logger.trace(obj, msg);
-    }
+    this.ensureLogger();
+    this.logger.trace(this.formatLogObject(obj, msg));
+  }
+
+  private formatError(error: Error): object {
+    return {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
   }
 
   // Specialized logging methods for specific contexts
   public logMetrics(metrics: object): void {
-    this.info({ type: 'metrics', ...metrics }, 'Performance metrics update');
+    const now = Date.now();
+    if (now - this.lastMetricsLog >= this.metricsLogInterval) {
+      this.info(
+        { type: 'metrics', ...metrics },
+        'Performance metrics update'
+      );
+      this.lastMetricsLog = now;
+    }
   }
 
   public logLayerEvent(event: string, layerId: string, data?: object): void {
@@ -143,6 +210,24 @@ class Logger {
       { type: 'websocket', event, clientId, ...data },
       `WebSocket event: ${event}`
     );
+  }
+
+  public logHttpRequest(req: any, res: any, responseTime: number): void {
+    this.debug({
+      type: 'http',
+      method: req.method,
+      url: req.url,
+      status: res.statusCode,
+      responseTime,
+    }, `${req.method} ${req.url}`);
+  }
+
+  public startTimer(): () => number {
+    const start = process.hrtime();
+    return () => {
+      const [seconds, nanoseconds] = process.hrtime(start);
+      return seconds * 1000 + nanoseconds / 1000000;
+    };
   }
 }
 
