@@ -2,4 +2,7 @@ node_modules
 dist
 .git
 .env
-*.log 
+*.log
+letsencrypt/
+data/
+!data/traefik/letsencrypt/ 

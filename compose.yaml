@@ -11,7 +11,7 @@ services:
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.traefik.address=:3100"
       # Certificate Resolver
-      - "--certificatesresolvers.letsencrypt.acme.email=iroquoispliskin222@gmail.com"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
@@ -43,7 +43,11 @@ services:
       - "traefik.http.routers.traefik-health.service=ping@internal"
       - "traefik.http.routers.traefik-health.entrypoints=traefik"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:3100/ping"]
+      test: 
+        - "CMD"
+        - "/bin/sh"
+        - "-c"
+        - "[ -w /letsencrypt/acme.json ]"
       interval: 10s
       timeout: 5s
       retries: 3
@@ -318,8 +322,8 @@ services:
       - '--web.enable-lifecycle'
       - '--web.external-url=/prometheus'
     volumes:
-      - ./monitoring/prometheus:/etc/prometheus:ro
-      - prometheus_data:/prometheus
+      - ./monitoring/prometheus:/etc/prometheus:ro    # Config files
+      - prometheus_data:/prometheus                   # Actual data
     ports:
       - "9090:9090"
     networks:
@@ -350,9 +354,9 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_HTTP_PORT=3001
     volumes:
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro         # Dashboard definitions
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro         # Provisioning config
+      - grafana_data:/var/lib/grafana                                          # Actual data
     ports:
       - "3001:3001"
     networks:
