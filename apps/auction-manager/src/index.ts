@@ -5,6 +5,7 @@ import { createLogger } from './utils/logger';
 import { healthRouter } from './routes/health';
 import { metricsRouter } from './routes/metrics';
 import { auctionRouter } from './routes/auction';
+import { stateRouter } from './routes/state';
 
 const logger = createLogger('app');
 const app = express();
@@ -20,6 +21,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auction', auctionRouter);
+app.use('/api', stateRouter);
 
 // Basic route for testing
 app.get('/', (_req: Request, res: Response) => {

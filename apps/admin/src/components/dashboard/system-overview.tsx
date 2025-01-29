@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Box, Server, BarChart3, RefreshCw, Cpu, Memory, Network } from "lucide-react";
+import { Activity, Box, Server, BarChart3, RefreshCw, Cpu, Network } from "lucide-react";
 import { Widget } from "@/components/ui/widget";
 import { StatusCard } from "@/components/ui/status-card";
 import { useServiceStatus } from "@/hooks/useServiceStatus";
@@ -118,7 +118,7 @@ export function SystemOverview() {
                               )}
                               {metrics.memoryUsage !== undefined && (
                                 <div className="flex items-center gap-1">
-                                  <Memory className="w-3 h-3" />
+                                  
                                   <MetricValue value={metrics.memoryUsage} unit="MB" />
                                 </div>
                               )}

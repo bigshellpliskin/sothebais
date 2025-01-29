@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { ServiceStatus, ServiceHealth, ServiceMetrics } from '@/types/service';
+import { CORE_SERVICES } from '@/types/service';
 
 interface ServiceStatuses {
-  [key: string]: ServiceHealth;
+  [key: string]: Omit<ServiceHealth, 'lastCheck'> & {
+    lastCheck: string;
+  };
 }
 
 async function fetchServiceMetrics(serviceName: string, port: number): Promise<ServiceMetrics> {
@@ -26,16 +29,19 @@ async function fetchServiceMetrics(serviceName: string, port: number): Promise<S
   await Promise.all(
     Object.entries(queries).map(async ([metric, query]) => {
       try {
+        // Ensure query is a plain object before stringifying
+        const plainQuery = { query: String(query) };
         const response = await fetch('/api/services/metrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query })
+          body: JSON.stringify(plainQuery)
         });
         
         if (response.ok) {
           const data = await response.json();
           if (data.value !== undefined) {
-            results[metric] = data.value;
+            // Ensure numeric values are properly formatted
+            results[metric] = Number(parseFloat(data.value).toFixed(2));
           }
         }
       } catch (error) {
@@ -44,11 +50,16 @@ async function fetchServiceMetrics(serviceName: string, port: number): Promise<S
     })
   );
 
-  return results;
+  // Ensure we return a plain object with primitive values
+  return Object.fromEntries(
+    Object.entries(results).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? Number(value) : 0
+    ])
+  );
 }
 
 async function fetchServiceStatuses(): Promise<ServiceStatuses> {
-  // First get basic up/down status
   const upResponse = await fetch('/api/services/status', {
     next: { revalidate: 0 }
   });
@@ -58,9 +69,8 @@ async function fetchServiceStatuses(): Promise<ServiceStatuses> {
   }
   
   const basicStatuses = await upResponse.json();
-  const detailedStatuses: ServiceStatuses = {};
+  const detailedStatuses: { [key: string]: ServiceHealth } = {};
   
-  // Fetch detailed metrics for each service
   await Promise.all(
     Object.entries(basicStatuses).map(async ([serviceName, status]) => {
       const serviceInfo = CORE_SERVICES
@@ -71,23 +81,46 @@ async function fetchServiceStatuses(): Promise<ServiceStatuses> {
 
       const metrics = await fetchServiceMetrics(serviceName, serviceInfo.port || 0);
       
+      // Create a new plain object with primitive values
       detailedStatuses[serviceName] = {
-        status: status as ServiceStatus,
-        metrics,
-        lastCheck: Date.now(),
-        message: metrics.errorRate ? `Error rate: ${(metrics.errorRate * 100).toFixed(2)}%` : undefined
+        status: String(status) as ServiceStatus,
+        metrics: Object.fromEntries(
+          Object.entries(metrics).map(([key, value]) => [
+            key,
+            typeof value === 'number' ? Number(value) : 0
+          ])
+        ),
+        lastCheck: new Date().toISOString(),
+        message: metrics.errorRate !== undefined
+          ? `Error rate: ${(Number(metrics.errorRate) * 100).toFixed(2)}%` 
+          : undefined
       };
     })
   );
 
-  return detailedStatuses;
+  // Return a plain object with primitive values
+  return JSON.parse(JSON.stringify(detailedStatuses));
 }
 
 export function useServiceStatus() {
   return useQuery({
     queryKey: ['serviceStatus'],
     queryFn: fetchServiceStatuses,
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000,
     retry: 3,
+    select: (data) => {
+      // Ensure we return a new plain object with all properties
+      return Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [
+          key,
+          {
+            status: value.status,
+            metrics: { ...value.metrics },
+            lastCheck: value.lastCheck,
+            message: value.message
+          }
+        ])
+      );
+    },
   });
 } 

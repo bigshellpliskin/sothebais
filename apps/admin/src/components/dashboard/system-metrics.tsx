@@ -3,11 +3,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useEffect, useState } from "react";
-import { Loader2, TrendingDown, TrendingUp, Minus, Server, Box, Activity } from "lucide-react";
+import { Loader2, TrendingDown, TrendingUp, Minus, Server, Box, Activity, Cpu, HardDrive, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusCard } from "@/components/ui/status-card";
-import { useServiceStore } from "@/store/services";
 import { useServiceStatus } from "@/hooks/useServiceStatus";
+import { CORE_SERVICES } from "@/types/service";
 
 interface MetricData {
   value: number;
@@ -71,8 +71,7 @@ export function SystemMetrics() {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { serviceGroups, isLoading: servicesLoading } = useServiceStore();
-  useServiceStatus();
+  const { data: services, isLoading: servicesLoading } = useServiceStatus();
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -124,14 +123,14 @@ export function SystemMetrics() {
     };
 
     fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5000);
+    const interval = setInterval(fetchMetrics, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate service statistics
-  const allServices = serviceGroups.flatMap(group => group.services);
-  const runningServices = allServices.filter(service => service.status === 'running');
-  const errorServices = allServices.filter(service => service.status === 'error');
+  // Calculate service statistics from React Query data
+  const allServices = Object.entries(services || {});
+  const runningServices = allServices.filter(([_, health]) => health.status === 'running');
+  const errorServices = allServices.filter(([_, health]) => health.status === 'error');
   const systemLoad = Math.min(100, Math.round((runningServices.length / allServices.length) * 100));
 
   const LoadingCard = ({ title }: { title: string }) => (
@@ -236,42 +235,79 @@ export function SystemMetrics() {
             </div>
           )}
 
-          {/* Service Groups Overview */}
-          <div className="grid grid-cols-2 gap-6 pt-4 border-t">
-            {serviceGroups.map((group) => (
+          {/* Service Groups */}
+          <div className="grid grid-cols-2 gap-6">
+            {CORE_SERVICES.map((group) => (
               <div key={group.name} className="min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <h3 className="text-sm font-semibold whitespace-nowrap">{group.name}</h3>
                   <div className="h-px bg-gray-200 flex-grow" />
                 </div>
                 <div className="space-y-1">
-                  {group.services.map((service) => (
-                    <div
-                      key={service.name}
-                      className="bg-white/50 rounded px-2 py-1.5 flex items-center justify-between text-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div 
-                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            service.status === 'running' ? 'bg-green-500' :
-                            service.status === 'error' ? 'bg-red-500' :
-                            'bg-gray-500'
-                          }`}
-                        />
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{service.name}</p>
-                          <p className="text-[10px] text-gray-500 truncate">{service.description}</p>
+                  {group.services.map((service) => {
+                    const health = services?.[service.name];
+                    const status = health?.status || 'stopped';
+                    const metrics = health?.metrics || {};
+
+                    return (
+                      <div
+                        key={service.name}
+                        className="bg-white/50 rounded px-2 py-1.5 flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div 
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                              status === 'running' ? 'bg-green-500' :
+                              status === 'error' ? 'bg-red-500' :
+                              'bg-gray-500'
+                            }`}
+                          />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{service.name}</p>
+                            <p className="text-[10px] text-gray-500 truncate">{service.description}</p>
+                            {status === 'running' && metrics && (
+                              <div className="flex gap-2 mt-1">
+                                {metrics.cpuUsage !== undefined && (
+                                  <div className="flex items-center gap-1">
+                                    <Cpu className="w-3 h-3" />
+                                    <span className="text-[10px] text-gray-500">
+                                      {metrics.cpuUsage.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                )}
+                                {metrics.memoryUsage !== undefined && (
+                                  <div className="flex items-center gap-1">
+                                    <HardDrive className="w-3 h-3" />
+                                    <span className="text-[10px] text-gray-500">
+                                      {metrics.memoryUsage.toFixed(1)}MB
+                                    </span>
+                                  </div>
+                                )}
+                                {metrics.requestRate !== undefined && (
+                                  <div className="flex items-center gap-1">
+                                    <Network className="w-3 h-3" />
+                                    <span className="text-[10px] text-gray-500">
+                                      {metrics.requestRate.toFixed(1)}req/s
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {health?.message && (
+                              <p className="text-[10px] text-red-500 mt-1">{health.message}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className={`ml-2 px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${
+                          status === 'running' ? 'bg-green-100 text-green-800' :
+                          status === 'error' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {status}
                         </div>
                       </div>
-                      <div className={`ml-2 px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${
-                        service.status === 'running' ? 'bg-green-100 text-green-800' :
-                        service.status === 'error' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {service.status}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

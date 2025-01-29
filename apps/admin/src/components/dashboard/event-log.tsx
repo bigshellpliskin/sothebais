@@ -11,7 +11,7 @@ interface Event {
   id: string;
   type: string;
   timestamp: string;
-  data: any;
+  data: string;
 }
 
 interface LogEntry {
@@ -29,7 +29,7 @@ interface SystemLogEntry {
   service: string;
   state: string;
   message: string;
-  context: Record<string, any>;
+  context: string;
 }
 
 export function EventLog() {
@@ -79,13 +79,31 @@ export function EventLog() {
           throw new Error(`System logs failed: ${systemResponse.status}`);
         }
 
-        const [containerLogs, systemLogs] = await Promise.all([
+        const [containerLogsData, systemLogsData] = await Promise.all([
           containerResponse.json(),
           systemResponse.json()
         ]);
 
-        setContainerLogs(containerLogs);
-        setSystemLogs(systemLogs);
+        // Ensure container logs are serializable
+        const processedContainerLogs = Object.fromEntries(
+          Object.entries(containerLogsData).map(([key, logs]) => [
+            key,
+            (logs as LogEntry[]).map(log => ({
+              ...log,
+              timestamp: new Date(log.timestamp).toISOString(),
+            }))
+          ])
+        );
+
+        // Ensure system logs are serializable
+        const processedSystemLogs = systemLogsData.map((log: any) => ({
+          ...log,
+          timestamp: new Date(log.timestamp).toISOString(),
+          context: typeof log.context === 'object' ? JSON.stringify(log.context) : String(log.context)
+        }));
+
+        setContainerLogs(processedContainerLogs);
+        setSystemLogs(processedSystemLogs);
         setError(null);
       } catch (err) {
         console.error('Failed to load logs:', err);
@@ -151,9 +169,9 @@ export function EventLog() {
           <div className="mt-1 text-foreground whitespace-pre-wrap">
             {log.message}
           </div>
-          {log.context && Object.keys(log.context).length > 0 && (
+          {log.context && (
             <div className="mt-1 text-muted-foreground">
-              {JSON.stringify(log.context, null, 2)}
+              {log.context}
             </div>
           )}
         </div>
@@ -178,7 +196,7 @@ export function EventLog() {
         second: '2-digit',
         hour12: false
       });
-      const content = entry.content || JSON.stringify(entry.data, null, 2);
+      const content = entry.content || (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2));
       // Create a more unique key by combining id, timestamp and a hash of the content
       const contentHash = content.split('').reduce((acc: number, char: string) => {
         return ((acc << 5) - acc) + char.charCodeAt(0) | 0;
@@ -226,7 +244,6 @@ export function EventLog() {
                 <TabsTrigger value="admin-frontend">Admin Frontend</TabsTrigger>
               </TabsList>
             </div>
-
             <ScrollArea className="h-[400px] border rounded-md mt-4 p-4">
               {loading && !containerLogs && !systemLogs && (
                 <div className="flex justify-center items-center h-full">

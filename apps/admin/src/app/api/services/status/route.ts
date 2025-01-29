@@ -83,20 +83,27 @@ export async function GET() {
     // Get status for all services in parallel
     const servicePromises = SERVICES.map(async service => {
       const status = await getServiceStatus(service);
-      return [service.name, status] as [string, ServiceStatus];
+      // Ensure status is a string
+      return [service.name, String(status)] as [string, ServiceStatus];
     });
 
     // Get Redis status separately since it uses redis-exporter
     const redisPromise = (async () => {
       const status = await getRedisStatus();
-      return ['redis', status] as [string, ServiceStatus];
+      // Ensure status is a string
+      return ['redis', String(status)] as [string, ServiceStatus];
     })();
 
     // Wait for all status checks
     const results = await Promise.all([...servicePromises, redisPromise]);
     const statuses = Object.fromEntries(results);
 
-    return NextResponse.json(statuses);
+    // Return a plain object with string values
+    return NextResponse.json(statuses, {
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
   } catch (error) {
     console.error('Error in status route:', error);
     return new NextResponse('Internal Server Error', { status: 500 });

@@ -12,8 +12,10 @@ export interface ServiceMetrics {
 
 export interface ServiceHealth {
   status: ServiceStatus;
-  metrics: ServiceMetrics;
-  lastCheck: number;        // Last health check timestamp
+  metrics: {
+    [K in keyof ServiceMetrics]: number;
+  };
+  lastCheck: string;        // ISO timestamp string
   message?: string;         // Optional status message
 }
 

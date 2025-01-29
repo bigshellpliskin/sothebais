@@ -79,8 +79,12 @@ export async function GET() {
         error: "Prometheus connection failed",
         prometheus_url: PROMETHEUS_URL,
         message: error instanceof Error ? error.message : "Unknown error",
-        cause: error instanceof Error ? error.cause : undefined
-      }, { status: 500 });
+      }, { 
+        status: 500,
+        headers: {
+          'content-type': 'application/json',
+        },
+      });
     }
 
     // CPU Usage (average across all services)
@@ -99,26 +103,33 @@ export async function GET() {
     const redisMemoryQuery = 'redis_memory_used_bytes{job="redis"} / 1024 / 1024';
     const redisMemory = await queryPrometheus(redisMemoryQuery);
 
-    return NextResponse.json({
+    // Return a plain object with serializable values
+    const response = {
       cpu: {
         value: Number(cpu.toFixed(1)),
-        unit: "%",
-        trend: "stable",
+        unit: "%" as const,
+        trend: "stable" as const,
       },
       memory: {
         value: Number(memory.toFixed(1)),
-        unit: "MB",
-        trend: "stable",
+        unit: "MB" as const,
+        trend: "stable" as const,
       },
       requestRate: {
         value: Number(requestRate.toFixed(2)),
-        unit: "req/s",
-        trend: "stable",
+        unit: "req/s" as const,
+        trend: "stable" as const,
       },
       redisMemory: {
         value: Number(redisMemory.toFixed(1)),
-        unit: "MB",
-        trend: "stable",
+        unit: "MB" as const,
+        trend: "stable" as const,
+      },
+    };
+
+    return NextResponse.json(response, {
+      headers: {
+        'content-type': 'application/json',
       },
     });
   } catch (error) {
@@ -126,6 +137,11 @@ export async function GET() {
     return NextResponse.json({
       error: "Failed to fetch metrics",
       message: error instanceof Error ? error.message : "Unknown error"
-    }, { status: 500 });
+    }, { 
+      status: 500,
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
   }
 } 
