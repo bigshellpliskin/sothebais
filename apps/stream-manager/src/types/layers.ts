@@ -10,7 +10,7 @@ export type Transform = {
   anchor: Point2D;
 };
 
-export type LayerType = 'host' | 'assistant' | 'visualFeed' | 'overlay';
+export type LayerType = 'host' | 'assistant' | 'visualFeed' | 'overlay' | 'chat';
 
 export interface BaseLayer {
   id: string;
@@ -23,7 +23,7 @@ export interface BaseLayer {
 
 export interface VTuberCharacter {
   modelUrl: string;
-  textureUrl: string;
+  textureUrl: string | null;
   animations: Record<string, string>;
 }
 
@@ -58,7 +58,32 @@ export interface OverlayLayer extends BaseLayer {
   content: OverlayContent;
 }
 
-export type Layer = HostLayer | AssistantLayer | VisualFeedLayer | OverlayLayer;
+export interface ChatMessage {
+  id: string;
+  author: string;
+  text: string;
+  timestamp: number;
+  highlighted: boolean;
+}
+
+export interface ChatLayer extends BaseLayer {
+  type: 'chat';
+  content: {
+    messages: ChatMessage[];
+    maxMessages: number;
+    style: {
+      font: string;
+      fontSize: number;
+      textColor: string;
+      backgroundColor: string;
+      padding: number;
+      messageSpacing: number;
+      fadeOutOpacity: number;
+    };
+  };
+}
+
+export type Layer = HostLayer | AssistantLayer | VisualFeedLayer | OverlayLayer | ChatLayer;
 
 export interface LayerState {
   layers: Layer[];

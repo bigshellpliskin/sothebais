@@ -7,6 +7,7 @@ import { getConfig, loadConfig } from './config';
 import { redisService } from './services/redis';
 import { webSocketService } from './services/websocket';
 import { metricsCollector } from './utils/metrics';
+import { setupDemoServer } from './demo/demo-server';
 
 async function startServer() {
   try {
@@ -24,6 +25,7 @@ async function startServer() {
     // Create Express apps for main API and health check
     const app = express();
     const healthApp = express();
+    const metricsApp = express();
 
     // Basic health check endpoint on main API
     app.get('/health', (req: express.Request, res: express.Response) => {
@@ -37,18 +39,37 @@ async function startServer() {
       logger.debug('Health check requested');
     });
 
+    // Metrics endpoint for Prometheus
+    metricsApp.get('/metrics', async (req: express.Request, res: express.Response) => {
+      try {
+        res.set('Content-Type', metricsCollector.getMetricsContentType());
+        res.end(await metricsCollector.getPrometheusMetrics());
+      } catch (err) {
+        res.status(500).end(err);
+      }
+    });
+
     // Start HTTP servers
     app.listen(config.PORT, () => {
       logger.info(`HTTP server listening on port ${config.PORT}`);
+      logger.info(`Demo available at http://localhost:${config.PORT}/demo`);
     });
 
     healthApp.listen(config.HEALTH_PORT, () => {
       logger.info(`Health check server listening on port ${config.HEALTH_PORT}`);
     });
 
-    // Initialize Redis
+    metricsApp.listen(config.METRICS_PORT, () => {
+      logger.info(`Metrics server listening on port ${config.METRICS_PORT}`);
+    });
+
+    // Initialize Redis and connect before setting up demo server
+    redisService.initialize(config);
     await redisService.connect();
     logger.info('Redis connection established');
+
+    // Set up demo server after Redis is connected
+    await setupDemoServer(app);
 
     // Initialize canvas
     const canvas = createCanvas(1920, 1080);
@@ -57,11 +78,10 @@ async function startServer() {
     ctx.fillRect(0, 0, 1920, 1080);
 
     // Start collecting metrics
-    // setInterval(() => {
-    //   metricsCollector.updateFPS();
-    //   metricsCollector.updateResourceUsage();
-    //   logger.logMetrics(metricsCollector.getMetrics());
-    // }, 1000);
+    setInterval(() => {
+      metricsCollector.updateFPS();
+      metricsCollector.updateResourceUsage();
+    }, 1000);
 
     logger.info('Stream Manager ready');
   } catch (error) {

@@ -186,9 +186,10 @@ services:
       - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   # Shape L2 Integration Service
   # shape-l2:

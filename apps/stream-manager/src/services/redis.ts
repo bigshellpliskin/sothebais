@@ -1,6 +1,7 @@
 import { createClient } from 'redis';
 import { LayerState } from '../types/layers';
 import { Config } from '../config';
+import { logger } from '../utils/logger';
 
 class RedisService {
   private client!: ReturnType<typeof createClient>;
@@ -15,12 +16,12 @@ class RedisService {
     });
 
     this.client.on('error', (err: Error) => {
-      console.error('Redis Client Error:', err);
+      logger.error({ error: err.message }, 'Redis client error');
       this.isConnected = false;
     });
 
     this.client.on('connect', () => {
-      console.log('Redis Client Connected');
+      logger.info({ event: 'redis_connected' }, 'Redis client connected');
       this.isConnected = true;
     });
   }

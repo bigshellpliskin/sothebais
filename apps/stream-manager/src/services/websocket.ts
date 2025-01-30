@@ -2,6 +2,7 @@ import { Server as WebSocketServer, WebSocket } from 'ws';
 import { StreamEvent } from '../types/stream';
 import { LayerState } from '../types/layers';
 import { Config } from '../config';
+import { logger } from '../utils/logger';
 
 interface WebSocketMessage {
   type: 'layerUpdate' | 'streamEvent' | 'error';
@@ -17,12 +18,12 @@ class WebSocketService {
   initialize(config: Config) {
     this.wss = new WebSocketServer({ port: config.WS_PORT });
     this.wss.on('connection', this.handleConnection.bind(this));
-    console.log(`WebSocket server started on port ${config.WS_PORT}`);
+    logger.logWebSocketEvent('server_started', undefined, { port: config.WS_PORT });
   }
 
   private handleConnection(ws: WebSocket): void {
     this.clients.add(ws);
-    console.log('Client connected, total clients:', this.clients.size);
+    logger.logWebSocketEvent('client_connected', undefined, { totalClients: this.clients.size });
 
     ws.on('message', (message: string) => {
       try {
@@ -35,11 +36,11 @@ class WebSocketService {
 
     ws.on('close', () => {
       this.clients.delete(ws);
-      console.log('Client disconnected, total clients:', this.clients.size);
+      logger.logWebSocketEvent('client_disconnected', undefined, { totalClients: this.clients.size });
     });
 
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'WebSocket error');
       this.clients.delete(ws);
     });
   }
@@ -47,7 +48,7 @@ class WebSocketService {
   private handleMessage(ws: WebSocket, message: any): void {
     // Handle incoming messages based on type
     // To be implemented based on specific message types needed
-    console.log('Received message:', message);
+    logger.logWebSocketEvent('message_received', undefined, { message });
   }
 
   broadcastLayerState(state: LayerState): void {
@@ -93,7 +94,7 @@ class WebSocketService {
   shutdown(): void {
     if (this.wss) {
       this.wss.close(() => {
-        console.log('WebSocket server shut down');
+        logger.logWebSocketEvent('server_shutdown');
       });
       this.wss = null;
     }
