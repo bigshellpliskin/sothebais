@@ -140,6 +140,8 @@ services:
       - WS_PORT=4201
       - METRICS_PORT=4290
       - HEALTH_PORT=4291
+      - LOG_LEVEL=debug  # Set explicit debug logging
+      - HOST=0.0.0.0     # Explicitly set host binding
       - TWITTER_API_KEY=${TWITTER_API_KEY}
       - TWITTER_API_SECRET=${TWITTER_API_SECRET}
       - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
@@ -160,6 +162,10 @@ services:
         source: ./apps/stream-manager/package.json
         target: /app/package.json
         read_only: true
+      - type: bind
+        source: ./apps/stream-manager/assets
+        target: /app/assets
+        read_only: true
       - type: volume
         source: stream_storage
         target: /app/storage
@@ -174,22 +180,34 @@ services:
       resources:
         limits:
           cpus: ${RESOURCES_CPU:-0.5}
-          memory: ${RESOURCES_MEMORY:-512M}
+          memory: ${RESOURCES_MEMORY:-1024M}
     depends_on:
       - redis
       - event-handler
     labels:
       - "traefik.enable=true"
+      # Development mode access
+      - "traefik.http.routers.stream-manager-dev.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.stream-manager-dev.entrypoints=web"
+      - "traefik.http.routers.stream-manager-dev.service=stream-manager-dev"
+      - "traefik.http.services.stream-manager-dev.loadbalancer.server.port=4200"
+      # WebSocket endpoint
+      - "traefik.http.routers.stream-manager-ws.rule=PathPrefix(`/ws`)"
+      - "traefik.http.routers.stream-manager-ws.entrypoints=web"
+      - "traefik.http.routers.stream-manager-ws.service=stream-manager-ws"
+      - "traefik.http.services.stream-manager-ws.loadbalancer.server.port=4201"
+      # Production access
       - "traefik.http.routers.stream-manager.rule=Host(`${DOMAIN}`) && PathPrefix(`/stream`)"
-      - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
       - "traefik.http.routers.stream-manager.entrypoints=websecure"
+      - "traefik.http.routers.stream-manager.service=stream-manager"
+      - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
       - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
       interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
 
   # Shape L2 Integration Service
   # shape-l2:
@@ -462,6 +480,10 @@ x-volumes:
     - type: bind
       source: ./apps/stream-manager/package.json
       target: /app/package.json
+      read_only: true
+    - type: bind
+      source: ./apps/stream-manager/assets
+      target: /app/assets
       read_only: true
     - type: volume
       source: stream_storage

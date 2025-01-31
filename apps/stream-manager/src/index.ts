@@ -18,8 +18,12 @@ async function startServer() {
     logger.initialize(config);
     logger.info('Stream Manager starting up...');
 
-    // Initialize services
+    // Initialize Redis and connect first
     redisService.initialize(config);
+    await redisService.connect();
+    logger.info('Redis connection established');
+
+    // Initialize WebSocket service
     webSocketService.initialize(config);
 
     // Create Express apps for main API and health check
@@ -34,9 +38,18 @@ async function startServer() {
     });
 
     // Dedicated health check endpoint
-    healthApp.get('/health', (req: express.Request, res: express.Response) => {
-      res.json({ status: 'ok', timestamp: new Date().toISOString() });
-      logger.debug('Health check requested');
+    healthApp.get('/health', (req, res) => {
+      res.json({
+        status: 'ok',
+        ports: {
+          http: config.PORT,
+          health: config.HEALTH_PORT,
+          metrics: config.METRICS_PORT,
+          ws: config.WS_PORT
+        },
+        redis: redisService.isReady(),
+        timestamp: new Date().toISOString()
+      });
     });
 
     // Metrics endpoint for Prometheus
@@ -49,27 +62,47 @@ async function startServer() {
       }
     });
 
-    // Start HTTP servers
-    app.listen(config.PORT, () => {
-      logger.info(`HTTP server listening on port ${config.PORT}`);
-      logger.info(`Demo available at http://localhost:${config.PORT}/demo`);
-    });
+    // Start HTTP servers with proper error handling
+    const startServer = (app: express.Application, port: number, name: string) => {
+      return new Promise((resolve, reject) => {
+        const server = app.listen(port, '0.0.0.0', () => {
+          const addr = server.address();
+          if (addr && typeof addr === 'object') {
+            logger.info(`${name} server listening on port ${addr.port}`);
+          }
+          resolve(server);
+        });
 
-    healthApp.listen(config.HEALTH_PORT, () => {
-      logger.info(`Health check server listening on port ${config.HEALTH_PORT}`);
-    });
+        server.on('error', (error) => {
+          logger.error(`Failed to start ${name} server:`, undefined, error as Error);
+          reject(error);
+        });
+      });
+    };
 
-    metricsApp.listen(config.METRICS_PORT, () => {
-      logger.info(`Metrics server listening on port ${config.METRICS_PORT}`);
-    });
+    try {
+      await Promise.all([
+        startServer(app, config.PORT, 'HTTP'),
+        startServer(healthApp, config.HEALTH_PORT, 'Health check'),
+        startServer(metricsApp, config.METRICS_PORT, 'Metrics')
+      ]);
+    } catch (error) {
+      throw new Error(`Failed to start servers: ${error}`);
+    }
 
-    // Initialize Redis and connect before setting up demo server
-    redisService.initialize(config);
-    await redisService.connect();
-    logger.info('Redis connection established');
+    logger.info({
+      type: 'startup',
+      ports: {
+        http: config.PORT,
+        health: config.HEALTH_PORT,
+        metrics: config.METRICS_PORT,
+        ws: config.WS_PORT
+      }
+    }, 'Server ports configured');
 
-    // Set up demo server after Redis is connected
+    // Set up demo server
     await setupDemoServer(app);
+    logger.info(`Demo available at http://localhost:${config.PORT}/demo`);
 
     // Initialize canvas
     const canvas = createCanvas(1920, 1080);
@@ -85,10 +118,20 @@ async function startServer() {
 
     logger.info('Stream Manager ready');
   } catch (error) {
-    console.error('Failed to start Stream Manager:', error);
+    logger.error('Failed to start Stream Manager:', undefined, error as Error);
     process.exit(1);
   }
 }
+
+// Start the server using IIFE pattern
+(async () => {
+  try {
+    await startServer();
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+})();
 
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {
@@ -101,7 +144,4 @@ process.on('SIGTERM', async () => {
     logger.error('Error during shutdown', undefined, error as Error);
     process.exit(1);
   }
-});
-
-// Start the server
-startServer(); 
+}); 

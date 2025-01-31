@@ -25,6 +25,10 @@ export class VisualFeedRenderer {
   }
 
   private urlToFilePath(urlPath: string): string {
+    // If the path already starts with /app, use it as is
+    if (urlPath.startsWith('/app/')) {
+      return urlPath;
+    }
     // Remove leading slash if present
     const cleanPath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
     // Convert to absolute path in the container

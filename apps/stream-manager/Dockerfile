@@ -13,6 +13,7 @@ RUN apk add --no-cache \
     pango-dev \
     ffmpeg \
     curl \
+    lsof \
     # Required for @napi-rs/canvas
     pixman-dev \
     pkgconfig \
@@ -30,16 +31,15 @@ RUN npm install
 COPY . .
 
 # Create storage directory with proper permissions
-RUN mkdir -p /app/storage && chown -R node:node /app/storage
-
-# Switch to non-root user
+RUN mkdir -p /app/storage && chown -R node:node /app
 USER node
+RUN mkdir -p /app/storage
 
 # Expose ports
 EXPOSE 4200 4201 4290 4291
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:4291/health || exit 1
 
 # Start server
