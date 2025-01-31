@@ -1,10 +1,10 @@
-import { Canvas, loadImage } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
 import type { NFTContent } from '../types/layers.js';
 import path from 'path';
 
 interface ImageResource {
-  image: ReturnType<typeof loadImage>;
+  image: Awaited<ReturnType<typeof loadImage>>;
   lastUpdated: number;
   isLoading: boolean;
 }
@@ -13,7 +13,7 @@ export class VisualFeedRenderer {
   private static instance: VisualFeedRenderer;
   private imageResources: Map<string, ImageResource> = new Map();
   private resourceTimeout: number = 5 * 60 * 1000; // 5 minutes
-  private context: ReturnType<InstanceType<typeof Canvas>['getContext']> | null = null;
+  private context: ReturnType<ReturnType<typeof createCanvas>['getContext']> | null = null;
 
   private constructor() {}
 
@@ -36,7 +36,7 @@ export class VisualFeedRenderer {
   }
 
   public async renderVisualFeed(
-    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
     content: NFTContent,
     width: number,
     height: number
@@ -50,8 +50,8 @@ export class VisualFeedRenderer {
     }
   }
 
-  private async renderNFT(
-    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
+  public async renderNFT(
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
     content: NFTContent,
     width: number,
     height: number
@@ -99,7 +99,7 @@ export class VisualFeedRenderer {
     if (!resources) {
       // Start loading resources
       const newResources: ImageResource = {
-        image: null as unknown as ReturnType<typeof loadImage>,
+        image: null as unknown as Awaited<ReturnType<typeof loadImage>>,
         lastUpdated: Date.now(),
         isLoading: true
       };
@@ -132,7 +132,7 @@ export class VisualFeedRenderer {
   }
 
   private renderMetadataOverlay(
-    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
     metadata: Record<string, unknown>,
     width: number,
     height: number
@@ -160,11 +160,13 @@ export class VisualFeedRenderer {
     });
   }
 
-  private renderLoadingState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
-    // Draw loading indicator
+  private renderLoadingState(
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+    width: number,
+    height: number
+  ): void {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, height);
-    
     ctx.fillStyle = 'white';
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';
@@ -172,7 +174,7 @@ export class VisualFeedRenderer {
     ctx.fillText('Loading NFT content...', width / 2, height / 2);
   }
 
-  private renderErrorState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
+  private renderErrorState(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, width: number, height: number): void {
     // Draw error state
     ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
     ctx.fillRect(0, 0, width, height);

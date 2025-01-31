@@ -1,12 +1,12 @@
-import { loadImage, Image, Canvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
 import type { VTuberCharacter } from '../types/layers.js';
 import { metricsCollector } from '../utils/metrics.js';
 import path from 'path';
 
 interface CharacterResources {
-  model: InstanceType<typeof Image>;
-  texture: InstanceType<typeof Image> | null;
+  model: Awaited<ReturnType<typeof loadImage>>;
+  texture: Awaited<ReturnType<typeof loadImage>> | null;
   lastUpdated: number;
   isLoading: boolean;
 }
@@ -33,7 +33,7 @@ export class CharacterRenderer {
   }
 
   public async renderCharacter(
-    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
     character: VTuberCharacter,
     width: number,
     height: number
@@ -79,7 +79,7 @@ export class CharacterRenderer {
     if (!resources) {
       // Start loading resources
       const newResources: CharacterResources = {
-        model: null as unknown as InstanceType<typeof Image>,
+        model: null as unknown as Awaited<ReturnType<typeof loadImage>>,
         texture: null,
         lastUpdated: Date.now(),
         isLoading: true
@@ -118,11 +118,13 @@ export class CharacterRenderer {
     return resources;
   }
 
-  private renderLoadingState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
-    // Draw loading indicator
+  private renderLoadingState(
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+    width: number,
+    height: number
+  ): void {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, height);
-    
     ctx.fillStyle = 'white';
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';
@@ -130,11 +132,13 @@ export class CharacterRenderer {
     ctx.fillText('Loading character...', width / 2, height / 2);
   }
 
-  private renderErrorState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
-    // Draw error state
-    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+  private renderErrorState(
+    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+    width: number,
+    height: number
+  ): void {
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, height);
-    
     ctx.fillStyle = 'white';
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';

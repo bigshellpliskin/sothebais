@@ -134,14 +134,14 @@ services:
       context: ./apps/stream-manager
       dockerfile: Dockerfile
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=production
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
       - PORT=4200
       - WS_PORT=4201
       - METRICS_PORT=4290
       - HEALTH_PORT=4291
-      - LOG_LEVEL=debug  # Set explicit debug logging
-      - HOST=0.0.0.0     # Explicitly set host binding
+      - LOG_LEVEL=info  # Changed from debug to info for production
+      - HOST=0.0.0.0
       - TWITTER_API_KEY=${TWITTER_API_KEY}
       - TWITTER_API_SECRET=${TWITTER_API_SECRET}
       - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
@@ -150,22 +150,6 @@ services:
       - TARGET_FPS=${TARGET_FPS:-30}
       - RENDER_QUALITY=${RENDER_QUALITY:-high}
     volumes:
-      - type: bind
-        source: ./.env
-        target: /app/.env
-        read_only: true
-      - type: bind
-        source: ./apps/stream-manager/src
-        target: /app/src
-        read_only: true
-      - type: bind
-        source: ./apps/stream-manager/package.json
-        target: /app/package.json
-        read_only: true
-      - type: bind
-        source: ./apps/stream-manager/assets
-        target: /app/assets
-        read_only: true
       - type: volume
         source: stream_storage
         target: /app/storage
@@ -187,10 +171,15 @@ services:
     labels:
       - "traefik.enable=true"
       # Development mode access
-      - "traefik.http.routers.stream-manager-dev.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.stream-manager-dev.rule=PathPrefix(`/demo`)"
       - "traefik.http.routers.stream-manager-dev.entrypoints=web"
       - "traefik.http.routers.stream-manager-dev.service=stream-manager-dev"
       - "traefik.http.services.stream-manager-dev.loadbalancer.server.port=4200"
+      # Health endpoint
+      - "traefik.http.routers.stream-manager-health.rule=Host(`localhost`) && PathPrefix(`/health`)"
+      - "traefik.http.routers.stream-manager-health.entrypoints=web,websecure"
+      - "traefik.http.routers.stream-manager-health.service=stream-manager-health"
+      - "traefik.http.services.stream-manager-health.loadbalancer.server.port=4291"
       # WebSocket endpoint
       - "traefik.http.routers.stream-manager-ws.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.stream-manager-ws.entrypoints=web"
@@ -290,7 +279,7 @@ services:
       - PORT=3000
       - METRICS_PORT=3090
       - HEALTH_PORT=3091
-      - PROMETHEUS_URL=http://prometheus:9090
+      - PROMETHEUS_URL=http://prometheus:9090/prometheus
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./.env:/app/.env:ro
@@ -367,7 +356,8 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
-      - '--web.external-url=/prometheus'
+      - '--web.external-url=http://prometheus:9090'
+      - '--web.route-prefix=prometheus'
     volumes:
       - ./monitoring/prometheus:/etc/prometheus:ro    # Config files
       - prometheus_data:/prometheus                   # Actual data

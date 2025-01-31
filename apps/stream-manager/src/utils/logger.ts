@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { getConfig } from '../config';
+import { getConfig } from '../config/index.js';
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
@@ -20,62 +20,29 @@ export interface LoggerOptions {
 
 class Logger {
   private static instance: Logger;
-  private logger: pino.Logger;
+  private logger: ReturnType<typeof pino>;
   private initialized = false;
   private context: LogContext = {};
   private metricsLogInterval = 10000; // Log metrics every 10 seconds
   private lastMetricsLog = 0;
 
-  private constructor() {
-    this.logger = this.createDefaultLogger();
+  constructor() {
+    this.logger = pino();
   }
 
-  private createDefaultLogger(): pino.Logger {
-    return pino({
-      name: 'stream-manager',
-      level: 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname,service,env',
-          messageFormat: '{msg}',
-        }
-      }
-    });
-  }
-
-  public initialize(config: any): void {
+  initialize(config: any): void {
     if (this.initialized) {
       return;
     }
 
-    const isDevEnv = config.NODE_ENV === 'development';
-    const logLevel = process.env.LOG_LEVEL || (isDevEnv ? 'debug' : 'info');
-
     this.logger = pino({
-      name: 'stream-manager',
-      level: logLevel,
-      timestamp: pino.stdTimeFunctions.isoTime,
-      formatters: {
-        level: (label: string) => {
-          return { level: label };
-        },
-      },
-      base: {
-        service: 'stream-manager',
-        env: config.NODE_ENV,
-      },
-      transport: isDevEnv ? {
+      level: config.LOG_LEVEL || 'info',
+      transport: {
         target: 'pino-pretty',
         options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname,service,env',
-          messageFormat: '{msg}',
+          colorize: true
         }
-      } : undefined
+      }
     });
 
     this.initialized = true;
@@ -83,7 +50,7 @@ class Logger {
 
   private ensureLogger(): void {
     if (!this.logger) {
-      this.logger = this.createDefaultLogger();
+      this.logger = pino();
     }
   }
 

@@ -2,7 +2,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install dependencies including health check utilities
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl netcat-openbsd
 
 # Install all dependencies
 COPY package.json ./
@@ -21,7 +21,7 @@ EXPOSE 3091
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/api/services/status || exit 1
+    CMD nc -z localhost 3000 || exit 1
 
 # Use npm run dev as the default command
 CMD ["npm", "run", "dev"] 

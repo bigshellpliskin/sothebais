@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Config } from './index';
+import type { Config } from './index.js';
 
 export class ConfigValidationError extends Error {
   constructor(public errors: z.ZodError) {

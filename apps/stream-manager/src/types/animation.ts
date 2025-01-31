@@ -1,4 +1,4 @@
-import { Point2D, Transform } from './layers.js';
+import type { Point2D, Transform } from './canvas.js';
 
 export type EasingFunction = 
   | 'linear'
@@ -63,4 +63,10 @@ export type AnimationState = {
   activeTimelines: Timeline[];
   pausedAnimations: Animation[];
   pausedTimelines: Timeline[];
-}; 
+};
+
+export interface AnimationKeyframe {
+  time: number;
+  value: number | Point2D | Transform;
+  easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+} 
