@@ -1,10 +1,13 @@
-import { layerManager } from '../services/layer-manager';
-import { VTuberCharacter, NFTContent, OverlayContent, ChatMessage } from '../types/layers';
-import { logger } from '../utils/logger';
-import path from 'path';
+import { layerManager } from '../services/layer-manager.js';
+import type { VTuberCharacter, NFTContent, OverlayContent, ChatMessage } from '../types/layers.js';
+import { logger } from '../utils/logger.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// Get absolute paths for assets
-const assetsDir = path.join(__dirname, '../../assets');
+// Get absolute paths for assets using ES modules compatible approach
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const assetsDir = join(__dirname, '../../assets');
 
 // Sample VTuber character
 const hostCharacter: VTuberCharacter = {

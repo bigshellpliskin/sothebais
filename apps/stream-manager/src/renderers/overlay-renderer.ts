@@ -1,9 +1,9 @@
-import { SKRSContext2D, Image, loadImage } from '@napi-rs/canvas';
-import { logger } from '../utils/logger';
-import { OverlayContent } from '../types/layers';
+import { Canvas, loadImage, Image } from '@napi-rs/canvas';
+import { logger } from '../utils/logger.js';
+import type { OverlayContent } from '../types/layers.js';
 
 interface ImageResource {
-  image: Image;
+  image: ReturnType<typeof loadImage>;
   lastUpdated: number;
   isLoading: boolean;
 }
@@ -40,6 +40,7 @@ export class OverlayRenderer {
   private static instance: OverlayRenderer;
   private imageResources: Map<string, ImageResource> = new Map();
   private resourceTimeout: number = 5 * 60 * 1000; // 5 minutes
+  private context: ReturnType<InstanceType<typeof Canvas>['getContext']> | null = null;
 
   private constructor() {}
 
@@ -51,12 +52,14 @@ export class OverlayRenderer {
   }
 
   public async renderOverlay(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     content: OverlayContent,
     width: number,
     height: number
   ): Promise<void> {
     try {
+      this.context = ctx;
+      
       switch (content.type) {
         case 'text':
           await this.renderText(ctx, content.content as string, content.style as TextStyle, width, height);
@@ -77,7 +80,7 @@ export class OverlayRenderer {
   }
 
   private async renderText(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     text: string,
     style: TextStyle,
     width: number,
@@ -118,7 +121,7 @@ export class OverlayRenderer {
   }
 
   private async renderImage(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     imageUrl: string,
     style: ShapeStyle,
     width: number,
@@ -166,7 +169,7 @@ export class OverlayRenderer {
   }
 
   private async renderShape(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     shape: Record<string, unknown>,
     style: ShapeStyle,
     width: number,
@@ -227,7 +230,7 @@ export class OverlayRenderer {
   }
 
   private drawRectangle(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     shape: Record<string, unknown>,
     style: ShapeStyle,
     width: number,
@@ -255,7 +258,7 @@ export class OverlayRenderer {
   }
 
   private drawCircle(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     shape: Record<string, unknown>,
     style: ShapeStyle,
     width: number,
@@ -269,7 +272,7 @@ export class OverlayRenderer {
   }
 
   private drawPolygon(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     shape: Record<string, unknown>,
     style: ShapeStyle,
     width: number,
@@ -286,7 +289,7 @@ export class OverlayRenderer {
   }
 
   private createGradient(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     gradient: { type: 'linear' | 'radial'; colors: Array<{ offset: number; color: string }> },
     width: number,
     height: number
@@ -321,7 +324,7 @@ export class OverlayRenderer {
     if (!resource) {
       // Start loading resource
       const newResource: ImageResource = {
-        image: null as unknown as Image,
+        image: null as unknown as ReturnType<typeof loadImage>,
         lastUpdated: Date.now(),
         isLoading: true
       };
@@ -346,7 +349,7 @@ export class OverlayRenderer {
     return resource;
   }
 
-  private renderLoadingState(ctx: SKRSContext2D, width: number, height: number): void {
+  private renderLoadingState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, height);
     
@@ -357,7 +360,7 @@ export class OverlayRenderer {
     ctx.fillText('Loading overlay content...', width / 2, height / 2);
   }
 
-  private renderErrorState(ctx: SKRSContext2D, width: number, height: number): void {
+  private renderErrorState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
     ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
     ctx.fillRect(0, 0, width, height);
     

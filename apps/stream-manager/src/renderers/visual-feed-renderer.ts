@@ -1,19 +1,19 @@
-import { SKRSContext2D, Image, loadImage } from '@napi-rs/canvas';
-import { logger } from '../utils/logger';
-import { NFTContent } from '../types/layers';
+import { Canvas, loadImage } from '@napi-rs/canvas';
+import { logger } from '../utils/logger.js';
+import type { NFTContent } from '../types/layers.js';
 import path from 'path';
 
-interface NFTResources {
-  image: Image;
+interface ImageResource {
+  image: ReturnType<typeof loadImage>;
   lastUpdated: number;
   isLoading: boolean;
-  metadata: Record<string, unknown>;
 }
 
 export class VisualFeedRenderer {
   private static instance: VisualFeedRenderer;
-  private nftResources: Map<string, NFTResources> = new Map();
+  private imageResources: Map<string, ImageResource> = new Map();
   private resourceTimeout: number = 5 * 60 * 1000; // 5 minutes
+  private context: ReturnType<InstanceType<typeof Canvas>['getContext']> | null = null;
 
   private constructor() {}
 
@@ -36,66 +36,74 @@ export class VisualFeedRenderer {
   }
 
   public async renderVisualFeed(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     content: NFTContent,
     width: number,
     height: number
   ): Promise<void> {
     try {
-      const resources = await this.getNFTResources(content);
-      if (!resources || resources.isLoading) {
-        this.renderLoadingState(ctx, width, height);
-        return;
-      }
-
-      // Calculate aspect ratio preserving dimensions
-      const aspectRatio = resources.image.width / resources.image.height;
-      let drawWidth = width;
-      let drawHeight = height;
-
-      if (width / height > aspectRatio) {
-        drawWidth = height * aspectRatio;
-      } else {
-        drawHeight = width / aspectRatio;
-      }
-
-      // Center the image
-      const x = (width - drawWidth) / 2;
-      const y = (height - drawHeight) / 2;
-
-      // Draw the NFT image
-      ctx.drawImage(resources.image, x, y, drawWidth, drawHeight);
-
-      // Draw metadata overlay if available
-      if (Object.keys(resources.metadata).length > 0) {
-        this.renderMetadataOverlay(ctx, resources.metadata, width, height);
-      }
-
+      this.context = ctx;
+      await this.renderNFT(ctx, content, width, height);
     } catch (error) {
       logger.error({ error }, 'Error rendering visual feed');
       this.renderErrorState(ctx, width, height);
     }
   }
 
-  private async getNFTResources(content: NFTContent): Promise<NFTResources | undefined> {
+  private async renderNFT(
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
+    content: NFTContent,
+    width: number,
+    height: number
+  ): Promise<void> {
+    const resources = await this.getNFTResources(content);
+    if (!resources || resources.isLoading) {
+      this.renderLoadingState(ctx, width, height);
+      return;
+    }
+
+    // Calculate aspect ratio preserving dimensions
+    const aspectRatio = resources.image.width / resources.image.height;
+    let drawWidth = width;
+    let drawHeight = height;
+
+    if (width / height > aspectRatio) {
+      drawWidth = height * aspectRatio;
+    } else {
+      drawHeight = width / aspectRatio;
+    }
+
+    // Center the image
+    const x = (width - drawWidth) / 2;
+    const y = (height - drawHeight) / 2;
+
+    // Draw the NFT image
+    ctx.drawImage(resources.image, x, y, drawWidth, drawHeight);
+
+    // Draw metadata overlay if available
+    if (Object.keys(content.metadata).length > 0) {
+      this.renderMetadataOverlay(ctx, content.metadata, width, height);
+    }
+  }
+
+  private async getNFTResources(content: NFTContent): Promise<ImageResource | undefined> {
     const resourceKey = content.imageUrl;
-    let resources = this.nftResources.get(resourceKey);
+    let resources = this.imageResources.get(resourceKey);
 
     // Check if resources need to be reloaded
     if (resources && Date.now() - resources.lastUpdated > this.resourceTimeout) {
-      this.nftResources.delete(resourceKey);
+      this.imageResources.delete(resourceKey);
       resources = undefined;
     }
 
     if (!resources) {
       // Start loading resources
-      const newResources: NFTResources = {
-        image: null as unknown as Image,
+      const newResources: ImageResource = {
+        image: null as unknown as ReturnType<typeof loadImage>,
         lastUpdated: Date.now(),
-        isLoading: true,
-        metadata: content.metadata || {}
+        isLoading: true
       };
-      this.nftResources.set(resourceKey, newResources);
+      this.imageResources.set(resourceKey, newResources);
 
       try {
         // Convert URL path to filesystem path
@@ -115,7 +123,7 @@ export class VisualFeedRenderer {
         return newResources;
       } catch (error) {
         logger.error({ error }, 'Failed to load NFT resources');
-        this.nftResources.delete(resourceKey);
+        this.imageResources.delete(resourceKey);
         return undefined;
       }
     }
@@ -124,7 +132,7 @@ export class VisualFeedRenderer {
   }
 
   private renderMetadataOverlay(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     metadata: Record<string, unknown>,
     width: number,
     height: number
@@ -152,7 +160,7 @@ export class VisualFeedRenderer {
     });
   }
 
-  private renderLoadingState(ctx: SKRSContext2D, width: number, height: number): void {
+  private renderLoadingState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
     // Draw loading indicator
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, height);
@@ -164,7 +172,7 @@ export class VisualFeedRenderer {
     ctx.fillText('Loading NFT content...', width / 2, height / 2);
   }
 
-  private renderErrorState(ctx: SKRSContext2D, width: number, height: number): void {
+  private renderErrorState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
     // Draw error state
     ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
     ctx.fillRect(0, 0, width, height);
@@ -177,7 +185,7 @@ export class VisualFeedRenderer {
   }
 
   public clearCache(): void {
-    this.nftResources.clear();
+    this.imageResources.clear();
     logger.info('Cleared NFT resources cache');
   }
 }

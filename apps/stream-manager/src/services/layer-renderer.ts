@@ -1,16 +1,16 @@
-import { Canvas, createCanvas, SKRSContext2D } from '@napi-rs/canvas';
-import { logger } from '../utils/logger';
-import { layerManager } from './layer-manager';
-import { Layer, Transform, Point2D, HostLayer, AssistantLayer, VisualFeedLayer, OverlayLayer } from '../types/layers';
-import { metricsCollector } from '../utils/metrics';
-import { characterRenderer } from '../renderers/character-renderer';
-import { visualFeedRenderer } from '../renderers/visual-feed-renderer';
-import { overlayRenderer } from '../renderers/overlay-renderer';
-import { chatRenderer } from '../renderers/chat-renderer';
+import { createCanvas } from '@napi-rs/canvas';
+import { logger } from '../utils/logger.js';
+import { layerManager } from './layer-manager.js';
+import type { Layer, Transform, Point2D, HostLayer, AssistantLayer, VisualFeedLayer, OverlayLayer } from '../types/layers.js';
+import { metricsCollector } from '../utils/metrics.js';
+import { characterRenderer } from '../renderers/character-renderer.js';
+import { visualFeedRenderer } from '../renderers/visual-feed-renderer.js';
+import { overlayRenderer } from '../renderers/overlay-renderer.js';
+import { chatRenderer } from '../renderers/chat-renderer.js';
 
 interface RenderContext {
-  canvas: Canvas;
-  ctx: SKRSContext2D;
+  canvas: ReturnType<typeof createCanvas>;
+  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>;
   width: number;
   height: number;
   scale: number;
@@ -174,7 +174,7 @@ export class LayerRenderer {
     }
   }
 
-  private applyTransform(ctx: SKRSContext2D, transform: Transform): void {
+  private applyTransform(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, transform: Transform): void {
     const { position, scale, rotation, anchor } = transform;
     
     // Move to position
@@ -195,11 +195,11 @@ export class LayerRenderer {
     return elapsed > 0 ? Math.round(1000 / elapsed) : this.targetFPS;
   }
 
-  public getCanvas(): Canvas {
+  public getCanvas(): ReturnType<typeof createCanvas> {
     return this.mainContext.canvas;
   }
 
-  public getContext(): SKRSContext2D {
+  public getContext(): ReturnType<ReturnType<typeof createCanvas>['getContext']> {
     return this.mainContext.ctx;
   }
 

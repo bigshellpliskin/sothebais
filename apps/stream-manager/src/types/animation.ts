@@ -1,4 +1,4 @@
-import { Point2D, Transform } from './layers';
+import { Point2D, Transform } from './layers.js';
 
 export type EasingFunction = 
   | 'linear'

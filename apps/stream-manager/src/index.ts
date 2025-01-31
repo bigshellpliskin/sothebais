@@ -1,13 +1,15 @@
 import express from 'express';
+import type { Request, Response } from 'express';
 import { createClient } from 'redis';
-import { Server as WebSocketServer } from 'ws';
+import type { Server as WebSocketServer } from 'ws';
+import { WebSocket } from 'ws';
 import { createCanvas } from '@napi-rs/canvas';
-import { logger } from './utils/logger';
-import { getConfig, loadConfig } from './config';
-import { redisService } from './services/redis';
-import { webSocketService } from './services/websocket';
-import { metricsCollector } from './utils/metrics';
-import { setupDemoServer } from './demo/demo-server';
+import { logger } from './utils/logger.js';
+import { getConfig, loadConfig } from './config/index.js';
+import { redisService } from './services/redis.js';
+import { webSocketService } from './services/websocket.js';
+import { metricsCollector } from './utils/metrics.js';
+import { setupDemoServer } from './demo/demo-server.js';
 
 async function startServer() {
   try {
@@ -32,13 +34,13 @@ async function startServer() {
     const metricsApp = express();
 
     // Basic health check endpoint on main API
-    app.get('/health', (req: express.Request, res: express.Response) => {
+    app.get('/health', (req: Request, res: Response) => {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
       logger.debug('Health check requested');
     });
 
     // Dedicated health check endpoint
-    healthApp.get('/health', (req, res) => {
+    healthApp.get('/health', (req: Request, res: Response) => {
       res.json({
         status: 'ok',
         ports: {
@@ -53,7 +55,7 @@ async function startServer() {
     });
 
     // Metrics endpoint for Prometheus
-    metricsApp.get('/metrics', async (req: express.Request, res: express.Response) => {
+    metricsApp.get('/metrics', async (req: Request, res: Response) => {
       try {
         res.set('Content-Type', metricsCollector.getMetricsContentType());
         res.end(await metricsCollector.getPrometheusMetrics());
@@ -73,8 +75,8 @@ async function startServer() {
           resolve(server);
         });
 
-        server.on('error', (error) => {
-          logger.error(`Failed to start ${name} server:`, undefined, error as Error);
+        server.on('error', (error: Error) => {
+          logger.error(`Failed to start ${name} server:`, undefined, error);
           reject(error);
         });
       });

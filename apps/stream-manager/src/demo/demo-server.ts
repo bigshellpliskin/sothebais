@@ -1,11 +1,17 @@
 import express from 'express';
-import path from 'path';
+import type { Request, Response } from 'express';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import { createTestLayers } from './test-layers';
-import { layerRenderer } from '../services/layer-renderer';
-import { layerManager } from '../services/layer-manager';
-import { logger } from '../utils/logger';
-import { ChatMessage } from '../types/layers';
+import { createTestLayers } from './test-layers.js';
+import { layerRenderer } from '../services/layer-renderer.js';
+import { layerManager } from '../services/layer-manager.js';
+import { logger } from '../utils/logger.js';
+import type { ChatMessage, ChatLayer } from '../types/layers.js';
+
+// ESM replacement for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function setupDemoServer(app: express.Application) {
   // Initialize layer manager
@@ -28,9 +34,8 @@ export async function setupDemoServer(app: express.Application) {
 
   // Start render loop
   layerRenderer.startRenderLoop();
-
   // Serve a simple HTML page to view the output
-  app.get('/demo', (req, res) => {
+  app.get('/demo', (req: Request, res: Response) => {
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -180,7 +185,7 @@ export async function setupDemoServer(app: express.Application) {
   });
 
   // Endpoint to get the current frame
-  app.get('/demo/frame', (req, res) => {
+  app.get('/demo/frame', (req: Request, res: Response) => {
     try {
       const canvas = layerRenderer.getCanvas();
       const buffer = canvas.toBuffer('image/png');
@@ -193,10 +198,10 @@ export async function setupDemoServer(app: express.Application) {
   });
 
   // Endpoint to toggle layer visibility
-  app.post('/demo/toggle/:type', async (req, res) => {
+  app.post('/demo/toggle/:type', async (req: Request, res: Response) => {
     try {
       const layers = layerManager.getAllLayers();
-      const layer = layers.find(l => {
+      const layer = layers.find((l: any) => {
         switch (req.params.type) {
           case 'host': return l.type === 'host';
           case 'nft': return l.type === 'visualFeed';
@@ -220,10 +225,10 @@ export async function setupDemoServer(app: express.Application) {
   });
 
   // Endpoint to add chat message
-  app.post('/demo/chat', async (req, res) => {
+  app.post('/demo/chat', async (req: Request, res: Response) => {
     try {
       const { text, highlighted } = req.body;
-      const chatLayer = layerManager.getAllLayers().find(l => l.type === 'chat');
+      const chatLayer = layerManager.getAllLayers().find((l): l is ChatLayer => l.type === 'chat');
       
       if (!chatLayer) {
         res.status(404).json({ error: 'Chat layer not found' });
@@ -239,7 +244,7 @@ export async function setupDemoServer(app: express.Application) {
       };
 
       const updatedMessages = [...chatLayer.content.messages, message].slice(-chatLayer.content.maxMessages);
-      await layerManager.updateLayer(chatLayer.id, {
+      await layerManager.updateLayer<'chat'>(chatLayer.id, {
         content: {
           ...chatLayer.content,
           messages: updatedMessages

@@ -1,10 +1,11 @@
 {
   "name": "stream-manager",
   "version": "1.0.0",
+  "type": "module",
   "description": "Stream Processing Service for NFT Auction System",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
@@ -14,7 +15,6 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.51",
-    "@types/uuid": "^10.0.0",
     "express": "^4.18.2",
     "ffmpeg-static": "^5.2.0",
     "pino": "^8.16.0",
@@ -29,7 +29,8 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.11",
-    "@types/node": "^20.10.5",
+    "@types/node": "^20.17.16",
+    "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
@@ -38,7 +39,8 @@
     "glob": "^10.3.10",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
-    "ts-node-dev": "^2.0.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.3.3"
   },
   "engines": {

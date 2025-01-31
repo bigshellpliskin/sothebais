@@ -1,12 +1,12 @@
-import { SKRSContext2D, Image, loadImage } from '@napi-rs/canvas';
-import { logger } from '../utils/logger';
-import { VTuberCharacter } from '../types/layers';
-import { metricsCollector } from '../utils/metrics';
+import { loadImage, Image, Canvas } from '@napi-rs/canvas';
+import { logger } from '../utils/logger.js';
+import type { VTuberCharacter } from '../types/layers.js';
+import { metricsCollector } from '../utils/metrics.js';
 import path from 'path';
 
 interface CharacterResources {
-  model: Image;
-  texture: Image | null;
+  model: InstanceType<typeof Image>;
+  texture: InstanceType<typeof Image> | null;
   lastUpdated: number;
   isLoading: boolean;
 }
@@ -33,7 +33,7 @@ export class CharacterRenderer {
   }
 
   public async renderCharacter(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     character: VTuberCharacter,
     width: number,
     height: number
@@ -79,7 +79,7 @@ export class CharacterRenderer {
     if (!resources) {
       // Start loading resources
       const newResources: CharacterResources = {
-        model: null as unknown as Image,
+        model: null as unknown as InstanceType<typeof Image>,
         texture: null,
         lastUpdated: Date.now(),
         isLoading: true
@@ -118,7 +118,7 @@ export class CharacterRenderer {
     return resources;
   }
 
-  private renderLoadingState(ctx: SKRSContext2D, width: number, height: number): void {
+  private renderLoadingState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
     // Draw loading indicator
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, height);
@@ -130,7 +130,7 @@ export class CharacterRenderer {
     ctx.fillText('Loading character...', width / 2, height / 2);
   }
 
-  private renderErrorState(ctx: SKRSContext2D, width: number, height: number): void {
+  private renderErrorState(ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>, width: number, height: number): void {
     // Draw error state
     ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
     ctx.fillRect(0, 0, width, height);

@@ -1,7 +1,7 @@
 import { createClient } from 'redis';
-import { LayerState } from '../types/layers';
-import { Config } from '../config';
-import { logger } from '../utils/logger';
+import type { LayerState } from '../types/layers.js';
+import type { Config } from '../config/index.js';
+import { logger } from '../utils/logger.js';
 
 class RedisService {
   private client!: ReturnType<typeof createClient>;

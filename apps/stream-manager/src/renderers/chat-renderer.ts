@@ -1,10 +1,10 @@
-import { SKRSContext2D } from '@napi-rs/canvas';
-import { ChatLayer, ChatMessage } from '../types/layers';
-import { logger } from '../utils/logger';
+import { Canvas } from '@napi-rs/canvas';
+import type { ChatLayer, ChatMessage } from '../types/layers.js';
+import { logger } from '../utils/logger.js';
 
 export class ChatRenderer {
   private static instance: ChatRenderer;
-  private context: SKRSContext2D | null = null;
+  private context: ReturnType<InstanceType<typeof Canvas>['getContext']> | null = null;
   private width: number = 1920;
   private height: number = 1080;
 
@@ -18,7 +18,7 @@ export class ChatRenderer {
   }
 
   public renderChat(
-    ctx: SKRSContext2D,
+    ctx: ReturnType<InstanceType<typeof Canvas>['getContext']>,
     layer: ChatLayer,
     width: number,
     height: number
@@ -48,20 +48,15 @@ export class ChatRenderer {
       this.context.textBaseline = 'top';
 
       // Calculate visible messages (newest first)
-      const visibleMessages = messages
-        .slice(-maxMessages)
-        .reverse();
-
-      // Calculate starting Y position for messages (from bottom)
+      const visibleMessages = messages.slice(-maxMessages);
       let currentY = chatHeight - padding;
 
       // Render messages from bottom to top
-      for (const message of visibleMessages) {
+      for (const message of [...visibleMessages].reverse()) {
         const messageHeight = this.calculateMessageHeight(message, chatWidth - padding * 2, fontSize);
         currentY -= messageHeight + messageSpacing;
 
-        // Stop if we've reached the top of the chat window
-        if (currentY < padding) break;
+        if (currentY < padding) break; // Stop if we've reached the top
 
         this.renderMessage(
           message,
@@ -85,21 +80,21 @@ export class ChatRenderer {
     // Split message into lines based on available width
     const words = message.text.split(' ');
     let currentLine = '';
-    let height = fontSize; // Minimum one line
+    let lines = 1;
 
     for (const word of words) {
       const testLine = currentLine + (currentLine ? ' ' : '') + word;
       const metrics = this.context.measureText(testLine);
 
       if (metrics.width > maxWidth) {
-        height += fontSize;
         currentLine = word;
+        lines++;
       } else {
         currentLine = testLine;
       }
     }
 
-    return height;
+    return lines * fontSize * 1.2; // 1.2 for line spacing
   }
 
   private renderMessage(
@@ -113,13 +108,14 @@ export class ChatRenderer {
     if (!this.context) return;
 
     // Calculate message age and fade out if old
-    const age = Date.now() - message.timestamp;
+    const messageAge = Date.now() - message.timestamp;
     const fadeOutStart = 30000; // Start fading after 30 seconds
     const fadeOutDuration = 5000; // Fade over 5 seconds
     let messageOpacity = 1;
 
-    if (age > fadeOutStart) {
-      messageOpacity = Math.max(0, 1 - (age - fadeOutStart) / fadeOutDuration);
+    if (messageAge > fadeOutStart) {
+      const fadeProgress = (messageAge - fadeOutStart) / fadeOutDuration;
+      messageOpacity = Math.max(0, 1 - fadeProgress);
     }
 
     this.context.save();
@@ -159,6 +155,7 @@ export class ChatRenderer {
         line = testLine;
       }
     }
+
     // Draw remaining text
     if (line) {
       this.context.fillText(line, currentX, currentY);

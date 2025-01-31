@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { logger } from '../utils/logger';
-import { redisService } from './redis';
-import { 
+import { logger } from '../utils/logger.js';
+import { redisService } from './redis.js';
+import type { 
   Layer, 
   BaseLayer, 
   LayerType, 
@@ -17,7 +17,7 @@ import {
   OverlayContent,
   ChatLayer,
   ChatMessage
-} from '../types/layers';
+} from '../types/layers.js';
 
 interface LayerManagerEvents {
   'layer:created': (layer: Layer) => void;
@@ -51,6 +51,14 @@ class LayerManager extends EventEmitter {
   private static instance: LayerManager;
   private initialized = false;
   private activeLayerId: string | null = null;
+
+  public emit<K extends keyof LayerManagerEvents>(event: K, ...args: Parameters<LayerManagerEvents[K]>): boolean {
+    return super.emit(event, ...args);
+  }
+
+  public on<K extends keyof LayerManagerEvents>(event: K, listener: LayerManagerEvents[K]): this {
+    return super.on(event, listener);
+  }
 
   private constructor() {
     super();
@@ -99,7 +107,7 @@ class LayerManager extends EventEmitter {
       const savedState = await redisService.getLayerState();
       if (savedState) {
         const { layers, activeLayerId } = savedState;
-        layers.forEach(layer => this.layers.set(layer.id, layer));
+        layers.forEach((layer: Layer) => this.layers.set(layer.id, layer));
         this.activeLayerId = activeLayerId;
         logger.info({ layerCount: layers.length, activeLayerId }, 'Restored layers from Redis');
       }

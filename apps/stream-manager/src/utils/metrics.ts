@@ -1,4 +1,4 @@
-import { StreamMetrics } from '../types/stream';
+import type { StreamMetrics } from '../types/stream.js';
 import client from 'prom-client';
 
 // Create metrics

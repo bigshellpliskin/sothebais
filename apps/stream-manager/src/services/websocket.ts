@@ -1,8 +1,8 @@
-import { Server as WebSocketServer, WebSocket } from 'ws';
-import { StreamEvent } from '../types/stream';
-import { LayerState } from '../types/layers';
-import { Config } from '../config';
-import { logger } from '../utils/logger';
+import { WebSocket, WebSocketServer } from 'ws';
+import type { StreamEvent } from '../types/stream.js';
+import type { LayerState } from '../types/layers.js';
+import type { Config } from '../config/index.js';
+import { logger } from '../utils/logger.js';
 
 interface WebSocketMessage {
   type: 'layerUpdate' | 'streamEvent' | 'error';
