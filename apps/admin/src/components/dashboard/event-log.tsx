@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Terminal } from 'lucide-react';
@@ -38,11 +38,179 @@ export function EventLog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastUpdateRef = useRef<{[key: string]: string}>({});
+  const bufferTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Buffer for collecting logs before updating state
+  const logsBufferRef = useRef<{
+    container: {[key: string]: LogEntry[]},
+    system: SystemLogEntry[]
+  }>({
+    container: {},
+    system: []
+  });
+
+  // Function to merge new logs with existing ones, avoiding duplicates
+  const mergeContainerLogs = (existing: LogEntry[], newLogs: LogEntry[]): LogEntry[] => {
+    const seen = new Set(existing.map(log => generateUniqueKey(log, 0)));
+    return [
+      ...existing,
+      ...newLogs.filter(log => !seen.has(generateUniqueKey(log, 0)))
+    ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  };
+
+  const mergeSystemLogs = (existing: SystemLogEntry[], newLogs: SystemLogEntry[]): SystemLogEntry[] => {
+    const seen = new Set(existing.map(log => generateUniqueKey(log, 0)));
+    return [
+      ...existing,
+      ...newLogs.filter(log => !seen.has(generateUniqueKey(log, 0)))
+    ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  };
+
+  // Function to flush the buffer and update state
+  const flushBuffer = useCallback(() => {
+    const { container: containerBuffer, system: systemBuffer } = logsBufferRef.current;
+
+    setContainerLogs(prevLogs => {
+      const newLogs = { ...prevLogs };
+      Object.entries(containerBuffer).forEach(([key, logs]) => {
+        newLogs[key] = mergeContainerLogs(prevLogs[key] || [], logs);
+      });
+      return newLogs;
+    });
+
+    setSystemLogs(prevLogs => mergeSystemLogs(prevLogs, systemBuffer));
+
+    // Clear the buffer
+    logsBufferRef.current = {
+      container: {},
+      system: []
+    };
+  }, []);
+
+  // Function to scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  }, []);
+
+  // Load container logs and system logs
+  useEffect(() => {
+    const loadLogs = async () => {
+      try {
+        if (!isClient) return;
+
+        const baseUrl = getEventHandlerUrl();
+        const headers = { 'Accept': 'application/json' };
+
+        // Add last-update timestamp to requests if available
+        const containerOptions = {
+          headers: {
+            ...headers,
+            ...(lastUpdateRef.current.container && {
+              'If-Modified-Since': lastUpdateRef.current.container
+            })
+          }
+        };
+
+        const systemOptions = {
+          headers: {
+            ...headers,
+            ...(lastUpdateRef.current.system && {
+              'If-Modified-Since': lastUpdateRef.current.system
+            })
+          }
+        };
+
+        const responses = await Promise.all([
+          fetch(`${baseUrl}/logs`, containerOptions),
+          fetch(`${baseUrl}/system-logs`, systemOptions)
+        ]);
+
+        const [containerResponse, systemResponse] = responses;
+
+        // Only process responses if they have new data
+        if (containerResponse.status === 200) {
+          const containerLogsData = await containerResponse.json();
+          lastUpdateRef.current.container = new Date().toISOString();
+
+          // Process container logs
+          Object.entries(containerLogsData).forEach(([key, logs]) => {
+            const processedLogs = (logs as LogEntry[]).map(log => ({
+              ...log,
+              timestamp: new Date(log.timestamp).toISOString(),
+            }));
+            
+            if (!logsBufferRef.current.container[key]) {
+              logsBufferRef.current.container[key] = [];
+            }
+            logsBufferRef.current.container[key].push(...processedLogs);
+          });
+        }
+
+        if (systemResponse.status === 200) {
+          const systemLogsData = await systemResponse.json();
+          lastUpdateRef.current.system = new Date().toISOString();
+
+          // Process system logs
+          const processedSystemLogs = systemLogsData.map((log: any) => ({
+            ...log,
+            timestamp: new Date(log.timestamp).toISOString(),
+            context: typeof log.context === 'object' ? JSON.stringify(log.context) : String(log.context || '')
+          }));
+
+          logsBufferRef.current.system.push(...processedSystemLogs);
+        }
+
+        // Schedule buffer flush
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current);
+        }
+        bufferTimeoutRef.current = setTimeout(flushBuffer, 1000);
+
+        setError(null);
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to load logs:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load logs');
+        setLoading(false);
+      }
+    };
+
+    // Initial load
+    loadLogs();
+
+    // Set up polling interval
+    const interval = setInterval(loadLogs, 5000);
+
+    return () => {
+      clearInterval(interval);
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current);
+      }
+    };
+  }, [isClient, flushBuffer]);
 
   // Set isClient to true on mount
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Scroll to bottom on initial load and whenever logs change
+  useEffect(() => {
+    if (!loading) {
+      // Scroll immediately
+      scrollToBottom();
+      // And again after a short delay to ensure content is rendered
+      const timeoutId = setTimeout(scrollToBottom, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [loading, containerLogs, systemLogs, scrollToBottom]);
 
   // Get the base URL for event handler
   const getEventHandlerUrl = () => {
@@ -54,85 +222,13 @@ export function EventLog() {
     return '/events';
   };
 
-  // Load container logs and system logs
-  useEffect(() => {
-    const loadLogs = async () => {
-      try {
-        setLoading(true);
-        const baseUrl = getEventHandlerUrl();
-
-        const [containerResponse, systemResponse] = await Promise.all([
-          fetch(`${baseUrl}/logs`, {
-            headers: {
-              'Accept': 'application/json'
-            }
-          }),
-          fetch(`${baseUrl}/system-logs`, {
-            headers: {
-              'Accept': 'application/json'
-            }
-          })
-        ]);
-
-        if (!containerResponse.ok) {
-          throw new Error(`Container logs failed: ${containerResponse.status}`);
-        }
-        if (!systemResponse.ok) {
-          throw new Error(`System logs failed: ${systemResponse.status}`);
-        }
-
-        const [containerLogsData, systemLogsData] = await Promise.all([
-          containerResponse.json(),
-          systemResponse.json()
-        ]);
-
-        // Ensure container logs are serializable
-        const processedContainerLogs = Object.fromEntries(
-          Object.entries(containerLogsData).map(([key, logs]) => [
-            key,
-            (logs as LogEntry[]).map(log => ({
-              ...log,
-              timestamp: new Date(log.timestamp).toISOString(),
-            }))
-          ])
-        );
-
-        // Ensure system logs are serializable
-        const processedSystemLogs = systemLogsData.map((log: any) => ({
-          ...log,
-          timestamp: new Date(log.timestamp).toISOString(),
-          context: typeof log.context === 'object' ? JSON.stringify(log.context) : String(log.context || '')
-        }));
-
-        setContainerLogs(processedContainerLogs);
-        setSystemLogs(processedSystemLogs);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to load logs:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load logs');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadLogs();
-    const interval = setInterval(loadLogs, 5000); // Refresh every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Don't render anything until we're on the client
-  if (!isClient) {
-    return null;
-  }
-
   const getLevelColor = (level: string) => {
     switch (level.toLowerCase()) {
-      case 'error': return 'bg-red-500';
-      case 'warn': return 'bg-yellow-500';
-      case 'info': return 'bg-blue-500';
-      case 'debug': return 'bg-gray-500';
-      default: return 'bg-gray-500';
+      case 'error': return 'text-destructive border-destructive';
+      case 'warn': return 'text-warning border-warning';
+      case 'info': return 'text-info border-info';
+      case 'debug': return 'text-muted-foreground border-muted';
+      default: return 'text-muted-foreground border-muted';
     }
   };
 
@@ -145,7 +241,12 @@ export function EventLog() {
       );
     }
 
-    return logs.map((log) => {
+    // Sort logs chronologically (newest last)
+    const sortedLogs = [...logs].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    return sortedLogs.map((log) => {
       const date = new Date(log.timestamp);
       const timestamp = date.toLocaleTimeString(undefined, {
         hour: '2-digit',
@@ -161,12 +262,12 @@ export function EventLog() {
         >
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">[{timestamp}]</span>
-            <Badge variant="outline" className={`${getLevelColor(log.level)} text-white`}>
+            <Badge variant="outline" className={getLevelColor(log.level)}>
               {log.level}
             </Badge>
-            <Badge variant="outline">{log.service}</Badge>
-            <Badge variant="outline">{log.component}</Badge>
-            {log.state && <Badge variant="outline">{log.state}</Badge>}
+            <Badge variant="outline" className="text-primary border-primary">{log.service}</Badge>
+            <Badge variant="outline" className="text-secondary border-secondary">{log.component}</Badge>
+            {log.state && <Badge variant="outline" className="text-accent border-accent">{log.state}</Badge>}
           </div>
           <div className="mt-1 text-foreground whitespace-pre-wrap">
             {log.message}
@@ -212,7 +313,12 @@ export function EventLog() {
       );
     }
 
-    return entries.map((entry: any, index: number) => {
+    // Sort entries chronologically (newest last)
+    const sortedEntries = [...entries].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    return sortedEntries.map((entry: any, index: number) => {
       const date = new Date(entry.timestamp);
       const timestamp = date.toLocaleTimeString(undefined, {
         hour: '2-digit',
@@ -220,16 +326,120 @@ export function EventLog() {
         second: '2-digit',
         hour12: false
       });
-      const content = entry.content || (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2)) || '';
+
+      // Parse the content if it's JSON
+      let parsedContent;
+      let level = 'info';
+      let component = '';
+      let service = entry.source || '';
+      let message = '';
+
+      try {
+        // First try parsing the data field if it exists
+        if (entry.data && typeof entry.data === 'string') {
+          parsedContent = JSON.parse(entry.data);
+        } 
+        // Then try the content field
+        else if (entry.content && typeof entry.content === 'string') {
+          parsedContent = JSON.parse(entry.content);
+        }
+
+        if (parsedContent) {
+          // Extract all possible metadata fields
+          level = parsedContent.level || parsedContent.severity || level;
+          component = parsedContent.component || parsedContent.name || component;
+          service = parsedContent.service || entry.source || service;
+          message = parsedContent.message || parsedContent.msg || parsedContent.text || '';
+
+          // Extract additional metadata
+          const env = parsedContent.env;
+          const container = parsedContent.container;
+          const logCount = parsedContent.logCount;
+          const time = parsedContent.time;
+
+          // Debug log structure
+          console.log('Parsed log entry:', {
+            original: entry,
+            parsed: parsedContent,
+            extracted: { level, component, service, message, env, container, logCount, time }
+          });
+
+          return (
+            <div
+              key={generateUniqueKey(entry, index)}
+              className="font-mono text-xs leading-relaxed border-b border-border/50 last:border-0 py-2"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-muted-foreground">[{timestamp}]</span>
+                <Badge variant="outline" className={getLevelColor(level)}>
+                  {level}
+                </Badge>
+                {service && (
+                  <Badge variant="outline" className="text-primary border-primary">
+                    {service.replace('sothebais-', '')}
+                  </Badge>
+                )}
+                {component && (
+                  <Badge variant="outline" className="text-secondary border-secondary">
+                    {component}
+                  </Badge>
+                )}
+                {env && (
+                  <Badge variant="outline" className="text-accent border-accent">
+                    {env}
+                  </Badge>
+                )}
+                {container && (
+                  <Badge variant="outline" className="text-info border-info">
+                    {container.replace('sothebais-', '')}
+                  </Badge>
+                )}
+                {logCount && (
+                  <Badge variant="outline" className="text-muted border-muted">
+                    logs: {logCount}
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-1 text-foreground whitespace-pre-wrap">
+                {message}
+              </div>
+            </div>
+          );
+        }
+      } catch (err) {
+        // If parsing fails, use the raw content
+        message = entry.content || (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2)) || '';
+        console.log('Failed to parse log entry:', {
+          error: err,
+          entry: entry,
+          rawMessage: message
+        });
+      }
       
       return (
         <div
           key={generateUniqueKey(entry, index)}
-          className="font-mono text-xs leading-relaxed border-b border-border/50 last:border-0"
+          className="font-mono text-xs leading-relaxed border-b border-border/50 last:border-0 py-2"
         >
-          <span className="text-muted-foreground">[{timestamp}]</span>{' '}
-          <span className="text-primary">$</span>{' '}
-          <span className="text-foreground whitespace-pre-wrap">{content}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">[{timestamp}]</span>
+            <Badge variant="outline" className={getLevelColor(level)}>
+              {level}
+            </Badge>
+            {service && (
+              <Badge variant="outline" className="text-primary border-primary">
+                {service.replace('sothebais-', '')}
+              </Badge>
+            )}
+            {component && (
+              <Badge variant="outline" className="text-secondary border-secondary">
+                {component}
+              </Badge>
+            )}
+          </div>
+          <div className="mt-1 text-foreground whitespace-pre-wrap">
+            {message}
+          </div>
         </div>
       );
     });
@@ -263,46 +473,48 @@ export function EventLog() {
                 <TabsTrigger value="admin-frontend">Admin Frontend</TabsTrigger>
               </TabsList>
             </div>
-            <ScrollArea className="h-[400px] border rounded-md mt-4 p-4">
-              {loading && !containerLogs && !systemLogs && (
-                <div className="flex justify-center items-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Loading..." />
-                </div>
-              )}
-              {error && (
-                <div className="text-center text-red-500 py-4">
-                  {error}
-                </div>
-              )}
-              {!loading && !error && (
-                <>
-                  <TabsContent value="system" className="mt-0">
-                    {renderSystemLogs(systemLogs)}
-                  </TabsContent>
-                  <TabsContent value="event-handler" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-event-handler-1'])}
-                  </TabsContent>
-                  <TabsContent value="auction-manager" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-auction-manager-1'])}
-                  </TabsContent>
-                  <TabsContent value="traefik" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-traefik-1'])}
-                  </TabsContent>
-                  <TabsContent value="redis" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-redis-1'])}
-                  </TabsContent>
-                  <TabsContent value="prometheus" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-prometheus-1'])}
-                  </TabsContent>
-                  <TabsContent value="grafana" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-grafana-1'])}
-                  </TabsContent>
-                  <TabsContent value="admin-frontend" className="mt-0">
-                    {renderLogContent(containerLogs['sothebais-admin-frontend-1'])}
-                  </TabsContent>
-                </>
-              )}
-            </ScrollArea>
+            <div ref={scrollRef}>
+              <ScrollArea className="h-[400px] border rounded-md mt-4 p-4">
+                {loading && !containerLogs && !systemLogs && (
+                  <div className="flex justify-center items-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Loading..." />
+                  </div>
+                )}
+                {error && (
+                  <div className="text-center text-red-500 py-4">
+                    {error}
+                  </div>
+                )}
+                {!loading && !error && (
+                  <div className="flex flex-col h-full justify-end">
+                    <TabsContent value="system" className="mt-0">
+                      {renderSystemLogs(systemLogs)}
+                    </TabsContent>
+                    <TabsContent value="event-handler" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-event-handler-1'])}
+                    </TabsContent>
+                    <TabsContent value="auction-manager" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-auction-manager-1'])}
+                    </TabsContent>
+                    <TabsContent value="traefik" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-traefik-1'])}
+                    </TabsContent>
+                    <TabsContent value="redis" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-redis-1'])}
+                    </TabsContent>
+                    <TabsContent value="prometheus" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-prometheus-1'])}
+                    </TabsContent>
+                    <TabsContent value="grafana" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-grafana-1'])}
+                    </TabsContent>
+                    <TabsContent value="admin-frontend" className="mt-0">
+                      {renderLogContent(containerLogs['sothebais-admin-frontend-1'])}
+                    </TabsContent>
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
           </Tabs>
         )}
       </CardContent>

@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { StatusCard } from "@/components/ui/status-card";
 import { useServiceStatus } from "@/hooks/useServiceStatus";
 import { CORE_SERVICES } from "@/types/service";
+import { UserButton } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 
 interface MetricData {
   value: number;
@@ -72,6 +74,25 @@ export function SystemMetrics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { data: services, isLoading: servicesLoading } = useServiceStatus();
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [isSystemConnected, setIsSystemConnected] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Internet connection status
+    const updateOnlineStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
+  useEffect(() => {
+    // System connection status
+    setIsSystemConnected(allServices.some(([_, health]) => health.status === 'running'));
+  }, [services]);
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -121,9 +142,28 @@ export function SystemMetrics() {
 
   return (
     <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>System Overview</CardTitle>
-        <CardDescription>Real-time system performance and service status</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>System Overview</CardTitle>
+          <CardDescription>Real-time system performance and service status</CardDescription>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-sm text-gray-600">Internet</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className={`h-2 w-2 rounded-full ${isSystemConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-sm text-gray-600">System</span>
+              </div>
+            </div>
+          </div>
+          <UserButton />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">

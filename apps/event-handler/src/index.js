@@ -14,7 +14,7 @@ const customTransport = {
   write: (log) => {
     try {
       const parsedLog = JSON.parse(log);
-      systemLogs.unshift({
+      systemLogs.push({
         id: Date.now().toString(),
         timestamp: parsedLog.time,
         level: parsedLog.level,
@@ -25,9 +25,9 @@ const customTransport = {
         context: { ...parsedLog }
       });
       
-      // Keep only last MAX_LOGS entries
+      // Keep only last MAX_LOGS entries by removing from the start
       if (systemLogs.length > MAX_LOGS) {
-        systemLogs.pop();
+        systemLogs.shift();
       }
     } catch (err) {
       console.error('Error processing log:', err);
@@ -47,7 +47,7 @@ app.use(cors({
     ? ['http://localhost:3000'] 
     : [process.env.FRONTEND_URL],
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Accept', 'If-Modified-Since'],
   credentials: true
 }));
 
