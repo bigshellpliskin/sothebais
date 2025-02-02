@@ -205,7 +205,7 @@ export async function GET(request: Request) {
       const systemMetricPromises = [
         ['cpu', 'sum(rate(process_cpu_seconds_total[1m])) * 100', '%'],
         ['memory', 'sum(process_resident_memory_bytes) / 1024 / 1024', 'MB'],
-        ['requestRate', 'sum(rate(traefik_entrypoint_requests_total[1m]))', 'req/s'],
+        ['requestRate', 'sum(rate(http_request_duration_seconds_count{status_code=~"2.."}[1m]))', 'req/s'],
         ['redisMemory', 'redis_memory_used_bytes / 1024 / 1024', 'MB']
       ] as const;
 
