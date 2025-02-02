@@ -9,6 +9,11 @@ interface ServiceStatuses {
 }
 
 async function fetchServiceMetrics(serviceName: string, port: number): Promise<Partial<ServiceMetrics>> {
+  // Skip metrics for Prometheus since it has special handling
+  if (serviceName === 'prometheus') {
+    return {};
+  }
+
   const queries = {
     requestRate: `rate(http_request_duration_seconds_count{instance="${serviceName}:${port}"}[1m])`,
     errorRate: `rate(http_request_duration_seconds_count{instance="${serviceName}:${port}",code=~"5.."}[1m])`,
@@ -28,6 +33,8 @@ async function fetchServiceMetrics(serviceName: string, port: number): Promise<P
   
   await Promise.all(
     Object.entries(queries).map(async ([metric, query]) => {
+      if (!query || query.trim() === '') return; // Skip empty queries
+      
       try {
         const response = await fetch('/api/services/metrics', {
           method: 'POST',
@@ -80,7 +87,8 @@ async function fetchServiceStatuses(): Promise<ServiceStatuses> {
 
         if (!serviceInfo) return;
 
-        const metrics = await fetchServiceMetrics(serviceName, serviceInfo.port || 0);
+        // Skip metrics fetching for Prometheus since it has special handling
+        const metrics = serviceName === 'prometheus' ? {} : await fetchServiceMetrics(serviceName, serviceInfo.port || 0);
         
         // Ensure we create a plain object with only serializable data
         detailedStatuses[serviceName] = {

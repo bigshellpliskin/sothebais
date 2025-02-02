@@ -3,57 +3,36 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'traefik'
-    metrics_path: /prometheus/metrics
+  # Common configuration for all services
+  - job_name: 'common'
+    metrics_path: /metrics
+    scheme: http
     static_configs:
-      - targets: ['traefik:3100']
+      - targets: 
+        - 'traefik:3100'  # Traefik's own metrics
+        - 'admin-frontend:3090'  # Admin frontend metrics
+        - 'event-handler:4390'   # Event handler metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '^(up|process_cpu_seconds_total|process_resident_memory_bytes|http_request_duration_seconds_count)$'
+        action: keep
 
-  - job_name: 'admin-frontend'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['admin-frontend:3090']
-
-  - job_name: 'auction-manager'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['auction-manager:4190']
-
-  - job_name: 'event-handler'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['event-handler:4390']
-
-  - job_name: 'stream-manager'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['stream-manager:4290']
-
-  - job_name: 'shape-l2'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['shape-l2:4090']
-
-  - job_name: 'eliza'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['eliza:4490']
-
+  # Prometheus self-monitoring
   - job_name: 'prometheus'
     metrics_path: /prometheus/metrics
     static_configs:
       - targets: ['localhost:9090']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '^(up|process_cpu_seconds_total|process_resident_memory_bytes)$'
+        action: keep
 
+  # Redis specific configuration (uses redis-exporter)
   - job_name: 'redis'
-    metrics_path: /prometheus/metrics
+    metrics_path: /metrics
     static_configs:
       - targets: ['redis-exporter:9121']
-
-  - job_name: 'grafana'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['grafana:3001']
-
-  - job_name: 'node-exporter'
-    metrics_path: /prometheus/metrics
-    static_configs:
-      - targets: ['node-exporter:9100'] 
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '^(redis_up|redis_memory_used_bytes|redis_connected_clients|redis_commands_processed_total)$'
+        action: keep 

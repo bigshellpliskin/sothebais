@@ -52,6 +52,7 @@ export function SystemOverview() {
       icon={BarChart3}
       className="w-full mb-6"
     >
+      {/* Status Cards */}
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatusCard
@@ -74,11 +75,13 @@ export function SystemOverview() {
           />
         </div>
 
+        {/* Refresh Timer */}
         <div className="flex items-center justify-end gap-2 text-xs text-gray-500 border-b pb-2">
           <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh in {refreshTimer}s</span>
         </div>
-        
+
+        {/* Service Status Table */}
         <div className="grid grid-cols-2 gap-6">
           {CORE_SERVICES.map((group) => (
             <div key={group.name} className="min-w-0">

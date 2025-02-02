@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Base stage with common dependencies
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache curl
 

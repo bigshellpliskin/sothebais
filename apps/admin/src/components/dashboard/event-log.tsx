@@ -44,12 +44,14 @@ export function EventLog() {
     setIsClient(true);
   }, []);
 
-  // Get the base URL for the event handler
+  // Get the base URL for event handler
   const getEventHandlerUrl = () => {
+    // In development, use direct connection to event-handler
     if (process.env.NODE_ENV === 'development') {
       return 'http://localhost:4300';
     }
-    return `https://${process.env.NEXT_PUBLIC_EVENT_HANDLER_SUBDOMAIN}`;
+    // In production, use Traefik-routed URL
+    return '/events';
   };
 
   // Load container logs and system logs
@@ -57,15 +59,15 @@ export function EventLog() {
     const loadLogs = async () => {
       try {
         setLoading(true);
+        const baseUrl = getEventHandlerUrl();
+
         const [containerResponse, systemResponse] = await Promise.all([
-          fetch(`${getEventHandlerUrl()}/logs`, {
-            credentials: 'include',
+          fetch(`${baseUrl}/logs`, {
             headers: {
               'Accept': 'application/json'
             }
           }),
-          fetch(`${getEventHandlerUrl()}/system-logs`, {
-            credentials: 'include',
+          fetch(`${baseUrl}/system-logs`, {
             headers: {
               'Accept': 'application/json'
             }
@@ -99,7 +101,7 @@ export function EventLog() {
         const processedSystemLogs = systemLogsData.map((log: any) => ({
           ...log,
           timestamp: new Date(log.timestamp).toISOString(),
-          context: typeof log.context === 'object' ? JSON.stringify(log.context) : String(log.context)
+          context: typeof log.context === 'object' ? JSON.stringify(log.context) : String(log.context || '')
         }));
 
         setContainerLogs(processedContainerLogs);
@@ -179,6 +181,28 @@ export function EventLog() {
     });
   };
 
+  const generateUniqueKey = (entry: any, index: number): string => {
+    // For system logs that have an id field
+    if (entry.id) {
+      return entry.id;
+    }
+
+    const timestamp = entry.timestamp || '';
+    const content = entry.content || entry.data || '';
+    const containerName = entry.source || '';
+    
+    // Create a more robust hash using all available data
+    const str = `${containerName}-${timestamp}-${typeof content === 'string' ? content : JSON.stringify(content)}`;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    // Add index to ensure uniqueness even if hash collides
+    return `${containerName}-${timestamp}-${hash}-${index}`;
+  };
+
   const renderLogContent = (entries: LogEntry[] | Event[] | undefined) => {
     if (!entries || entries.length === 0) {
       return (
@@ -188,7 +212,7 @@ export function EventLog() {
       );
     }
 
-    return entries.map((entry: any) => {
+    return entries.map((entry: any, index: number) => {
       const date = new Date(entry.timestamp);
       const timestamp = date.toLocaleTimeString(undefined, {
         hour: '2-digit',
@@ -196,16 +220,11 @@ export function EventLog() {
         second: '2-digit',
         hour12: false
       });
-      const content = entry.content || (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2));
-      // Create a more unique key by combining id, timestamp and a hash of the content
-      const contentHash = content.split('').reduce((acc: number, char: string) => {
-        return ((acc << 5) - acc) + char.charCodeAt(0) | 0;
-      }, 0);
-      const uniqueKey = `${entry.id}-${entry.timestamp}-${contentHash}`;
+      const content = entry.content || (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2)) || '';
       
       return (
         <div
-          key={uniqueKey}
+          key={generateUniqueKey(entry, index)}
           className="font-mono text-xs leading-relaxed border-b border-border/50 last:border-0"
         >
           <span className="text-muted-foreground">[{timestamp}]</span>{' '}

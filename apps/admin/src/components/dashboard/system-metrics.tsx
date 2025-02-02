@@ -77,41 +77,15 @@ export function SystemMetrics() {
     const fetchMetrics = async () => {
       try {
         setLoading(true);
-        // Try to fetch from Prometheus first
-        const prometheusResponse = await fetch("/api/metrics/prometheus");
-        if (prometheusResponse.ok) {
-          const prometheusData = await prometheusResponse.json();
-          setMetrics({
-            cpu: {
-              value: prometheusData.cpu_usage_percent,
-              unit: "%",
-              trend: prometheusData.cpu_trend
-            },
-            memory: {
-              value: prometheusData.memory_usage_mb,
-              unit: "MB",
-              trend: prometheusData.memory_trend
-            },
-            requestRate: {
-              value: prometheusData.request_rate,
-              unit: "req/s",
-              trend: prometheusData.request_trend
-            },
-            redisMemory: {
-              value: prometheusData.redis_memory_mb,
-              unit: "MB",
-              trend: prometheusData.redis_trend
-            }
-          });
-        } else {
-          // Fallback to legacy metrics endpoint
-          const response = await fetch("/api/services/metrics");
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          setMetrics(data);
+        const response = await fetch("/api/services/metrics");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+        const data = await response.json();
+        if (!data.collected_at) {
+          throw new Error('Invalid metrics data');
+        }
+        setMetrics(data);
         setError(null);
       } catch (error) {
         console.error("Failed to fetch metrics:", error);
