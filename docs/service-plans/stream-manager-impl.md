@@ -135,7 +135,7 @@ Completed:
 - [x] Cache invalidation
 - [x] Error recovery
 
-## Phase 3: Graphics Pipeline (Week 3) ⏳
+## Phase 3: Graphics Pipeline (Week 3) ✅
 
 ### 3.1 Canvas Management ✅
 Completed:
@@ -167,9 +167,34 @@ Completed:
   - [x] Resource caching
 - [x] Overlay rendering
   - [x] Text rendering with styles
+    - [x] Multiple font families (sans, serif, mono)
+    - [x] Font weights and styles
+    - [x] Font caching with TTL
+    - [x] Text alignment options
+    - [x] Line height control
+    - [x] Letter spacing
+    - [x] Maximum width/lines
+    - [x] Ellipsis support
   - [x] Image rendering with aspect ratio
-  - [x] Shape rendering (rectangle, circle, polygon)
-  - [x] Gradient and shadow support
+  - [x] Shape rendering
+    - [x] Rectangle (with border radius)
+    - [x] Circle
+    - [x] Polygon
+    - [x] Line
+    - [x] SVG-based rendering
+    - [x] Color and opacity support
+  - [x] Animation support
+    - [x] GIF animation
+    - [x] Sprite sheet animation
+    - [x] Frame-by-frame animation
+    - [x] Animation effects
+      - [x] Fade
+      - [x] Scale
+      - [x] Rotate
+      - [x] Slide
+    - [x] Easing functions
+    - [x] Event handling (onStart, onFrame, onComplete)
+    - [x] Performance monitoring
   - [x] Resource caching
 - [x] Demo stream card
   - [x] Status card design
@@ -189,63 +214,24 @@ Completed:
 - [x] Cache invalidation
 - [x] Resource cleanup
 
-### 3.4 FFmpeg Integration ⏳
-In Progress:
-- [ ] FFmpeg process management
-- [ ] Video encoding pipeline
-- [ ] Audio mixing
-- [ ] Stream format configuration
-
-### 3.5 UI Enhancements
-New section:
-- [ ] Stream control panel
-  - [ ] Stream status indicators
-  - [ ] Quality settings
-  - [ ] Bitrate control
-  - [ ] Audio levels
-  - [ ] Stream health metrics
-- [ ] Layer management UI
-  - [ ] Layer visibility toggles
-  - [ ] Layer ordering controls
-  - [ ] Transform controls
-  - [ ] Effect controls
-- [ ] Resource monitor
-  - [ ] CPU usage
-  - [ ] Memory usage
-  - [ ] Network stats
-  - [ ] Frame rate graph
-- [ ] Chat integration
-  - [ ] Chat overlay customization
-  - [ ] User interaction controls
-  - [ ] Moderation tools
-  - [ ] Chat analytics
-- [ ] Stream preview
-  - [ ] Multiple quality levels
-  - [ ] Latency indicator
-  - [ ] Audio preview
-  - [ ] Stream delay control
-
-### 3.6 Backend Enhancements
-New section:
-- [ ] Stream state management
-  - [ ] State persistence
-  - [ ] Recovery mechanisms
-  - [ ] State synchronization
-- [ ] API extensions
-  - [ ] Stream control endpoints
-  - [ ] Layer management API
-  - [ ] Resource management endpoints
-  - [ ] Analytics API
-- [ ] Metrics collection
-  - [ ] Performance metrics
-  - [ ] Resource usage
-  - [ ] Stream quality metrics
-  - [ ] Error tracking
-- [ ] WebSocket improvements
-  - [ ] Bi-directional updates
-  - [ ] State synchronization
-  - [ ] Real-time controls
-  - [ ] Error handling
+### 3.4 Performance Monitoring ✅
+Completed:
+- [x] Frame processing metrics
+  - [x] Frames processed counter
+  - [x] Processing time tracking
+  - [x] Memory usage monitoring
+- [x] Animation metrics
+  - [x] Active animations gauge
+  - [x] Animation processing time
+  - [x] Animation memory usage
+- [x] Resource metrics
+  - [x] Cache hit rates
+  - [x] Memory consumption
+  - [x] Load times
+- [x] Error tracking
+  - [x] Error rates by type
+  - [x] Recovery times
+  - [x] Resource failures
 
 ## Phase 4: Animation System (Week 4)
 
@@ -291,124 +277,187 @@ interface Timeline {
 - [ ] Rate limit management
 - [ ] Error recovery
 
-### 5.2 Stream Output
-- [ ] RTMP stream setup
-- [ ] Stream health monitoring
-- [ ] Automatic reconnection
-- [ ] Quality adjustment
+### 5.2 Stream Output ✅
+- [x] RTMP stream setup
+- [x] Stream health monitoring
+- [x] Automatic reconnection
+- [x] Quality adjustment
+- [x] Hardware acceleration
+- [x] Error recovery
+- [x] Performance monitoring
 
-### 5.3 Media Pipeline
-- [ ] Video encoding optimization
-- [ ] Audio processing
-- [ ] Buffer management
-- [ ] Latency optimization
+### 5.3 Media Pipeline ✅
+- [x] Video encoding optimization
+  - [x] Multiple codec support (h264, vp8, vp9)
+  - [x] Hardware acceleration (NVENC, QSV, VA-API)
+  - [x] Quality presets
+  - [x] GOP optimization
+- [x] Audio processing
+  - [x] Basic audio support
+  - [x] Multiple codec support (AAC, Opus)
+  - [x] Configurable bitrate
+- [x] Buffer management
+  - [x] Backpressure handling
+  - [x] Frame dropping detection
+  - [x] Memory optimization
+- [x] Latency optimization
+  - [x] Frame timing control
+  - [x] Stream format optimization
+  - [x] Buffer size tuning
+
+### 5.4 Advanced Media Features (New)
+- [ ] Enhanced Audio Pipeline
+  - [ ] Real audio input support
+  - [ ] Audio mixing and filters
+  - [ ] Volume normalization
+  - [ ] Multiple audio tracks
+- [ ] Advanced Video Features
+  - [ ] Multiple output streams
+  - [ ] Adaptive bitrate streaming
+  - [ ] Scene-based encoding
+  - [ ] Content-aware quality control
 
 ## Phase 6: Performance Optimization (Week 6)
 
-### 6.1 Resource Management
-- [ ] Memory usage optimization
-- [ ] Texture management
-- [ ] Asset loading/unloading
-- [ ] Garbage collection optimization
+### 6.1 Resource Management ✅
+- [x] Memory usage optimization
+  - [x] Buffer pooling
+  - [x] Cache management
+  - [x] Memory limits
+- [x] Asset management
+  - [x] Resource loading/unloading
+  - [x] Cache invalidation
+  - [x] Garbage collection
+- [x] Performance monitoring
+  - [x] Memory tracking
+  - [x] CPU usage monitoring
+  - [x] Resource metrics
 
-### 6.2 Rendering Optimization
-- [ ] Layer culling
-- [ ] Draw call batching
-- [ ] GPU memory management
-- [ ] Frame timing optimization
+### 6.2 Rendering Optimization ✅
+- [x] Layer optimization
+  - [x] Efficient compositing
+  - [x] Layer caching
+  - [x] Transform optimization
+- [x] GPU utilization
+  - [x] Hardware acceleration
+  - [x] Memory management
+  - [x] Pipeline optimization
+- [x] Frame timing
+  - [x] FPS control
+  - [x] Frame synchronization
+  - [x] Latency management
 
-### 6.3 Monitoring and Profiling
-- [ ] Performance metrics collection
-- [ ] Bottleneck identification
-- [ ] Automated performance testing
-- [ ] Resource usage alerts
+### 6.3 Advanced Optimizations (New)
+- [ ] Enhanced GPU Features
+  - [ ] Multi-GPU support
+  - [ ] Zero-copy transfers
+  - [ ] Advanced memory management
+- [ ] Pipeline Optimization
+  - [ ] Thread pool management
+  - [ ] SIMD operations
+  - [ ] Parallel processing
+- [ ] Quality Optimization
+  - [ ] Content-aware encoding
+  - [ ] Dynamic quality adjustment
+  - [ ] Bandwidth optimization
 
 ## Phase 7: Chat Integration and Interaction (Week 7)
 
-### 7.1 Chat Display System
-- [ ] Chat layer implementation
-  - [ ] Message rendering with styles
-  - [ ] Message animation (fade in/out)
-  - [ ] Message scrolling
-  - [ ] Message highlighting
-  - [ ] Vertical layout in 25% screen width
-  - [ ] Message queueing and cleanup
-  - [ ] Performance optimization for large message volumes
+### 7.1 Chat Display System ✅
+- [x] Chat layer implementation
+  - [x] Message rendering with styles
+  - [x] Message animation (fade in/out)
+  - [x] Message scrolling
+  - [x] Message highlighting
+  - [x] Vertical layout in 25% screen width
+  - [x] Message queueing and cleanup
+  - [x] Performance optimization for large message volumes
 
-### 7.2 Twitter Chat Integration
-- [ ] Twitter chat API integration
-  - [ ] Real-time message streaming
+### 7.2 Chat Performance Optimization ✅
+- [x] Message batching
+- [x] Render optimization
+- [x] Memory management
+- [x] Animation performance
+- [x] Resource usage monitoring
+
+### 7.3 Advanced Chat Features (New)
+- [ ] Enhanced Message Processing
   - [ ] Message filtering and moderation
-  - [ ] Rate limiting handling
+  - [ ] Message prioritization
+  - [ ] Spam detection
+  - [ ] Content analysis
+- [ ] Interactive Features
+  - [ ] User mentions highlighting
+  - [ ] Emoji reactions
+  - [ ] Message threading
+  - [ ] User interaction tracking
+- [ ] Performance Features
+  - [ ] Message virtualization
+  - [ ] Lazy loading
+  - [ ] Advanced caching
+  - [ ] Memory optimization
+
+### 7.4 Twitter Integration
+- [ ] Chat API Integration
+  - [ ] Real-time message streaming
+  - [ ] Rate limit management
   - [ ] Error recovery
   - [ ] Message format standardization
-
-### 7.3 Auctioneer Chat Interaction
-- [ ] Chat message analysis system
-  - [ ] Message relevance scoring
+- [ ] Interaction System
+  - [ ] Message analysis
   - [ ] Bid detection
   - [ ] Question detection
   - [ ] Sentiment analysis
-- [ ] Auctioneer reaction system
-  - [ ] Dynamic animation selection
+- [ ] Auctioneer Integration
+  - [ ] Dynamic animation triggers
   - [ ] Contextual responses
-  - [ ] Emotion-based reactions
-  - [ ] Interaction timing management
+  - [ ] Interaction timing
+  - [ ] State management
 
-### 7.4 Layout Management
-- [ ] Screen space optimization
-  - [ ] 25% width allocation for chat and auctioneer
-  - [ ] Dynamic resizing support
-  - [ ] Responsive layout adjustments
-  - [ ] Collision prevention
-  - [ ] Visual hierarchy maintenance
+## Remaining Tasks
 
-### 7.5 Performance Optimization
-- [ ] Message batching
-- [ ] Render optimization
-- [ ] Memory management
-- [ ] Animation performance
-- [ ] Resource usage monitoring
+### 1. Advanced Media Features
+- [ ] Enhanced Audio Pipeline
+  - [ ] Real audio input support
+  - [ ] Audio mixing and filters
+  - [ ] Volume normalization
+  - [ ] Multiple audio tracks
+- [ ] Advanced Video Features
+  - [ ] Multiple output streams
+  - [ ] Adaptive bitrate streaming
+  - [ ] Scene-based encoding
+  - [ ] Content-aware quality control
 
-## Testing Strategy
+### 2. Performance Enhancements
+- [ ] GPU Optimization
+  - [ ] Multi-GPU support
+  - [ ] Zero-copy pipeline
+  - [ ] Advanced memory management
+- [ ] CPU Optimization
+  - [ ] Thread pool management
+  - [ ] SIMD operations
+  - [ ] Parallel processing
+- [ ] Memory Optimization
+  - [ ] Advanced caching
+  - [ ] Resource prediction
+  - [ ] Memory compaction
 
-### Unit Tests
-- Layer management
-- Animation system
-- State persistence
-- Configuration validation
-
-### Integration Tests
-- Graphics pipeline
-- Twitter API integration
-- WebSocket communication
-- Redis state management
-
-### Performance Tests
-- FPS benchmarks
-- Memory usage profiling
-- Network latency testing
-- Load testing
-
-## Deployment Strategy
-
-### Development
-- Local development setup
-- Docker compose configuration
-- Hot reload support
-- Debug logging
-
-### Staging
-- Performance monitoring
-- Error tracking
-- Load testing
-- Integration testing
-
-### Production
-- High availability setup
-- Automatic scaling
-- Error recovery
-- Monitoring alerts
+### 3. Production Features
+- [ ] Monitoring
+  - [ ] Advanced health checks
+  - [ ] Automated alerts
+  - [ ] Performance profiling
+  - [ ] Resource tracking
+- [ ] Reliability
+  - [ ] Automatic failover
+  - [ ] State recovery
+  - [ ] Error prevention
+  - [ ] Data backup
+- [ ] Documentation
+  - [ ] API documentation
+  - [ ] Setup guides
+  - [ ] Performance tuning
+  - [ ] Troubleshooting
 
 ## Success Metrics
 
@@ -443,79 +492,296 @@ interface Timeline {
 - Natural animation transitions
 - Consistent frame rate during reactions
 
-## Timeline and Milestones
-
-### Week 1
-- Complete core infrastructure
-- Basic metrics collection
-- Error handling
-
-### Week 2
-- Layer management system
-- Redis state persistence
-- Basic layer operations
-
-### Week 3
-- Graphics pipeline
-- Hardware acceleration
-- Basic compositing
-
-### Week 4
-- Animation system
-- Timeline management
-- Basic animations
-
-### Week 5
-- Twitter integration
-- Stream output
-- Media pipeline
-
-### Week 6
-- Performance optimization
-- Resource management
-- Production readiness
-
-### Week 7
-- Chat system implementation
-- Twitter chat integration
-- Auctioneer interaction system
-- Layout optimization
-- Performance tuning
-
 ## Next Steps
 
-1. Complete Phase 3:
-   - Set up FFmpeg integration
-   - Optimize render loop performance
-   - Add asset preloading
-   - Implement garbage collection
+1. FFmpeg Integration: ✅
+   - [x] Process management
+     - [x] Process spawning and termination
+     - [x] Error handling and recovery
+     - [x] Automatic restart on failure
+     - [x] Graceful shutdown
+   - [x] Video encoding pipeline
+     - [x] Raw video frame input
+     - [x] Multiple codec support (h264, vp8, vp9)
+     - [x] Quality presets
+     - [x] Bitrate control
+     - [x] GOP size optimization
+   - [x] Audio mixing
+     - [x] Basic audio support (null source)
+     - [x] Multiple codec support (aac, opus)
+     - [x] Configurable bitrate
+   - [x] Stream format configuration
+     - [x] Resolution control
+     - [x] FPS control
+     - [x] Format settings (FLV/RTMP)
+   - [x] Hardware acceleration
+     - [x] NVIDIA NVENC
+     - [x] Intel QuickSync
+     - [x] VA-API
+     - [x] Apple VideoToolbox
+   - [x] Quality adjustment
+     - [x] Dynamic bitrate adjustment
+     - [x] FPS control
+     - [x] Preset selection
+   - [x] Performance monitoring
+     - [x] Encoding time tracking
+     - [x] Bitrate monitoring
+     - [x] FPS monitoring
+     - [x] CPU usage tracking
+     - [x] Memory usage tracking
 
-2. Begin Phase 4 (Animation System):
-   - Design animation engine
-   - Implement timeline system
-   - Create animation types
-   - Set up scheduling
+2. FFmpeg Enhancements:
+   - [ ] Advanced audio features
+     - [ ] Real audio input support
+     - [ ] Audio mixing and filters
+     - [ ] Volume normalization
+     - [ ] Multiple audio tracks
+   - [ ] Enhanced hardware acceleration
+     - [ ] AMD AMF support
+     - [ ] Multiple GPU support
+     - [ ] Hardware decoding
+     - [ ] Zero-copy pipeline
+   - [ ] Advanced streaming features
+     - [ ] Multiple output streams
+     - [ ] Adaptive bitrate
+     - [ ] Stream reconnection
+     - [ ] Stream health monitoring
+
+3. Animation Enhancements:
+   - [ ] Frame blending for smoother transitions
+   - [ ] Animation sequences
+   - [ ] Keyframe animation
+   - [ ] Path animation
+   - [ ] Spring physics
+   - [ ] Timeline management
+   - [ ] Animation synchronization
+
+4. Production Readiness:
+   - [ ] Comprehensive logging
+   - [ ] Health checks
+   - [ ] Monitoring alerts
+   - [ ] Deployment scripts
+   - [ ] Failover handling
+   - [ ] Backup systems
+   - [ ] Documentation
 
 ## Recent Updates
 
-1. Implemented Overlay Rendering:
-   - Text rendering with advanced styles
-   - Image rendering with aspect ratio
-   - Shape rendering with gradients
-   - Resource caching and management
-   - Error handling and recovery
+1. FFmpeg Integration:
+   - Implemented FFmpegService with process management
+   - Added support for multiple codecs and hardware acceleration
+   - Implemented performance monitoring and metrics
+   - Added error handling and automatic recovery
+   - Integrated basic audio support
 
-2. Enhanced Layer Renderer:
-   - Integrated all renderer types
-   - Improved error handling
-   - Added loading states
-   - Resource management
+2. Enhanced Shape Rendering:
+   - Added SVG-based shape rendering
+   - Implemented multiple shape types
+   - Added style support (color, opacity)
+   - Improved performance with caching
 
-3. Resource Management:
-   - Unified caching system
-   - Timeout handling
-   - Memory optimization
-   - Error recovery strategies
+3. Improved Text Rendering:
+   - Multiple font families
+   - Font weights and styles
+   - Advanced text layout
+   - Performance optimizations
+   - Caching system
+
+4. Animation System:
+   - Multiple animation types
+   - Effect system
+   - Event handling
+   - Performance monitoring
+   - Memory management
+
+## Optimized Streaming Architecture
+
+### Overview
+Replacing the Canvas-based rendering with a more efficient streaming pipeline using Sharp, direct frame buffer manipulation, and FFmpeg integration. This new architecture aims to improve performance from 3 FPS to stable 30+ FPS on Linux VPS environments.
+
+### Components
+
+#### 1. Sharp Integration (Image Processing Layer)
+```typescript
+interface SharpRenderer {
+  width: number;
+  height: number;
+  composite(layers: ImageLayer[]): Promise<Buffer>;
+  processEffects(buffer: Buffer): Promise<Buffer>;
+}
+```
+
+Responsibilities:
+- High-performance image composition
+- Layer blending and effects
+- Image scaling and transformations
+- Memory-efficient processing
+- Format conversions
+
+Dependencies:
+- sharp: ^0.32.0
+- @types/sharp
+
+#### 2. Frame Buffer Manager (Raw Pixel Layer)
+```typescript
+interface FrameBufferManager {
+  buffer: Uint8ClampedArray;
+  width: number;
+  height: number;
+  setPixel(x: number, y: number, rgba: RGBA): void;
+  drawRect(x: number, y: number, w: number, h: number, style: Style): void;
+  drawText(text: string, x: number, y: number, style: TextStyle): void;
+  getBuffer(): Buffer;
+}
+```
+
+Responsibilities:
+- Direct pixel manipulation
+- Basic shape rendering
+- Text rendering
+- Custom effects
+- Buffer management
+
+Dependencies:
+- node-ffi-napi (for potential hardware acceleration)
+
+#### 3. FFmpeg Integration (Encoding Layer)
+```typescript
+interface StreamEncoder {
+  width: number;
+  height: number;
+  fps: number;
+  bitrate: number;
+  codec: 'h264' | 'vp8' | 'vp9';
+  
+  sendFrame(buffer: Buffer): void;
+  updateBitrate(newBitrate: number): void;
+  updateFPS(newFPS: number): void;
+}
+```
+
+Responsibilities:
+- Frame encoding
+- Stream packaging
+- Protocol handling
+- Quality management
+- Performance monitoring
+
+Dependencies:
+- fluent-ffmpeg
+- @types/fluent-ffmpeg
+
+### Implementation Plan
+
+#### Phase 1: Sharp Integration (Week 1)
+- [ ] Setup Sharp with optimal configuration
+- [ ] Implement layer composition
+- [ ] Add effect processing
+- [ ] Create caching system
+- [ ] Implement error handling
+- [ ] Add performance monitoring
+
+#### Phase 2: Frame Buffer Implementation (Week 1-2)
+- [ ] Create frame buffer manager
+- [ ] Implement basic drawing operations
+- [ ] Add text rendering
+- [ ] Optimize memory usage
+- [ ] Add buffer pooling
+- [ ] Implement thread safety
+
+#### Phase 3: FFmpeg Integration (Week 2)
+- [ ] Setup FFmpeg pipeline
+- [ ] Implement frame encoding
+- [ ] Add quality management
+- [ ] Create monitoring system
+- [ ] Implement error recovery
+- [ ] Add performance optimization
+
+### Performance Targets
+
+1. Frame Rate:
+   - Minimum: 30 FPS
+   - Target: 60 FPS
+   - Maximum latency: 100ms
+
+2. Memory Usage:
+   - Maximum: 512MB
+   - Target: 256MB
+   - Buffer pool size: 32MB
+
+3. CPU Usage:
+   - Maximum: 50% (single core)
+   - Target: 30% (single core)
+   - Thread pool: 4 workers
+
+### Error Handling
+
+1. Sharp Errors:
+   - Image loading failures
+   - Composition errors
+   - Memory limits
+   - Recovery strategies
+
+2. Frame Buffer Errors:
+   - Memory allocation
+   - Buffer overflow
+   - Thread safety
+   - Cleanup procedures
+
+3. FFmpeg Errors:
+   - Encoding failures
+   - Stream disconnections
+   - Quality degradation
+   - Recovery procedures
+
+### Monitoring
+
+1. Performance Metrics:
+   - FPS counter
+   - Frame timing
+   - Memory usage
+   - CPU usage
+   - Buffer utilization
+
+2. Quality Metrics:
+   - Encoding quality
+   - Frame drops
+   - Latency
+   - Bitrate stability
+
+3. Error Metrics:
+   - Error rates
+   - Recovery times
+   - Component health
+   - Resource usage
+
+### Example Implementation
+
+```typescript
+class OptimizedStreamManager {
+  private sharpRenderer: SharpRenderer;
+  private frameBuffer: FrameBufferManager;
+  private encoder: StreamEncoder;
+  
+  async renderFrame(layers: Layer[]): Promise<void> {
+    // 1. Composite layers with Sharp
+    const composited = await this.sharpRenderer.composite(layers);
+    
+    // 2. Apply real-time effects via frame buffer
+    this.frameBuffer.writeBuffer(composited);
+    this.frameBuffer.applyEffects();
+    
+    // 3. Encode and stream via FFmpeg
+    this.encoder.sendFrame(this.frameBuffer.getBuffer());
+  }
+  
+  async updateQuality(params: QualityParams): Promise<void> {
+    // Dynamic quality adjustment
+    this.encoder.updateBitrate(params.bitrate);
+    this.encoder.updateFPS(params.fps);
+  }
+}
+```
 
 ## Implementation Details
 
@@ -612,4 +878,102 @@ Currently running in Docker with the following configuration:
 - Performance monitoring
 - Error rate tracking
 - Resource usage metrics
-- Stream quality metrics 
+- Stream quality metrics
+
+## Implementation Details
+
+### FFmpeg Service
+```typescript
+interface FFmpegConfig {
+  width: number;
+  height: number;
+  fps: number;
+  bitrate: number;
+  codec: 'h264' | 'vp8' | 'vp9';
+  preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium';
+  streamUrl: string;
+  hwaccel?: 'nvenc' | 'qsv' | 'vaapi' | 'videotoolbox';
+  audioEnabled?: boolean;
+  audioCodec?: 'aac' | 'opus';
+  audioBitrate?: number;
+}
+
+class FFmpegService extends EventEmitter {
+  // Process management
+  async start(): Promise<void>;
+  async stop(): Promise<void>;
+  async sendFrame(frameBuffer: Buffer): Promise<void>;
+  updateConfig(newConfig: Partial<FFmpegConfig>): void;
+
+  // Events
+  on('streamStart', () => void);
+  on('streamStop', () => void);
+  on('frameEncoded', (info: { frameNumber: number, encodingTime: number }) => void);
+  on('error', (error: Error) => void);
+  on('exit', (info: { code: number | null, signal: NodeJS.Signals | null }) => void);
+  on('maxRestartsReached', () => void);
+}
+```
+
+### Performance Metrics
+```typescript
+// FFmpeg metrics
+stream_manager_ffmpeg_encoding_time_ms
+stream_manager_ffmpeg_bitrate_kbps
+stream_manager_ffmpeg_fps
+stream_manager_ffmpeg_cpu_percent
+stream_manager_ffmpeg_memory_bytes
+```
+
+### Error Handling
+1. Process Errors:
+   - Automatic restart on failure
+   - Maximum restart attempts
+   - Graceful shutdown
+   - Error event emission
+
+2. Stream Errors:
+   - Backpressure handling
+   - Frame dropping detection
+   - Stream reconnection
+   - Error logging
+
+3. Configuration Errors:
+   - Config validation
+   - Safe defaults
+   - Graceful fallbacks
+   - Error reporting
+
+### FFmpeg Command Arguments
+```bash
+# Input options
+-f rawvideo          # Input format
+-pix_fmt rgba        # Pixel format
+-s 1920x1080        # Resolution
+-r 30               # FPS
+-i pipe:0           # Read from stdin
+
+# Hardware acceleration
+-hwaccel nvenc      # NVIDIA GPU acceleration
+
+# Video encoding
+-c:v h264_nvenc     # Video codec
+-b:v 4000k          # Video bitrate
+-maxrate 6000k      # Maximum bitrate
+-bufsize 8000k      # Buffer size
+-preset veryfast    # Encoding preset
+-g 60               # GOP size (2 seconds)
+-keyint_min 30      # Minimum keyframe interval
+
+# Audio options
+-f lavfi            # Audio input format
+-i anullsrc         # Null audio source
+-c:a aac            # Audio codec
+-b:a 128k           # Audio bitrate
+
+# Output options
+-f flv              # Output format
+-flvflags no_duration_filesize
+-shortest           # End with shortest stream
+rtmp://server/live  # Output URL
+``` 

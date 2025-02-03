@@ -4,11 +4,13 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { createTestLayers } from './test-layers.js';
-import { layerRenderer } from '../services/layer-renderer.js';
+import { optimizedStreamManager } from '../renderers/optimized/stream-manager.js';
+import { sharpRenderer } from '../renderers/optimized/sharp-renderer.js';
 import { layerManager } from '../services/layer-manager.js';
 import { logger } from '../utils/logger.js';
 import type { ChatMessage, ChatLayer } from '../types/layers.js';
 import type { LogContext } from '../utils/logger.js';
+import sharp from 'sharp';
 
 // ESM replacement for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -37,53 +39,41 @@ export async function setupDemoServer(app: express.Application) {
       try {
         const { action } = req.body;
         
-        if (!action || !['start', 'stop', 'pause'].includes(action)) {
+        if (!action || !['start', 'stop'].includes(action)) {
           logger.error('Invalid stream control action', {
             action,
-            validActions: ['start', 'stop', 'pause']
+            validActions: ['start', 'stop']
           } as LogContext);
           return res.status(400).json({ error: 'Invalid action' });
         }
 
-        // Get initial health status
-        const initialHealth = layerRenderer.getHealth();
-        logger.info('Initial stream health', initialHealth as LogContext);
-
         switch (action) {
           case 'start':
-            layerRenderer.startRenderLoop();
-            break;
-          case 'pause':
-            layerRenderer.pauseRenderLoop();
+            await optimizedStreamManager.start();
             break;
           case 'stop':
-            layerRenderer.stopRenderLoop();
+            optimizedStreamManager.stop();
             break;
         }
 
-        // Wait a short time for the status to update
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Get updated health status
-        const health = layerRenderer.getHealth();
-        const isLive = health.status === 'healthy';
+        // Get metrics
+        const metrics = optimizedStreamManager.getMetrics();
+        const isLive = metrics.isStreaming;
 
         logger.info('Stream control action completed', {
           action,
-          status: health.status,
-          fps: health.fps,
           isLive,
-          isPaused: health.isPaused,
-          renderTime: health.averageRenderTime
+          fps: metrics.currentFPS,
+          targetFPS: metrics.targetFPS,
+          layerCount: metrics.layerCount
         } as LogContext);
 
         res.json({
           success: true,
-          status: health.status,
-          fps: health.fps,
           isLive,
-          isPaused: health.isPaused,
-          averageRenderTime: health.averageRenderTime
+          fps: metrics.currentFPS,
+          targetFPS: metrics.targetFPS,
+          layerCount: metrics.layerCount
         });
       } catch (error) {
         logger.error('Error controlling stream', {
@@ -103,13 +93,6 @@ export async function setupDemoServer(app: express.Application) {
       assetsPath
     } as LogContext);
     demoRouter.use('/assets', express.static(assetsPath));
-
-    // Initialize layer renderer with 720p resolution
-    layerRenderer.initialize({
-      width: 1280,
-      height: 720,
-      targetFPS: 30
-    });
 
     // Create test layers only if no layers exist
     try {
@@ -131,11 +114,11 @@ export async function setupDemoServer(app: express.Application) {
       process.exit(1);
     }
 
-    // Start render loop
+    // Start the optimized stream manager
     try {
-      layerRenderer.startRenderLoop();
+      await optimizedStreamManager.start();
     } catch (error) {
-      logger.error('Failed to start render loop', {
+      logger.error('Failed to start optimized stream manager', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       } as LogContext);
@@ -148,7 +131,7 @@ export async function setupDemoServer(app: express.Application) {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Stream Manager Demo</title>
+            <title>Stream Manager Demo (Sharp Renderer)</title>
             <style>
               body {
                 margin: 0;
@@ -171,6 +154,7 @@ export async function setupDemoServer(app: express.Application) {
                 display: flex;
                 gap: 20px;
                 align-items: center;
+                flex-wrap: wrap;
               }
               .status-indicator {
                 display: flex;
@@ -179,6 +163,7 @@ export async function setupDemoServer(app: express.Application) {
                 padding: 8px 16px;
                 border-radius: 4px;
                 background: #333;
+                min-width: 120px;
               }
               .status-dot {
                 width: 10px;
@@ -186,7 +171,7 @@ export async function setupDemoServer(app: express.Application) {
                 border-radius: 50%;
               }
               .status-dot.live {
-                background: #ff0000;
+                background: #00ff00;
                 animation: pulse 2s infinite;
               }
               .status-dot.offline {
@@ -210,14 +195,42 @@ export async function setupDemoServer(app: express.Application) {
                 height: auto;
                 display: block;
               }
-              .layer-controls {
+              .controls-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
                 margin-top: 20px;
+              }
+              .layer-controls {
                 padding: 20px;
                 background: #333;
                 border-radius: 4px;
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                 gap: 16px;
+              }
+              .metrics-panel {
+                padding: 20px;
+                background: #333;
+                border-radius: 4px;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 16px;
+              }
+              .metric-card {
+                background: #444;
+                padding: 12px;
+                border-radius: 4px;
+                text-align: center;
+              }
+              .metric-label {
+                font-size: 12px;
+                color: #999;
+                margin-bottom: 4px;
+              }
+              .metric-value {
+                font-size: 18px;
+                font-weight: bold;
               }
               .layer-control {
                 display: flex;
@@ -256,9 +269,16 @@ export async function setupDemoServer(app: express.Application) {
                 background: #0066cc;
                 color: white;
                 cursor: pointer;
+                transition: background 0.2s;
               }
               button:hover {
                 background: #0052a3;
+              }
+              button.danger {
+                background: #cc0000;
+              }
+              button.danger:hover {
+                background: #a30000;
               }
               input[type="text"] {
                 padding: 10px;
@@ -266,6 +286,11 @@ export async function setupDemoServer(app: express.Application) {
                 border: none;
                 border-radius: 4px;
                 width: 300px;
+                background: #555;
+                color: white;
+              }
+              input[type="text"]::placeholder {
+                color: #999;
               }
               .status-card {
                 position: absolute;
@@ -281,12 +306,20 @@ export async function setupDemoServer(app: express.Application) {
               .status-card.visible {
                 display: block;
               }
+              .stream-controls {
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
+                padding: 20px;
+                background: #333;
+                border-radius: 4px;
+              }
             </style>
           </head>
           <body>
             <div class="container">
               <div class="header">
-                <h1>Stream Manager Demo</h1>
+                <h1>Stream Manager Demo (Sharp Renderer)</h1>
                 <div class="status-indicators">
                   <div class="status-indicator">
                     <div id="streamStatus" class="status-dot offline"></div>
@@ -294,6 +327,12 @@ export async function setupDemoServer(app: express.Application) {
                   </div>
                   <div class="status-indicator">
                     <span id="fpsCounter">0 FPS</span>
+                  </div>
+                  <div class="status-indicator">
+                    <span id="memoryUsage">0 MB</span>
+                  </div>
+                  <div class="status-indicator">
+                    <span id="encoderStatus">Encoder: N/A</span>
                   </div>
                 </div>
               </div>
@@ -306,61 +345,95 @@ export async function setupDemoServer(app: express.Application) {
                 </div>
               </div>
 
-              <div class="layer-controls">
-                <div class="layer-control">
-                  <div class="layer-control-group">
-                    <div>
-                      <input type="radio" id="host-visible" name="host" value="visible" checked>
-                      <label for="host-visible">Show</label>
+              <div class="stream-controls">
+                <button id="startButton" onclick="controlStream('start')">Start Stream</button>
+                <button id="stopButton" class="danger" onclick="controlStream('stop')">Stop Stream</button>
+              </div>
+
+              <div class="controls-container">
+                <div class="layer-controls">
+                  <div class="layer-control">
+                    <div class="layer-control-group">
+                      <div>
+                        <input type="radio" id="host-visible" name="host" value="visible" checked>
+                        <label for="host-visible">Show</label>
+                      </div>
+                      <div>
+                        <input type="radio" id="host-hidden" name="host" value="hidden">
+                        <label for="host-hidden">Hide</label>
+                      </div>
                     </div>
-                    <div>
-                      <input type="radio" id="host-hidden" name="host" value="hidden">
-                      <label for="host-hidden">Hide</label>
-                    </div>
+                    <label>Host Layer</label>
                   </div>
-                  <label>Host Layer</label>
+
+                  <div class="layer-control">
+                    <div class="layer-control-group">
+                      <div>
+                        <input type="radio" id="nft-visible" name="nft" value="visible" checked>
+                        <label for="nft-visible">Show</label>
+                      </div>
+                      <div>
+                        <input type="radio" id="nft-hidden" name="nft" value="hidden">
+                        <label for="nft-hidden">Hide</label>
+                      </div>
+                    </div>
+                    <label>NFT Layer</label>
+                  </div>
+
+                  <div class="layer-control">
+                    <div class="layer-control-group">
+                      <div>
+                        <input type="radio" id="overlay-visible" name="overlay" value="visible" checked>
+                        <label for="overlay-visible">Show</label>
+                      </div>
+                      <div>
+                        <input type="radio" id="overlay-hidden" name="overlay" value="hidden">
+                        <label for="overlay-hidden">Hide</label>
+                      </div>
+                    </div>
+                    <label>Overlay Layer</label>
+                  </div>
+
+                  <div class="layer-control">
+                    <div class="layer-control-group">
+                      <div>
+                        <input type="radio" id="chat-visible" name="chat" value="visible" checked>
+                        <label for="chat-visible">Show</label>
+                      </div>
+                      <div>
+                        <input type="radio" id="chat-hidden" name="chat" value="hidden">
+                        <label for="chat-hidden">Hide</label>
+                      </div>
+                    </div>
+                    <label>Chat Layer</label>
+                  </div>
                 </div>
 
-                <div class="layer-control">
-                  <div class="layer-control-group">
-                    <div>
-                      <input type="radio" id="nft-visible" name="nft" value="visible" checked>
-                      <label for="nft-visible">Show</label>
-                    </div>
-                    <div>
-                      <input type="radio" id="nft-hidden" name="nft" value="hidden">
-                      <label for="nft-hidden">Hide</label>
-                    </div>
+                <div class="metrics-panel">
+                  <div class="metric-card">
+                    <div class="metric-label">Frame Processing Time</div>
+                    <div id="frameTime" class="metric-value">0 ms</div>
                   </div>
-                  <label>NFT Layer</label>
-                </div>
-
-                <div class="layer-control">
-                  <div class="layer-control-group">
-                    <div>
-                      <input type="radio" id="overlay-visible" name="overlay" value="visible" checked>
-                      <label for="overlay-visible">Show</label>
-                    </div>
-                    <div>
-                      <input type="radio" id="overlay-hidden" name="overlay" value="hidden">
-                      <label for="overlay-hidden">Hide</label>
-                    </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Active Animations</div>
+                    <div id="activeAnimations" class="metric-value">0</div>
                   </div>
-                  <label>Overlay Layer</label>
-                </div>
-
-                <div class="layer-control">
-                  <div class="layer-control-group">
-                    <div>
-                      <input type="radio" id="chat-visible" name="chat" value="visible" checked>
-                      <label for="chat-visible">Show</label>
-                    </div>
-                    <div>
-                      <input type="radio" id="chat-hidden" name="chat" value="hidden">
-                      <label for="chat-hidden">Hide</label>
-                    </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Cache Hit Rate</div>
+                    <div id="cacheHitRate" class="metric-value">0%</div>
                   </div>
-                  <label>Chat Layer</label>
+                  <div class="metric-card">
+                    <div class="metric-label">Encoder Bitrate</div>
+                    <div id="encoderBitrate" class="metric-value">0 kbps</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Layer Count</div>
+                    <div id="layerCount" class="metric-value">0</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">CPU Usage</div>
+                    <div id="cpuUsage" class="metric-value">0%</div>
+                  </div>
                 </div>
               </div>
 
@@ -378,6 +451,14 @@ export async function setupDemoServer(app: express.Application) {
               const streamStatusText = document.getElementById('streamStatusText');
               const statusCard = document.getElementById('statusCard');
               const statusMessage = document.getElementById('statusMessage');
+              const memoryUsage = document.getElementById('memoryUsage');
+              const encoderStatus = document.getElementById('encoderStatus');
+              const frameTime = document.getElementById('frameTime');
+              const activeAnimations = document.getElementById('activeAnimations');
+              const cacheHitRate = document.getElementById('cacheHitRate');
+              const encoderBitrate = document.getElementById('encoderBitrate');
+              const layerCount = document.getElementById('layerCount');
+              const cpuUsage = document.getElementById('cpuUsage');
               
               // Set canvas size
               canvas.width = 1920;
@@ -401,11 +482,29 @@ export async function setupDemoServer(app: express.Application) {
                 });
               });
 
+              // Function to control stream
+              async function controlStream(action) {
+                try {
+                  const response = await fetch('/demo/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                  });
+                  
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to control stream');
+                  }
+
+                  const result = await response.json();
+                  console.log('Stream control result:', result);
+                } catch (error) {
+                  console.error('Error controlling stream:', error);
+                }
+              }
+
               // Function to toggle layer visibility
               async function toggleLayer(type, isVisible) {
-                console.log('Toggling layer:', type, 'Current state:', layerStates[type]);
-                console.log('Sending request to /demo/toggle/', type, 'with body:', { visible: isVisible });
-                
                 try {
                   const response = await fetch(\`/demo/toggle/\${type}\`, { 
                     method: 'POST',
@@ -413,37 +512,19 @@ export async function setupDemoServer(app: express.Application) {
                     body: JSON.stringify({ visible: isVisible })
                   });
                   
-                  console.log('Response status:', response.status);
-                  
                   if (!response.ok) {
                     const error = await response.json();
-                    console.error('Error response:', error);
                     throw new Error(error.error || 'Failed to toggle layer');
                   }
 
                   const result = await response.json();
-                  console.log('Success response:', result);
-                  
                   if (result.success && result.layer) {
-                    // Update our state to match the actual server state
-                    const actualVisible = result.layer.visible;
-                    const previousState = layerStates[type];
-                    layerStates[type] = actualVisible;
-                    
-                    console.log('Layer state updated:', {
-                      type,
-                      previousState,
-                      newState: actualVisible,
-                      actualServerState: result.layer.actualState
-                    });
-                    
-                    // Update radio button state to match actual server state
-                    const newState = actualVisible ? 'visible' : 'hidden';
+                    layerStates[type] = result.layer.visible;
+                    const newState = result.layer.visible ? 'visible' : 'hidden';
                     document.querySelector(\`input[name="\${type}"][value="\${newState}"]\`).checked = true;
                   }
                 } catch (error) {
                   console.error('Error toggling layer:', error);
-                  // Revert the radio button to match the previous state
                   const currentState = layerStates[type] ? 'visible' : 'hidden';
                   document.querySelector(\`input[name="\${type}"][value="\${currentState}"]\`).checked = true;
                 }
@@ -473,6 +554,12 @@ export async function setupDemoServer(app: express.Application) {
                 sendChatMessage(true);
               }
 
+              // Function to format bytes
+              function formatBytes(bytes) {
+                const mb = bytes / (1024 * 1024);
+                return \`\${mb.toFixed(1)} MB\`;
+              }
+
               // Function to update stream status
               async function updateStreamStatus() {
                 try {
@@ -485,6 +572,19 @@ export async function setupDemoServer(app: express.Application) {
                   
                   if (status.fps) {
                     fpsCounter.textContent = \`\${Math.round(status.fps)} FPS\`;
+                  }
+
+                  // Update metrics
+                  if (status.encoderMetrics) {
+                    const em = status.encoderMetrics;
+                    frameTime.textContent = \`\${em.frameTime.toFixed(1)} ms\`;
+                    activeAnimations.textContent = em.activeAnimations;
+                    cacheHitRate.textContent = \`\${(em.cacheHitRate * 100).toFixed(1)}%\`;
+                    encoderBitrate.textContent = \`\${(em.bitrate / 1000).toFixed(0)} kbps\`;
+                    layerCount.textContent = status.layerCount;
+                    cpuUsage.textContent = \`\${em.cpuUsage.toFixed(1)}%\`;
+                    memoryUsage.textContent = formatBytes(em.memoryUsage);
+                    encoderStatus.textContent = \`Encoder: \${em.status}\`;
                   }
 
                   // Update status card
@@ -528,24 +628,46 @@ export async function setupDemoServer(app: express.Application) {
 
     // Add status endpoint
     demoRouter.get('/status', (req: Request, res: Response) => {
-      const health = layerRenderer.getHealth();
+      const metrics = optimizedStreamManager.getMetrics();
       res.json({
-        isLive: health.status === 'healthy',
-        fps: health.fps,
-        targetFPS: health.targetFPS,
-        averageRenderTime: health.averageRenderTime,
-        memoryUsage: health.memoryUsage,
-        layerCount: health.layerCount
+        isLive: metrics.isStreaming,
+        fps: metrics.currentFPS,
+        targetFPS: metrics.targetFPS,
+        layerCount: metrics.layerCount,
+        encoderMetrics: metrics.encoderMetrics
       });
     });
 
     // Endpoint to get the current frame
-    demoRouter.get('/frame', (req: Request, res: Response) => {
+    demoRouter.get('/frame', async (req: Request, res: Response) => {
       try {
-        const canvas = layerRenderer.getCanvas();
-        const buffer = canvas.toBuffer('image/png');
+        const metrics = optimizedStreamManager.getMetrics();
+        if (!metrics.isStreaming) {
+          // Return a black frame if not streaming
+          const blackFrame = await sharp({
+            create: {
+              width: 1280,
+              height: 720,
+              channels: 4,
+              background: { r: 0, g: 0, b: 0, alpha: 1 }
+            }
+          }).png().toBuffer();
+          res.setHeader('Content-Type', 'image/png');
+          res.send(blackFrame);
+          return;
+        }
+
+        // Get the current frame from the optimized stream manager
+        // Note: This is just for demo purposes, in production we'd use the FFmpeg stream
+        const layers = layerManager.getAllLayers();
+        const composited = await sharpRenderer.composite(layers);
+        const pngBuffer = await sharp(composited)
+          .resize(1280, 720)
+          .png()
+          .toBuffer();
+
         res.setHeader('Content-Type', 'image/png');
-        res.send(buffer);
+        res.send(pngBuffer);
       } catch (error) {
         logger.error('Error serving frame', {
           error: error instanceof Error ? error.message : 'Unknown error',
