@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
+import type { LogContext } from '../utils/logger.js';
 import { redisService } from './redis.js';
 import type { 
   Layer, 
@@ -74,17 +75,24 @@ class LayerManager extends EventEmitter {
 
   private setupEventHandlers(): void {
     this.on('layer:created', (layer: Layer) => {
-      logger.info({ layerId: layer.id, type: layer.type }, 'Layer created');
+      logger.info('Layer created', {
+        layerId: layer.id,
+        type: layer.type
+      } as LogContext);
       this.persistState();
     });
 
     this.on('layer:updated', (layer: Layer) => {
-      logger.info({ layerId: layer.id }, 'Layer updated');
+      logger.info('Layer updated', {
+        layerId: layer.id
+      } as LogContext);
       this.persistState();
     });
 
     this.on('layer:deleted', (layerId: string) => {
-      logger.info({ layerId }, 'Layer deleted');
+      logger.info('Layer deleted', {
+        layerId
+      } as LogContext);
       if (this.activeLayerId === layerId) {
         this.setActiveLayer(null);
       }
@@ -92,7 +100,9 @@ class LayerManager extends EventEmitter {
     });
 
     this.on('layer:active', (layerId: string | null) => {
-      logger.info({ layerId }, 'Active layer changed');
+      logger.info('Active layer changed', {
+        layerId
+      } as LogContext);
       this.persistState();
     });
   }
@@ -109,12 +119,18 @@ class LayerManager extends EventEmitter {
         const { layers, activeLayerId } = savedState;
         layers.forEach((layer: Layer) => this.layers.set(layer.id, layer));
         this.activeLayerId = activeLayerId;
-        logger.info({ layerCount: layers.length, activeLayerId }, 'Restored layers from Redis');
+        logger.info('Restored layers from Redis', {
+          layerCount: layers.length,
+          activeLayerId
+        } as LogContext);
       }
 
       this.initialized = true;
     } catch (error) {
-      logger.error({ error }, 'Failed to initialize LayerManager');
+      logger.error('Failed to initialize LayerManager', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      } as LogContext);
       throw error;
     }
   }
@@ -146,6 +162,19 @@ class LayerManager extends EventEmitter {
 
     this.layers.set(id, layer);
     this.emit('layer:created', layer);
+    logger.debug('Layer created', {
+      layerId: id
+    } as LogContext);
+    logger.info('Layer saved', {
+      layerId: id
+    } as LogContext);
+    logger.info('Layer activated', {
+      layerId: id
+    } as LogContext);
+    logger.info('Layer manager state updated', {
+      layerCount: this.layers.size,
+      activeLayerId: this.activeLayerId
+    } as LogContext);
     return layer;
   }
 
@@ -166,7 +195,9 @@ class LayerManager extends EventEmitter {
   ): Promise<LayerTypeToInterface[T] | undefined> {
     const existingLayer = this.layers.get(id);
     if (!existingLayer) {
-      logger.warn({ layerId: id }, 'Attempted to update non-existent layer');
+      logger.warn('Attempted to update non-existent layer', {
+        layerId: id
+      } as LogContext);
       return undefined;
     }
 
@@ -174,15 +205,35 @@ class LayerManager extends EventEmitter {
     const updatedLayer = { ...layer, ...updates };
     this.layers.set(id, updatedLayer);
     this.emit('layer:updated', updatedLayer);
+    logger.info('Layer updated', {
+      layerId: id
+    } as LogContext);
+    logger.info('Layer manager state updated', {
+      layerCount: this.layers.size,
+      activeLayerId: this.activeLayerId
+    } as LogContext);
     return updatedLayer;
   }
 
   public async deleteLayer(id: string): Promise<boolean> {
-    const deleted = this.layers.delete(id);
-    if (deleted) {
-      this.emit('layer:deleted', id);
+    try {
+      logger.info('Deleting layer', {
+        layerId: id
+      } as LogContext);
+
+      const deleted = this.layers.delete(id);
+      if (deleted) {
+        this.emit('layer:deleted', id);
+      }
+      this.persistState();
+      return deleted;
+    } catch (error) {
+      logger.error('Failed to delete layer', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      } as LogContext);
+      throw error;
     }
-    return deleted;
   }
 
   public setLayerVisibility(id: string, visible: boolean): void {
@@ -192,6 +243,14 @@ class LayerManager extends EventEmitter {
       this.layers.set(id, layer);
       this.emit('layer:visibility', id, visible);
       this.emit('layer:updated', layer);
+      logger.info('Layer visibility changed', {
+        layerId: id,
+        visible
+      } as LogContext);
+      logger.info('Layer manager state updated', {
+        layerCount: this.layers.size,
+        activeLayerId: this.activeLayerId
+      } as LogContext);
     }
   }
 
@@ -202,6 +261,13 @@ class LayerManager extends EventEmitter {
       this.layers.set(id, layer);
       this.emit('layer:transform', id, layer.transform);
       this.emit('layer:updated', layer);
+      logger.info('Layer transform changed', {
+        layerId: id
+      } as LogContext);
+      logger.info('Layer manager state updated', {
+        layerCount: this.layers.size,
+        activeLayerId: this.activeLayerId
+      } as LogContext);
     }
   }
 
@@ -212,6 +278,14 @@ class LayerManager extends EventEmitter {
       this.layers.set(id, layer);
       this.emit('layer:zindex', id, zIndex);
       this.emit('layer:updated', layer);
+      logger.info('Layer zIndex changed', {
+        layerId: id,
+        zIndex
+      } as LogContext);
+      logger.info('Layer manager state updated', {
+        layerCount: this.layers.size,
+        activeLayerId: this.activeLayerId
+      } as LogContext);
     }
   }
 
@@ -222,12 +296,27 @@ class LayerManager extends EventEmitter {
       this.layers.set(id, layer);
       this.emit('layer:opacity', id, layer.opacity);
       this.emit('layer:updated', layer);
+      logger.info('Layer opacity changed', {
+        layerId: id,
+        opacity
+      } as LogContext);
+      logger.info('Layer manager state updated', {
+        layerCount: this.layers.size,
+        activeLayerId: this.activeLayerId
+      } as LogContext);
     }
   }
 
   public setActiveLayer(id: string | null): void {
     this.activeLayerId = id;
     this.emit('layer:active', id);
+    logger.info('Active layer changed', {
+      layerId: id
+    } as LogContext);
+    logger.info('Layer manager state updated', {
+      layerCount: this.layers.size,
+      activeLayerId: this.activeLayerId
+    } as LogContext);
   }
 
   public getActiveLayer(): Layer | undefined {
@@ -248,9 +337,19 @@ class LayerManager extends EventEmitter {
         activeLayerId: this.activeLayerId
       };
       await redisService.saveLayerState(state);
-      logger.debug({ layerCount: state.layers.length, activeLayerId: state.activeLayerId }, 'Persisted layer state to Redis');
+      logger.debug('Layer state saved to Redis', {
+        layerCount: state.layers.length,
+        activeLayerId: state.activeLayerId
+      } as LogContext);
+      logger.info('Layer manager state updated', {
+        layerCount: this.layers.size,
+        activeLayerId: this.activeLayerId
+      } as LogContext);
     } catch (error) {
-      logger.error({ error }, 'Failed to persist layer state to Redis');
+      logger.error('Failed to persist layer state to Redis', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      } as LogContext);
     }
   }
 
@@ -258,7 +357,13 @@ class LayerManager extends EventEmitter {
     this.layers.clear();
     this.activeLayerId = null;
     await redisService.clearLayerState();
-    logger.info('Cleared all layers');
+    logger.info('Cleared all layers', {
+      layerCount: this.layers.size
+    } as LogContext);
+    logger.info('Layer manager state updated', {
+      layerCount: this.layers.size,
+      activeLayerId: this.activeLayerId
+    } as LogContext);
   }
 }
 

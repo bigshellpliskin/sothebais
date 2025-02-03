@@ -1,7 +1,9 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
+import type { LogContext } from '../utils/logger.js';
 import type { NFTContent } from '../types/layers.js';
 import path from 'path';
+import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
 
 interface ImageResource {
   image: Awaited<ReturnType<typeof loadImage>>;
@@ -45,7 +47,10 @@ export class VisualFeedRenderer {
       this.context = ctx;
       await this.renderNFT(ctx, content, width, height);
     } catch (error) {
-      logger.error({ error }, 'Error rendering visual feed');
+      logger.error('Failed to render visual feed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      } as LogContext);
       this.renderErrorState(ctx, width, height);
     }
   }
@@ -115,14 +120,17 @@ export class VisualFeedRenderer {
         newResources.isLoading = false;
         newResources.lastUpdated = Date.now();
 
-        logger.info({
+        logger.info('NFT resources loaded', {
           imagePath,
           metadata: content.metadata
-        }, 'NFT resources loaded');
+        } as LogContext);
 
         return newResources;
       } catch (error) {
-        logger.error({ error }, 'Failed to load NFT resources');
+        logger.error('Failed to load NFT resources', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        } as LogContext);
         this.imageResources.delete(resourceKey);
         return undefined;
       }

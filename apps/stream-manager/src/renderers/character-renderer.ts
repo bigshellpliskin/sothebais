@@ -4,6 +4,7 @@ import type { VTuberCharacter } from '../types/layers.js';
 import path from 'path';
 import type { HostLayer, AssistantLayer } from '../types/layers.js';
 import type { LogContext } from '../utils/logger.js';
+import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
 
 interface CharacterResources {
   model: Awaited<ReturnType<typeof loadImage>>;
@@ -33,77 +34,119 @@ export class CharacterRenderer {
     return path.join('/app', cleanPath);
   }
 
-  public async renderCharacter(ctx: CanvasRenderingContext2D, layer: HostLayer | AssistantLayer): Promise<void> {
+  private async loadCharacterImage(modelUrl: string): Promise<CharacterResources> {
     try {
-      const resources = await this.getCharacterResources(layer);
-      if (!resources || resources.isLoading) {
-        this.renderLoadingState(ctx, layer.character.width, layer.character.height);
-        return;
+      logger.debug('Loading character image', { modelUrl });
+      
+      const resource = this.characterResources.get(modelUrl);
+      if (resource && !resource.isLoading) {
+        logger.debug('Using cached character image', { modelUrl });
+        return resource;
       }
 
-      // Draw the base model
-      ctx.drawImage(resources.model, 0, 0, layer.character.width, layer.character.height);
-
-      // Apply texture if available
-      if (resources.texture) {
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.drawImage(resources.texture, 0, 0, layer.character.width, layer.character.height);
-        ctx.globalCompositeOperation = 'source-over';
-      }
-
-    } catch (error) {
-      logger.error('Error rendering character', { error } as LogContext);
-      this.renderErrorState(ctx, layer.character.width, layer.character.height);
-    }
-  }
-
-  private async getCharacterResources(layer: HostLayer | AssistantLayer): Promise<CharacterResources | undefined> {
-    const resourceKey = `${layer.character.modelUrl}:${layer.character.textureUrl}`;
-    let resources = this.characterResources.get(resourceKey);
-
-    // Check if resources need to be reloaded
-    if (resources && Date.now() - resources.lastUpdated > this.resourceTimeout) {
-      this.characterResources.delete(resourceKey);
-      resources = undefined;
-    }
-
-    if (!resources) {
-      // Start loading resources
-      const newResources: CharacterResources = {
+      // Mark as loading
+      this.characterResources.set(modelUrl, {
         model: null as unknown as Awaited<ReturnType<typeof loadImage>>,
         texture: null,
         lastUpdated: Date.now(),
         isLoading: true
+      });
+
+      // Convert URL paths to filesystem paths
+      const modelPath = this.urlToFilePath(modelUrl);
+      const texturePath = null; // Assuming texture is not provided in the URL
+
+      // Load model and texture in parallel
+      const [model, texture] = await Promise.all([
+        loadImage(modelPath),
+        texturePath ? loadImage(texturePath) : Promise.resolve(null)
+      ]);
+
+      const characterResource: CharacterResources = {
+        model,
+        texture,
+        lastUpdated: Date.now(),
+        isLoading: false
       };
-      this.characterResources.set(resourceKey, newResources);
 
-      try {
-        // Convert URL paths to filesystem paths
-        const modelPath = this.urlToFilePath(layer.character.modelUrl);
-        const texturePath = layer.character.textureUrl ? this.urlToFilePath(layer.character.textureUrl) : null;
+      this.characterResources.set(modelUrl, characterResource);
+      logger.info('Character image loaded successfully', { 
+        modelUrl,
+        width: model.width,
+        height: model.height
+      });
 
-        // Load model and texture in parallel
-        const [model, texture] = await Promise.all([
-          loadImage(modelPath),
-          texturePath ? loadImage(texturePath) : Promise.resolve(null)
-        ]);
-
-        newResources.model = model;
-        newResources.texture = texture;
-        newResources.isLoading = false;
-        newResources.lastUpdated = Date.now();
-
-        logger.info('Character resources loaded', { modelPath, texturePath } as LogContext);
-
-        return newResources;
-      } catch (error) {
-        logger.error('Failed to load character resources', { error } as LogContext);
-        this.characterResources.delete(resourceKey);
-        return undefined;
-      }
+      return characterResource;
+    } catch (error) {
+      logger.error('Failed to load character image', {
+        modelUrl,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
     }
+  }
 
-    return resources;
+  public async renderCharacter(ctx: CanvasRenderingContext2D, layer: HostLayer | AssistantLayer): Promise<void> {
+    try {
+      logger.debug('Rendering character', {
+        layerId: layer.id,
+        modelUrl: layer.character.modelUrl,
+        transform: layer.transform
+      });
+
+      const resource = await this.loadCharacterImage(layer.character.modelUrl);
+      
+      if (!resource || !resource.model) {
+        throw new Error('Character resource not loaded');
+      }
+
+      // Calculate dimensions while maintaining aspect ratio
+      const aspectRatio = resource.model.width / resource.model.height;
+      const targetWidth = layer.character.width || resource.model.width;
+      const targetHeight = layer.character.height || resource.model.height;
+
+      logger.debug('Character render dimensions', {
+        originalWidth: resource.model.width,
+        originalHeight: resource.model.height,
+        targetWidth,
+        targetHeight,
+        aspectRatio
+      });
+
+      // Draw the character
+      ctx.drawImage(
+        resource.model,
+        0,
+        0,
+        resource.model.width,
+        resource.model.height,
+        0,
+        0,
+        targetWidth,
+        targetHeight
+      );
+
+      // Apply texture if available
+      if (resource.texture) {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(resource.texture, 0, 0, targetWidth, targetHeight);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      logger.debug('Character rendered successfully', {
+        layerId: layer.id,
+        modelUrl: layer.character.modelUrl
+      });
+    } catch (error) {
+      logger.error('Failed to render character', {
+        layerId: layer.id,
+        modelUrl: layer.character.modelUrl,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
   }
 
   private renderLoadingState(

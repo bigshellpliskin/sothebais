@@ -8,6 +8,7 @@ import { logger } from './utils/logger.js';
 import { getConfig, loadConfig } from './config/index.js';
 import { redisService } from './services/redis.js';
 import { webSocketService } from './services/websocket.js';
+import { layerRenderer } from './services/layer-renderer.js';
 import { Registry, collectDefaultMetrics } from 'prom-client';
 import { setupDemoServer } from './demo/demo-server.js';
 
@@ -26,9 +27,11 @@ const metricsPort = process.env.METRICS_PORT ? parseInt(process.env.METRICS_PORT
 
 metricsApp.get('/metrics', async (_req: Request, res: Response) => {
   try {
+    // Combine default metrics with stream manager metrics
+    const defaultMetrics = await register.metrics();
+    const streamMetrics = await layerRenderer.getMetrics();
     res.set('Content-Type', register.contentType);
-    const metrics = await register.metrics();
-    res.end(metrics);
+    res.end(defaultMetrics + '\n' + streamMetrics);
   } catch (err) {
     res.status(500).end(err);
   }
@@ -61,13 +64,41 @@ async function startServer() {
 
     // Basic health check endpoint
     app.get('/health', (_req: Request, res: Response) => {
-      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+      const streamHealth = layerRenderer.getHealth();
+      const redisHealth = redisService.isReady();
+
+      const health = {
+        status: streamHealth.status === 'healthy' && redisHealth ? 'healthy' : 'unhealthy',
+        timestamp: new Date().toISOString(),
+        services: {
+          stream: streamHealth,
+          redis: {
+            status: redisHealth ? 'healthy' : 'unhealthy'
+          }
+        }
+      };
+
+      res.json(health);
     });
 
     // Dedicated health check endpoint
     healthApp.get('/health', (_req: Request, res: Response) => {
+      const streamHealth = layerRenderer.getHealth();
+      const redisHealth = redisService.isReady();
+
+      const health = {
+        status: streamHealth.status === 'healthy' && redisHealth ? 'healthy' : 'unhealthy',
+        timestamp: new Date().toISOString(),
+        services: {
+          stream: streamHealth,
+          redis: {
+            status: redisHealth ? 'healthy' : 'unhealthy'
+          }
+        }
+      };
+
       res.setHeader('Content-Type', 'application/json');
-      res.json({ status: redisService.isReady() ? 'ok' : 'error', timestamp: new Date().toISOString() });
+      res.json(health);
     });
 
     // Start HTTP server

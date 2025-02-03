@@ -3,6 +3,7 @@ import type { StreamEvent } from '../types/stream.js';
 import type { LayerState } from '../types/layers.js';
 import type { Config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import type { LogContext } from '../utils/logger.js';
 
 interface WebSocketMessage {
   type: 'layerUpdate' | 'streamEvent' | 'error';
@@ -40,7 +41,10 @@ class WebSocketService {
     });
 
     ws.on('error', (error) => {
-      logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'WebSocket error');
+      logger.error('WebSocket server error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      } as LogContext);
       this.clients.delete(ws);
     });
   }
