@@ -336,12 +336,25 @@ export function EventLog() {
 
       try {
         // First try parsing the data field if it exists
-        if (entry.data && typeof entry.data === 'string') {
-          parsedContent = JSON.parse(entry.data);
+        if (entry.data && typeof entry.data === 'string' && entry.data.trim().length > 1) {
+          try {
+            parsedContent = JSON.parse(entry.data);
+          } catch (parseErr) {
+            // If parsing fails, use the raw data
+            message = entry.data;
+          }
         } 
         // Then try the content field
-        else if (entry.content && typeof entry.content === 'string') {
-          parsedContent = JSON.parse(entry.content);
+        else if (entry.content && typeof entry.content === 'string' && entry.content.trim().length > 1) {
+          try {
+            parsedContent = JSON.parse(entry.content);
+          } catch (parseErr) {
+            // If parsing fails, use the raw content
+            message = entry.content;
+          }
+        } else {
+          // Handle single character or empty content
+          message = entry.content || entry.data || '';
         }
 
         if (parsedContent) {

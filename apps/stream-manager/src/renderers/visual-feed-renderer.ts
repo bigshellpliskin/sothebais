@@ -44,12 +44,23 @@ export class VisualFeedRenderer {
     height: number
   ): Promise<void> {
     try {
+      logger.info('Rendering visual feed', {
+        imageUrl: content.imageUrl,
+        metadata: content.metadata,
+        dimensions: { width, height }
+      } as LogContext);
+
       this.context = ctx;
       await this.renderNFT(ctx, content, width, height);
+
+      logger.info('Visual feed rendered successfully', {
+        imageUrl: content.imageUrl
+      } as LogContext);
     } catch (error) {
       logger.error('Failed to render visual feed', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
+        imageUrl: content.imageUrl
       } as LogContext);
       this.renderErrorState(ctx, width, height);
     }

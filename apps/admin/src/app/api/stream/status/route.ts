@@ -3,26 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 // Use internal Docker network URL
 const STREAM_MANAGER_URL = 'http://stream-manager:4200';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { type: string } }
-) {
-  console.log('API route received request for type:', params.type);
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
-    console.log('Request body:', body);
-
-    const streamManagerUrl = `${STREAM_MANAGER_URL}/demo/toggle/${params.type}`;
-    console.log('Forwarding request to stream manager:', streamManagerUrl);
+    const streamManagerUrl = `${STREAM_MANAGER_URL}/demo/status`;
+    console.log('Fetching stream status from:', streamManagerUrl);
 
     const response = await fetch(streamManagerUrl, {
-      method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'admin-frontend'
-      },
-      body: JSON.stringify(body)
+      }
     });
 
     console.log('Stream manager response status:', response.status);
@@ -37,9 +27,9 @@ export async function POST(
     
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error proxying toggle request:', error);
+    console.error('Error fetching stream status:', error);
     return NextResponse.json(
-      { error: 'Failed to toggle layer' },
+      { error: 'Failed to fetch stream status' },
       { status: 500 }
     );
   }

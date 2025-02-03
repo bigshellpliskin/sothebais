@@ -1,9 +1,10 @@
 # Stream Manager Networking Investigation
 
-## Current Issues
-- Health check endpoints are not accessible from both inside and outside the container
-- Container shows only Docker DNS ports (127.0.0.11) in netstat output
-- Application ports (4200, 4201, 4290, 4291) are not showing up in network tools
+## Current State
+- Health check endpoints are now accessible from inside container
+- Container shows correct port bindings in netstat output
+- Application ports (4200, 4201, 4290, 4291) are properly exposed
+- Traefik routing is working as expected
 
 ## Environment Setup
 - Ports are correctly configured in docker-compose.yml:
@@ -22,58 +23,163 @@
   WS_PORT=4201
   ```
 
-## Investigation Steps Taken
+## New Requirements
 
-1. **Port Binding Check**
-   - Used `netstat -tulpn` - only showed Docker DNS (127.0.0.11)
-   - Used `lsof -i -P` - showed no open ports
-   - Used `ss -tulpn` - tool not available in container
+### Demo Stream Card
+- Endpoint for stream state: `/api/stream/state`
+  - Returns current stream status
+  - Includes error states
+  - Provides performance metrics
+- WebSocket events for real-time updates
+  - Stream state changes
+  - Error notifications
+  - Performance metrics
 
-2. **Process Verification**
-   - Confirmed Node.js processes are running:
-     ```
-     1 node      0:00 npm run dev
-     17 node     0:01 node /app/node_modules/.bin/ts-node-dev --respawn --transpile-only src/index.ts
-     ```
+### UI Enhancements
+- New API endpoints needed:
+  - `/api/stream/control` - Stream control operations
+  - `/api/layers` - Layer management
+  - `/api/resources` - Resource monitoring
+  - `/api/analytics` - Stream analytics
+- WebSocket channels:
+  - `stream-state` - Stream status updates
+  - `layer-updates` - Layer changes
+  - `metrics` - Performance metrics
+  - `chat` - Chat messages and events
 
-3. **Container Health**
-   - Container marked as "unhealthy" in Docker status
-   - Health check failing despite application logs showing successful startup
+## Network Architecture
 
-4. **Application Logs**
-   - Show successful startup
-   - No error messages about port binding failures
-   - Successfully connects to Redis and loads resources
+### API Layer
+- REST endpoints for control and configuration
+- WebSocket for real-time updates
+- GraphQL consideration for complex queries
+- Rate limiting implementation
+- Authentication and authorization
 
-## Attempted Solutions
+### WebSocket Channels
+- Dedicated channels by functionality
+- Binary protocol for performance
+- Heartbeat mechanism
+- Automatic reconnection
+- State synchronization
 
-1. **Changed Health Check Method**
-   - Modified Dockerfile to use wget instead of curl
-   - Changed localhost to 0.0.0.0 in health check
+### Metrics Collection
+- Prometheus integration
+- Custom metrics endpoints
+- Real-time performance data
+- Resource usage tracking
+- Error rate monitoring
 
-2. **Added Explicit Host Binding**
-   - Added HOST=0.0.0.0 to environment variables
-   - Should force application to bind to all interfaces
+### Health Checks
+- Enhanced health check system
+- Component-level health status
+- Dependency checks
+- Performance indicators
+- Error state reporting
 
-## Next Steps to Investigate
+## Security Considerations
 
-1. **Application Code Review**
-   - Verify Express server configuration in index.ts
-   - Check if servers are actually starting on specified ports
-   - Review error handling in server startup
+### API Security
+- JWT authentication
+- Role-based access control
+- Rate limiting
+- Input validation
+- CORS configuration
 
-2. **Network Configuration**
-   - Review Docker network configuration
-   - Check if Traefik routing might be interfering
-   - Verify network mode in Docker Compose
+### WebSocket Security
+- Connection authentication
+- Message validation
+- Rate limiting per channel
+- Payload size limits
+- Error handling
 
-3. **Process Permissions**
-   - Verify node user has necessary permissions
-   - Check capability requirements for port binding
+### Metrics Security
+- Access control
+- Data anonymization
+- Rate limiting
+- Filtered sensitive data
+- Secure transport
 
-4. **Monitoring**
-   - Add more detailed logging around server startup
-   - Monitor process status over time to check for restarts
+## Performance Optimization
+
+### Network Efficiency
+- WebSocket message batching
+- Binary protocols where applicable
+- Compression for large payloads
+- Connection pooling
+- Keep-alive optimization
+
+### Caching Strategy
+- Redis caching layer
+- In-memory caching
+- Cache invalidation
+- Distributed caching
+- Cache warming
+
+### Load Balancing
+- Layer 7 load balancing
+- WebSocket sticky sessions
+- Health-based routing
+- Circuit breaking
+- Rate limiting
+
+## Monitoring and Alerting
+
+### Metrics Collection
+- Request rates
+- Error rates
+- Response times
+- Resource usage
+- WebSocket connections
+
+### Performance Monitoring
+- Real-time metrics
+- Historical data
+- Trend analysis
+- Anomaly detection
+- Alert thresholds
+
+### Error Tracking
+- Error aggregation
+- Root cause analysis
+- Error patterns
+- Recovery tracking
+- Alert correlation
+
+## Implementation Plan
+
+### Phase 1: Core Infrastructure
+- [x] Basic HTTP endpoints
+- [x] WebSocket setup
+- [x] Health checks
+- [x] Metrics endpoints
+
+### Phase 2: Enhanced Features
+- [ ] Stream state management
+- [ ] Layer control API
+- [ ] Resource monitoring
+- [ ] Analytics collection
+
+### Phase 3: UI Integration
+- [ ] Real-time updates
+- [ ] Control interface
+- [ ] Monitoring dashboard
+- [ ] Analytics visualization
+
+### Phase 4: Optimization
+- [ ] Performance tuning
+- [ ] Security hardening
+- [ ] Monitoring enhancement
+- [ ] Error handling improvement
+
+## Next Steps
+
+1. Implement stream state endpoint
+2. Set up WebSocket channels for UI
+3. Add metrics for new features
+4. Enhance error handling
+5. Implement security measures
+6. Deploy monitoring system
 
 ## Related Services
 - Traefik is handling routing (configured via labels)

@@ -10,8 +10,8 @@ interface StreamViewerProps {
 }
 
 export function StreamViewer({ 
-  width = 1920, 
-  height = 1080,
+  width = 1280,  // Match backend resolution
+  height = 720,  // Match backend resolution
   fps = 30
 }: StreamViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,8 +26,12 @@ export function StreamViewer({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });  // Disable alpha for better performance
     if (!ctx) return;
+
+    // Enable image smoothing for better quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     // Set canvas size
     canvas.width = width;
@@ -51,7 +55,8 @@ export function StreamViewer({
 
         // Always use the API route which will be handled by Traefik
         const response = await fetch('/api/stream/frame', {
-          signal: abortControllerRef.current.signal
+          signal: abortControllerRef.current.signal,
+          cache: 'no-store'  // Prevent caching of frames
         });
 
         if (!response.ok) {
@@ -62,16 +67,25 @@ export function StreamViewer({
         const img = new Image();
         
         await new Promise((resolve, reject) => {
-          img.onload = resolve;
+          img.onload = () => {
+            try {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              // Draw black background first
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              // Draw the frame
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(null);
+            } catch (err) {
+              reject(err);
+            } finally {
+              // Clean up the blob URL
+              URL.revokeObjectURL(img.src);
+            }
+          };
           img.onerror = reject;
           img.src = URL.createObjectURL(blob);
         });
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        
-        // Clean up the blob URL
-        URL.revokeObjectURL(img.src);
         
         // Reset error count on success
         errorCountRef.current = 0;
@@ -105,31 +119,27 @@ export function StreamViewer({
 
     // Cleanup function
     return () => {
-      // Cancel any pending animation frame
       if (frameRequestRef.current) {
         cancelAnimationFrame(frameRequestRef.current);
       }
-      // Cancel any in-flight requests
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [width, height, fps]);
+  }, [width, height, fps]);  // Re-initialize when props change
 
   return (
-    <Card className="overflow-hidden">
-      <div className="relative w-full bg-black">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-auto"
-          style={{ aspectRatio: `${width}/${height}` }}
-        />
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-white">
-            <p className="text-red-500">{error}</p>
-          </div>
-        )}
-      </div>
-    </Card>
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full object-contain"
+        style={{ imageRendering: 'auto' }}
+      />
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
+          <p className="text-white text-sm">{error}</p>
+        </div>
+      )}
+    </div>
   );
 } 

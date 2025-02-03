@@ -30,11 +30,13 @@ class Logger {
     }
 
     this.logger = pino({
-      level: config.LOG_LEVEL || 'info',
+      level: config.LOG_LEVEL || 'debug',
       transport: {
         target: 'pino-pretty',
         options: {
-          colorize: true
+          colorize: true,
+          translateTime: 'HH:MM:ss',
+          ignore: 'pid,hostname'
         }
       }
     });

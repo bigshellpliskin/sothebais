@@ -82,12 +82,12 @@ const chatMessages: ChatMessage[] = [
 
 export async function createTestLayers() {
   try {
-    // Calculate dimensions
-    const CANVAS_WIDTH = 1920;
-    const CANVAS_HEIGHT = 1080;
+    // Calculate dimensions for 720p
+    const CANVAS_WIDTH = 1280;  // 720p width
+    const CANVAS_HEIGHT = 720;  // 720p height
     const RIGHT_PANEL_WIDTH = CANVAS_WIDTH * 0.3; // 30% of screen width
     const MAIN_PANEL_WIDTH = CANVAS_WIDTH - RIGHT_PANEL_WIDTH;
-    const AUCTION_INFO_HEIGHT = 80;
+    const AUCTION_INFO_HEIGHT = 60; // Scaled down for 720p
 
     logger.info('Creating test layers with dimensions:', {
       CANVAS_WIDTH,
@@ -104,7 +104,7 @@ export async function createTestLayers() {
       zIndex: 1,
       transform: {
         position: { x: 0, y: 0 },
-        scale: { x: MAIN_PANEL_WIDTH / CANVAS_WIDTH, y: (CANVAS_HEIGHT - AUCTION_INFO_HEIGHT) / CANVAS_HEIGHT },
+        scale: { x: 1, y: 1 }, // Use 1:1 scaling and let the renderer handle resizing
         rotation: 0,
         anchor: { x: 0, y: 0 }
       }
@@ -119,12 +119,16 @@ export async function createTestLayers() {
 
     // Create host layer (right side)
     const hostLayer = await layerManager.createLayer('host', {
-      character: hostCharacter
+      character: {
+        ...hostCharacter,
+        width: Math.floor(RIGHT_PANEL_WIDTH * 0.9),  // 90% of panel width
+        height: Math.floor(RIGHT_PANEL_WIDTH * 0.9)  // Keep aspect ratio square
+      }
     }, {
       zIndex: 2,
       transform: {
         position: { x: MAIN_PANEL_WIDTH, y: 0 },
-        scale: { x: RIGHT_PANEL_WIDTH / CANVAS_WIDTH, y: 0.4 }, // Take up 40% of right panel height
+        scale: { x: 1, y: 1 },
         rotation: 0,
         anchor: { x: 0, y: 0 }
       }
@@ -144,19 +148,19 @@ export async function createTestLayers() {
         maxMessages: 50,
         style: {
           font: 'Arial',
-          fontSize: 16,
+          fontSize: 14,  // Reduced for 720p
           textColor: '#FFFFFF',
           backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          padding: 12,
-          messageSpacing: 8,
+          padding: 8,   // Reduced for 720p
+          messageSpacing: 6,  // Reduced for 720p
           fadeOutOpacity: 0.3
         }
       }
     }, {
       zIndex: 2,
       transform: {
-        position: { x: MAIN_PANEL_WIDTH, y: CANVAS_HEIGHT * 0.4 }, // Start below host
-        scale: { x: RIGHT_PANEL_WIDTH / CANVAS_WIDTH, y: 0.6 }, // Take remaining height
+        position: { x: MAIN_PANEL_WIDTH, y: Math.floor(CANVAS_HEIGHT * 0.4) },
+        scale: { x: 1, y: 1 },
         rotation: 0,
         anchor: { x: 0, y: 0 }
       }
@@ -171,12 +175,19 @@ export async function createTestLayers() {
 
     // Create auction info overlay (bottom of main content)
     const auctionInfoLayer = await layerManager.createLayer('overlay', {
-      content: auctionInfoContent
+      content: {
+        ...auctionInfoContent,
+        style: {
+          ...auctionInfoContent.style,
+          fontSize: 18,  // Reduced for 720p
+          padding: 12,   // Reduced for 720p
+        }
+      }
     }, {
       zIndex: 3,
       transform: {
         position: { x: 0, y: CANVAS_HEIGHT - AUCTION_INFO_HEIGHT },
-        scale: { x: MAIN_PANEL_WIDTH / CANVAS_WIDTH, y: AUCTION_INFO_HEIGHT / CANVAS_HEIGHT },
+        scale: { x: 1, y: 1 },
         rotation: 0,
         anchor: { x: 0, y: 0 }
       }

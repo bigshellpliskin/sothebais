@@ -16,26 +16,39 @@ const __dirname = path.dirname(__filename);
 
 export async function setupDemoServer(app: express.Application) {
   try {
-    // Initialize layer manager
+    // Initialize layer manager and clear any existing state
     await layerManager.initialize();
+
+    // Add JSON body parser middleware for demo routes
+    const demoRouter = express.Router();
+    demoRouter.use(express.json());
 
     // Serve static assets with proper path resolution
     const assetsPath = path.join(process.cwd(), 'assets');
     logger.info('Starting demo server', {
       assetsPath
     } as LogContext);
-    app.use('/assets', express.static(assetsPath));
+    demoRouter.use('/assets', express.static(assetsPath));
 
-    // Initialize layer renderer with 1080p resolution
+    // Initialize layer renderer with 720p resolution
     layerRenderer.initialize({
-      width: 1920,
-      height: 1080,
+      width: 1280,
+      height: 720,
       targetFPS: 30
     });
 
-    // Create test layers
+    // Create test layers only if no layers exist
     try {
-      await createTestLayers();
+      const existingLayers = layerManager.getAllLayers();
+      if (existingLayers.length === 0) {
+        logger.info('No existing layers found, creating test layers');
+        await createTestLayers();
+      } else {
+        logger.info('Using existing layers', {
+          layerCount: existingLayers.length,
+          types: existingLayers.map(l => l.type)
+        } as LogContext);
+      }
     } catch (error) {
       logger.error('Failed to create test layers', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -56,7 +69,7 @@ export async function setupDemoServer(app: express.Application) {
     }
 
     // Serve a simple HTML page to view the output
-    app.get('/demo', (req: Request, res: Response) => {
+    demoRouter.get('/demo', (req: Request, res: Response) => {
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -74,6 +87,42 @@ export async function setupDemoServer(app: express.Application) {
                 max-width: 1920px;
                 margin: 0 auto;
               }
+              .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+              }
+              .status-indicators {
+                display: flex;
+                gap: 20px;
+                align-items: center;
+              }
+              .status-indicator {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 16px;
+                border-radius: 4px;
+                background: #333;
+              }
+              .status-dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+              }
+              .status-dot.live {
+                background: #ff0000;
+                animation: pulse 2s infinite;
+              }
+              .status-dot.offline {
+                background: #666;
+              }
+              @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+              }
               .canvas-container {
                 position: relative;
                 width: 100%;
@@ -87,11 +136,37 @@ export async function setupDemoServer(app: express.Application) {
                 height: auto;
                 display: block;
               }
-              .controls {
+              .layer-controls {
                 margin-top: 20px;
                 padding: 20px;
                 background: #333;
                 border-radius: 4px;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+              }
+              .layer-control {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 12px;
+                background: #444;
+                border-radius: 4px;
+              }
+              .layer-control input[type="radio"] {
+                width: 16px;
+                height: 16px;
+                margin: 0;
+                cursor: pointer;
+              }
+              .layer-control label {
+                font-size: 14px;
+                cursor: pointer;
+                user-select: none;
+              }
+              .layer-control-group {
+                display: flex;
+                gap: 12px;
               }
               .chat-controls {
                 margin-top: 20px;
@@ -118,21 +193,103 @@ export async function setupDemoServer(app: express.Application) {
                 border-radius: 4px;
                 width: 300px;
               }
+              .status-card {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.8);
+                padding: 20px;
+                border-radius: 8px;
+                text-align: center;
+                display: none;
+              }
+              .status-card.visible {
+                display: block;
+              }
             </style>
           </head>
           <body>
             <div class="container">
-              <h1>Stream Manager Demo</h1>
+              <div class="header">
+                <h1>Stream Manager Demo</h1>
+                <div class="status-indicators">
+                  <div class="status-indicator">
+                    <div id="streamStatus" class="status-dot offline"></div>
+                    <span id="streamStatusText">Offline</span>
+                  </div>
+                  <div class="status-indicator">
+                    <span id="fpsCounter">0 FPS</span>
+                  </div>
+                </div>
+              </div>
+              
               <div class="canvas-container">
                 <canvas id="output"></canvas>
+                <div id="statusCard" class="status-card">
+                  <h2>Stream Status</h2>
+                  <p id="statusMessage">Initializing...</p>
+                </div>
               </div>
-              <div class="controls">
-                <button onclick="toggleLayer('host')">Toggle Host</button>
-                <button onclick="toggleLayer('nft')">Toggle NFT</button>
-                <button onclick="toggleLayer('shape')">Toggle Shape</button>
-                <button onclick="toggleLayer('text')">Toggle Text</button>
-                <button onclick="toggleLayer('chat')">Toggle Chat</button>
+
+              <div class="layer-controls">
+                <div class="layer-control">
+                  <div class="layer-control-group">
+                    <div>
+                      <input type="radio" id="host-visible" name="host" value="visible" checked>
+                      <label for="host-visible">Show</label>
+                    </div>
+                    <div>
+                      <input type="radio" id="host-hidden" name="host" value="hidden">
+                      <label for="host-hidden">Hide</label>
+                    </div>
+                  </div>
+                  <label>Host Layer</label>
+                </div>
+
+                <div class="layer-control">
+                  <div class="layer-control-group">
+                    <div>
+                      <input type="radio" id="nft-visible" name="nft" value="visible" checked>
+                      <label for="nft-visible">Show</label>
+                    </div>
+                    <div>
+                      <input type="radio" id="nft-hidden" name="nft" value="hidden">
+                      <label for="nft-hidden">Hide</label>
+                    </div>
+                  </div>
+                  <label>NFT Layer</label>
+                </div>
+
+                <div class="layer-control">
+                  <div class="layer-control-group">
+                    <div>
+                      <input type="radio" id="overlay-visible" name="overlay" value="visible" checked>
+                      <label for="overlay-visible">Show</label>
+                    </div>
+                    <div>
+                      <input type="radio" id="overlay-hidden" name="overlay" value="hidden">
+                      <label for="overlay-hidden">Hide</label>
+                    </div>
+                  </div>
+                  <label>Overlay Layer</label>
+                </div>
+
+                <div class="layer-control">
+                  <div class="layer-control-group">
+                    <div>
+                      <input type="radio" id="chat-visible" name="chat" value="visible" checked>
+                      <label for="chat-visible">Show</label>
+                    </div>
+                    <div>
+                      <input type="radio" id="chat-hidden" name="chat" value="hidden">
+                      <label for="chat-hidden">Hide</label>
+                    </div>
+                  </div>
+                  <label>Chat Layer</label>
+                </div>
               </div>
+
               <div class="chat-controls">
                 <input type="text" id="chatMessage" placeholder="Type a message...">
                 <button onclick="sendChatMessage()">Send Message</button>
@@ -142,18 +299,79 @@ export async function setupDemoServer(app: express.Application) {
             <script>
               const canvas = document.getElementById('output');
               const ctx = canvas.getContext('2d');
+              const fpsCounter = document.getElementById('fpsCounter');
+              const streamStatus = document.getElementById('streamStatus');
+              const streamStatusText = document.getElementById('streamStatusText');
+              const statusCard = document.getElementById('statusCard');
+              const statusMessage = document.getElementById('statusMessage');
               
               // Set canvas size
               canvas.width = 1920;
               canvas.height = 1080;
 
+              // Layer visibility state
+              const layerStates = {
+                host: true,
+                nft: true,
+                overlay: true,
+                chat: true
+              };
+
+              // Set up layer radio controls
+              Object.keys(layerStates).forEach(layer => {
+                document.getElementsByName(layer).forEach(radio => {
+                  radio.addEventListener('change', (e) => {
+                    const isVisible = e.target.value === 'visible';
+                    toggleLayer(layer, isVisible);
+                  });
+                });
+              });
+
               // Function to toggle layer visibility
-              async function toggleLayer(type) {
+              async function toggleLayer(type, isVisible) {
+                console.log('Toggling layer:', type, 'Current state:', layerStates[type]);
+                console.log('Sending request to /demo/toggle/', type, 'with body:', { visible: isVisible });
+                
                 try {
-                  const response = await fetch(\`/demo/toggle/\${type}\`, { method: 'POST' });
-                  if (!response.ok) throw new Error('Failed to toggle layer');
+                  const response = await fetch(\`/demo/toggle/\${type}\`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ visible: isVisible })
+                  });
+                  
+                  console.log('Response status:', response.status);
+                  
+                  if (!response.ok) {
+                    const error = await response.json();
+                    console.error('Error response:', error);
+                    throw new Error(error.error || 'Failed to toggle layer');
+                  }
+
+                  const result = await response.json();
+                  console.log('Success response:', result);
+                  
+                  if (result.success && result.layer) {
+                    // Update our state to match the actual server state
+                    const actualVisible = result.layer.visible;
+                    const previousState = layerStates[type];
+                    layerStates[type] = actualVisible;
+                    
+                    console.log('Layer state updated:', {
+                      type,
+                      previousState,
+                      newState: actualVisible,
+                      actualServerState: result.layer.actualState
+                    });
+                    
+                    // Update radio button state to match actual server state
+                    const newState = actualVisible ? 'visible' : 'hidden';
+                    document.querySelector(\`input[name="\${type}"][value="\${newState}"]\`).checked = true;
+                  }
                 } catch (error) {
                   console.error('Error toggling layer:', error);
+                  // Revert the radio button to match the previous state
+                  const currentState = layerStates[type] ? 'visible' : 'hidden';
+                  document.querySelector(\`input[name="\${type}"][value="\${currentState}"]\`).checked = true;
                 }
               }
 
@@ -181,6 +399,34 @@ export async function setupDemoServer(app: express.Application) {
                 sendChatMessage(true);
               }
 
+              // Function to update stream status
+              async function updateStreamStatus() {
+                try {
+                  const response = await fetch('/demo/status');
+                  const status = await response.json();
+                  
+                  const isLive = status.isLive;
+                  streamStatus.className = \`status-dot \${isLive ? 'live' : 'offline'}\`;
+                  streamStatusText.textContent = isLive ? 'Live' : 'Offline';
+                  
+                  if (status.fps) {
+                    fpsCounter.textContent = \`\${Math.round(status.fps)} FPS\`;
+                  }
+
+                  // Update status card
+                  if (!isLive) {
+                    statusCard.classList.add('visible');
+                    statusMessage.textContent = 'Stream is currently offline. Please wait...';
+                  } else {
+                    statusCard.classList.remove('visible');
+                  }
+                } catch (error) {
+                  console.error('Error updating status:', error);
+                  statusCard.classList.add('visible');
+                  statusMessage.textContent = 'Error connecting to stream. Retrying...';
+                }
+              }
+
               // Function to update canvas
               async function updateCanvas() {
                 try {
@@ -197,16 +443,30 @@ export async function setupDemoServer(app: express.Application) {
                 }
               }
 
-              // Update canvas every frame
+              // Update canvas and status regularly
               setInterval(updateCanvas, 1000 / 30);
+              setInterval(updateStreamStatus, 1000);
             </script>
           </body>
         </html>
       `);
     });
 
+    // Add status endpoint
+    demoRouter.get('/status', (req: Request, res: Response) => {
+      const health = layerRenderer.getHealth();
+      res.json({
+        isLive: health.status === 'healthy',
+        fps: health.fps,
+        targetFPS: health.targetFPS,
+        averageRenderTime: health.averageRenderTime,
+        memoryUsage: health.memoryUsage,
+        layerCount: health.layerCount
+      });
+    });
+
     // Endpoint to get the current frame
-    app.get('/demo/frame', (req: Request, res: Response) => {
+    demoRouter.get('/frame', (req: Request, res: Response) => {
       try {
         const canvas = layerRenderer.getCanvas();
         const buffer = canvas.toBuffer('image/png');
@@ -221,49 +481,108 @@ export async function setupDemoServer(app: express.Application) {
       }
     });
 
-    // Endpoint to toggle layer visibility
-    app.post('/api/stream/toggle/:type', async (req: Request, res: Response) => {
+    // Add layer toggle endpoint
+    demoRouter.post('/toggle/:type', async (req: Request, res: Response) => {
+      logger.info('Toggle request received', {
+        type: req.params.type,
+        requestedVisibility: req.body.visible,
+        requestBody: req.body
+      } as LogContext);
+      
       const { type } = req.params;
-      try {
-        const layers = layerManager.getAllLayers();
-        const layer = layers.find(l => {
-          switch (type) {
-            case 'host': return l.type === 'host';
-            case 'nft': return l.type === 'visualFeed';
-            case 'shape': return l.type === 'overlay';
-            case 'text': return l.type === 'overlay';
-            case 'chat': return l.type === 'chat';
-            default: return false;
-          }
-        });
+      const { visible } = req.body;
 
-        if (!layer) {
-          logger.warn('Layer not found for toggle', {
-            type
-          } as LogContext);
-          res.status(404).json({ error: 'Layer not found' });
-          return;
+      try {
+        // Get all layers
+        const layers = layerManager.getAllLayers();
+        logger.info('Current layer states', {
+          layers: layers.map(l => ({
+            id: l.id,
+            type: l.type,
+            visible: l.visible
+          }))
+        } as LogContext);
+        
+        // Find the layer to toggle based on type
+        let targetLayer;
+        switch (type) {
+          case 'host':
+            targetLayer = layers.find(l => l.type === 'host');
+            break;
+          case 'nft':
+            targetLayer = layers.find(l => l.type === 'visualFeed');
+            break;
+          case 'overlay':
+            targetLayer = layers.find(l => l.type === 'overlay');
+            break;
+          case 'chat':
+            targetLayer = layers.find(l => l.type === 'chat');
+            break;
+          default:
+            logger.error('Invalid layer type requested', {
+              type,
+              availableTypes: ['host', 'nft', 'overlay', 'chat']
+            } as LogContext);
+            return res.status(400).json({ error: `Invalid layer type: ${type}` });
         }
 
-        layerManager.setLayerVisibility(layer.id, !layer.visible);
-        logger.info('Layer visibility toggled', {
-          layerId: layer.id,
-          type: layer.type,
-          visible: !layer.visible
+        if (!targetLayer) {
+          logger.error('Target layer not found', {
+            requestedType: type,
+            availableLayers: layers.map(l => l.type)
+          } as LogContext);
+          return res.status(404).json({ error: `Layer not found: ${type}` });
+        }
+
+        logger.info('Found target layer', {
+          id: targetLayer.id,
+          type: targetLayer.type,
+          currentVisibility: targetLayer.visible,
+          requestedVisibility: visible
         } as LogContext);
-        res.json({ success: true });
+
+        // Update layer visibility using the proper method
+        layerManager.setLayerVisibility(targetLayer.id, visible);
+        
+        // Force state persistence
+        await layerManager.saveState();
+        
+        // Get the updated layer to confirm its state
+        const updatedLayer = layerManager.getLayer(targetLayer.id);
+        
+        logger.info('Layer visibility update complete', {
+          type,
+          requestedVisibility: visible,
+          layerId: targetLayer.id,
+          actualState: updatedLayer?.visible,
+          success: true
+        } as LogContext);
+
+        const response = { 
+          success: true,
+          layer: {
+            id: targetLayer.id,
+            type,
+            visible: updatedLayer?.visible ?? visible,
+            actualState: updatedLayer?.visible
+          }
+        };
+
+        logger.info('Sending response', { response } as LogContext);
+        res.json(response);
       } catch (error) {
+        console.error('Error in toggle endpoint:', error);
         logger.error('Failed to toggle layer', {
           error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-          type
+          type,
+          stack: error instanceof Error ? error.stack : undefined
         } as LogContext);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Failed to toggle layer' });
       }
     });
 
     // Endpoint to add chat message
-    app.post('/demo/chat', async (req: Request, res: Response) => {
+    demoRouter.post('/chat', async (req: Request, res: Response) => {
       try {
         const { text, highlighted } = req.body;
         const chatLayer = layerManager.getAllLayers().find((l): l is ChatLayer => l.type === 'chat');
@@ -299,10 +618,13 @@ export async function setupDemoServer(app: express.Application) {
       }
     });
 
+    // Mount the demo router under /demo path
+    app.use('/demo', demoRouter);
+
     logger.info('Demo server setup complete');
 
-    // Error handler
-    app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    // Error handler for demo routes
+    demoRouter.use((err: Error, req: Request, res: Response, next: NextFunction) => {
       logger.error('Express error handler', {
         error: err.message,
         stack: err.stack,
@@ -311,21 +633,6 @@ export async function setupDemoServer(app: express.Application) {
       } as LogContext);
       res.status(500).json({ error: 'Internal server error' });
     });
-
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      logger.info('Demo server started', {
-        port,
-        assetsPath
-      } as LogContext);
-    }).on('error', (error) => {
-      logger.error('Failed to start demo server', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        port
-      } as LogContext);
-      process.exit(1);
-    });
   } catch (error) {
     logger.error('Demo server setup failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -333,4 +640,4 @@ export async function setupDemoServer(app: express.Application) {
     } as LogContext);
     process.exit(1);
   }
-} 
+}

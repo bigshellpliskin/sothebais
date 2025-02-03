@@ -90,9 +90,15 @@ export class LayerRenderer {
   private isHealthy: boolean = true;
   private lastError: Error | null = null;
   private renderTimes: number[] = [];
+  private lastLayerCount: number = 0;
+  private layerCache: Map<string, {
+    canvas: ReturnType<typeof createCanvas>;
+    lastUpdated: number;
+    hash: string;
+  }> = new Map();
 
   private constructor() {
-    const canvas = createCanvas(1920, 1080);
+    const canvas = createCanvas(1280, 720);
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw new Error('Failed to get canvas context');
@@ -101,8 +107,8 @@ export class LayerRenderer {
     this.mainContext = {
       canvas,
       ctx,
-      width: 1920,
-      height: 1080,
+      width: 1280,
+      height: 720,
       scale: 1
     };
     this.frameInterval = 1000 / this.targetFPS;
@@ -113,7 +119,8 @@ export class LayerRenderer {
     logger.info('Layer renderer initialized', {
       width: this.mainContext.width,
       height: this.mainContext.height,
-      targetFPS: this.targetFPS
+      targetFPS: this.targetFPS,
+      resolution: '720p'
     } as LogContext);
   }
 
@@ -181,11 +188,56 @@ export class LayerRenderer {
     };
   }
 
+  private getLayerHash(layer: Layer): string {
+    // Create a hash of the layer's content based on type
+    const contentHash = (() => {
+      switch (layer.type) {
+        case 'host':
+        case 'assistant':
+          return JSON.stringify({
+            modelUrl: layer.character.modelUrl,
+            width: layer.character.width,
+            height: layer.character.height
+          });
+        case 'visualFeed':
+          return JSON.stringify({
+            imageUrl: layer.content.imageUrl
+          });
+        case 'overlay':
+          return JSON.stringify({
+            content: layer.content.content,
+            type: layer.content.type
+          });
+        case 'chat':
+          // Only hash the last few messages to prevent constant cache invalidation
+          const recentMessages = layer.content.messages.slice(-5);
+          return JSON.stringify({
+            messages: recentMessages,
+            style: layer.content.style
+          });
+      }
+    })();
+
+    // Only include transform properties that affect rendering
+    const transformHash = JSON.stringify({
+      visible: layer.visible,
+      opacity: layer.opacity,
+      position: layer.transform.position,
+      scale: layer.transform.scale,
+      rotation: layer.transform.rotation
+    });
+
+    return `${layer.type}:${contentHash}:${transformHash}`;
+  }
+
   public initialize(config: { width: number; height: number; targetFPS: number }): void {
     const { width, height, targetFPS } = config;
     this.targetFPS = targetFPS;
     this.frameInterval = 1000 / targetFPS;
     this.mainContext = this.createRenderContext(width, height);
+    
+    // Start cache cleanup
+    this.startCacheCleanup();
     
     logger.info('Initialized LayerRenderer', { 
       width, 
@@ -203,12 +255,55 @@ export class LayerRenderer {
     this.lastFPSUpdate = this.lastFrameTime;
     this.frameCount = 0;
 
-    this.renderInterval = setInterval(() => {
+    // Track consecutive slow frames
+    let consecutiveSlowFrames = 0;
+    const MAX_CONSECUTIVE_SLOW_FRAMES = 5;
+    const FRAME_TIME_THRESHOLD = this.frameInterval * 1.5; // 50% longer than target
+
+    this.renderInterval = setInterval(async () => {
       const now = performance.now();
       const elapsed = now - this.lastFrameTime;
 
       if (elapsed >= this.frameInterval) {
-        this.render();
+        const renderStartTime = performance.now();
+        
+        // Skip frame if we're falling behind and have had multiple slow frames
+        if (consecutiveSlowFrames >= MAX_CONSECUTIVE_SLOW_FRAMES && elapsed > this.frameInterval * 2) {
+          // Only log every 5th skipped frame to reduce noise
+          /*
+          if (consecutiveSlowFrames % 5 === 0) {
+            logger.warn('Multiple frames skipped due to performance issues', {
+              elapsed,
+              consecutiveSlowFrames,
+              targetFrameTime: this.frameInterval
+            } as LogContext);
+          }
+          */
+          this.lastFrameTime = now;
+          return;
+        }
+
+        await this.render();
+        
+        const renderTime = performance.now() - renderStartTime;
+        
+        // Track slow frames but don't log every one
+        if (renderTime > FRAME_TIME_THRESHOLD) {
+          consecutiveSlowFrames++;
+          // Only log when we hit the threshold to reduce noise
+          /*
+          if (consecutiveSlowFrames === MAX_CONSECUTIVE_SLOW_FRAMES) {
+            logger.warn('Performance degradation detected', {
+              renderTime,
+              consecutiveSlowFrames,
+              targetFrameTime: this.frameInterval
+            } as LogContext);
+          }
+          */
+        } else {
+          consecutiveSlowFrames = 0;
+        }
+
         this.frameCount++;
         this.lastFrameTime = now - (elapsed % this.frameInterval);
 
@@ -218,6 +313,17 @@ export class LayerRenderer {
           frameRateGauge.set(this.currentFPS);
           this.frameCount = 0;
           this.lastFPSUpdate = now;
+          
+          // Log performance metrics
+          /*
+          logger.info('Performance metrics', {
+            fps: this.currentFPS,
+            targetFPS: this.targetFPS,
+            averageRenderTime: this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length,
+            consecutiveSlowFrames,
+            memoryUsage: process.memoryUsage()
+          } as LogContext);
+          */
         }
       }
     }, this.frameInterval);
@@ -244,21 +350,34 @@ export class LayerRenderer {
       // Get all layers sorted by z-index
       const layers = layerManager.getAllLayers();
       
-      logger.info('Starting frame render', {
+      // Log layer state before rendering
+      /*
+      logger.debug('Starting frame render', {
         totalLayers: layers.length,
-        layerInfo: layers.map(l => ({
+        layerStates: layers.map(l => ({
           id: l.id,
           type: l.type,
           visible: l.visible,
           opacity: l.opacity,
-          zIndex: l.zIndex,
-          transform: l.transform
+          zIndex: l.zIndex
         }))
-      });
+      } as LogContext);
+      */
+
+      // Only log significant changes in layer count or composition
+      /*
+      if (this.lastLayerCount !== layers.length) {
+        logger.info('Layer composition changed', {
+          totalLayers: layers.length,
+          layerTypes: layers.map(l => l.type)
+        } as LogContext);
+        this.lastLayerCount = layers.length;
+      }
+      */
 
       // Render each visible layer
       for (const layer of layers) {
-        // Update visibility metric with string labels
+        // Update metrics without logging
         const labels = {
           layer_id: String(layer.id),
           layer_type: String(layer.type)
@@ -267,43 +386,58 @@ export class LayerRenderer {
         layerVisibilityGauge.set(labels, layer.visible && layer.opacity > 0 ? 1 : 0);
 
         if (!layer.visible || layer.opacity === 0) {
+          /*
           logger.debug('Skipping invisible layer', {
             layerId: layer.id,
             type: layer.type,
             visible: layer.visible,
             opacity: layer.opacity
-          });
+          } as LogContext);
+          */
           continue;
         }
+
+        /*
+        logger.debug('Rendering layer', {
+          layerId: layer.id,
+          type: layer.type,
+          visible: layer.visible,
+          opacity: layer.opacity,
+          zIndex: layer.zIndex
+        } as LogContext);
+        */
 
         const layerStartTime = performance.now();
         await this.renderLayer(layer);
         const layerRenderTime = performance.now() - layerStartTime;
         
-        // Update layer render time metric with same string labels
+        // Update metrics without logging
         layerRenderTimeGauge.set(labels, layerRenderTime);
-
-        logger.debug('Layer rendered', {
-          layerId: layer.id,
-          type: layer.type,
-          renderTime: layerRenderTime,
-          transform: layer.transform
-        });
       }
 
       // Track render time
       const renderTime = performance.now() - renderStartTime;
       this.renderTimes.push(renderTime);
-      if (this.renderTimes.length > 60) { // Keep last 60 samples
+      if (this.renderTimes.length > 60) {
         this.renderTimes.shift();
       }
       renderTimeGauge.set(renderTime);
 
-      logger.debug('Frame render complete', {
-        totalTime: renderTime,
-        fps: this.currentFPS,
-        layerCount: layers.length
-      });
+      // Only log severe performance issues (more than 2x target frame time)
+      // or when we have sustained performance problems
+      const averageRenderTime = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length;
+      /*
+      if (renderTime > (1000 / this.targetFPS) * 2 || 
+          (averageRenderTime > (1000 / this.targetFPS) * 1.5 && this.renderTimes.length >= 30)) {
+        logger.warn('Significant performance degradation detected', {
+          renderTime,
+          averageRenderTime,
+          targetFrameTime: 1000 / this.targetFPS,
+          fps: this.currentFPS,
+          sustainedIssue: averageRenderTime > (1000 / this.targetFPS) * 1.5
+        } as LogContext);
+      }
+      */
 
       this.isHealthy = true;
       this.lastError = null;
@@ -314,63 +448,91 @@ export class LayerRenderer {
       logger.error('Error during render', {
         error: this.lastError.message,
         stack: this.lastError instanceof Error ? this.lastError.stack : undefined
-      });
+      } as LogContext);
     }
   }
 
   private async renderLayer(layer: Layer): Promise<void> {
     const { ctx } = this.mainContext;
+    
+    if (!layer.visible || layer.opacity === 0) {
+      return;
+    }
 
-    // Save main context state
-    ctx.save();
+    const currentHash = this.getLayerHash(layer);
+    const cached = this.layerCache.get(layer.id);
+    
+    // Use cached version if available and content hasn't changed
+    if (cached && cached.hash === currentHash) {
+      // Apply opacity even when using cached version
+      ctx.globalAlpha = layer.opacity;
+      ctx.drawImage(cached.canvas, 0, 0);
+      ctx.globalAlpha = 1;
+      return;
+    }
+
+    // Create a new canvas for this layer
+    const layerCanvas = createCanvas(this.mainContext.width, this.mainContext.height);
+    const layerCtx = layerCanvas.getContext('2d');
+
+    // Apply transforms to the layer context
+    if (layer.transform) {
+      this.applyTransform(layerCtx, layer.transform);
+    }
+
+    const renderStartTime = performance.now();
 
     try {
-      logger.debug('Rendering layer', {
-        layerId: layer.id,
-        type: layer.type,
-        transform: layer.transform,
-        opacity: layer.opacity
-      });
-
-      // Apply layer transform
-      this.applyTransform(ctx, layer.transform);
-
-      // Set layer opacity
-      ctx.globalAlpha = layer.opacity;
-
-      // Render layer content based on type
+      // Render the layer content
       switch (layer.type) {
         case 'host':
-          await characterRenderer.renderCharacter(ctx, layer);
-          break;
         case 'assistant':
-          await characterRenderer.renderCharacter(ctx, layer);
+          await characterRenderer.renderCharacter(layerCtx, layer);
           break;
-        case 'visualFeed':
-          await visualFeedRenderer.renderVisualFeed(ctx, layer.content, this.mainContext.width, this.mainContext.height);
+        case 'visualFeed': {
+          const visualLayer = layer as VisualFeedLayer;
+          await visualFeedRenderer.renderVisualFeed(layerCtx, visualLayer.content, this.mainContext.width, this.mainContext.height);
           break;
-        case 'overlay':
-          await overlayRenderer.renderOverlay(ctx, layer.content, this.mainContext.width, this.mainContext.height);
+        }
+        case 'overlay': {
+          const overlayLayer = layer as OverlayLayer;
+          await overlayRenderer.renderOverlay(layerCtx, overlayLayer.content, this.mainContext.width, this.mainContext.height);
           break;
-        case 'chat':
-          await chatRenderer.renderChat(ctx, layer, this.mainContext.width, this.mainContext.height);
+        }
+        case 'chat': {
+          const chatLayer = layer as ChatLayer;
+          await chatRenderer.renderChat(layerCtx, chatLayer, this.mainContext.width, this.mainContext.height);
           break;
-        default: {
-          // This case is unreachable because we've handled all possible layer types
-          throw new Error('Unsupported layer type');
         }
       }
+
+      // Cache the rendered layer
+      this.layerCache.set(layer.id, {
+        canvas: layerCanvas,
+        lastUpdated: Date.now(),
+        hash: currentHash
+      });
+
+      // Draw the layer to the main canvas with proper opacity
+      ctx.globalAlpha = layer.opacity;
+      ctx.drawImage(layerCanvas, 0, 0);
+      ctx.globalAlpha = 1;
+
+      // Update metrics
+      const renderTime = performance.now() - renderStartTime;
+      layerRenderTimeGauge.set({ layer_id: layer.id, layer_type: layer.type }, renderTime);
+      layerVisibilityGauge.set({ layer_id: layer.id, layer_type: layer.type }, layer.visible ? 1 : 0);
+
     } catch (error) {
       logger.error('Failed to render layer', {
-        layerId: layer.id,
-        type: layer.type,
         error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      throw error;
-    } finally {
-      // Restore main context state
-      ctx.restore();
+        stack: error instanceof Error ? error.stack : undefined,
+        layerId: layer.id,
+        layerType: layer.type
+      } as LogContext);
+      
+      // Remove failed layer from cache
+      this.layerCache.delete(layer.id);
     }
   }
 
@@ -407,6 +569,25 @@ export class LayerRenderer {
     this.mainContext.width = width;
     this.mainContext.height = height;
     logger.info('Canvas resized', { width, height } as LogContext);
+  }
+
+  // Add cache cleanup method
+  private cleanupLayerCache(): void {
+    const now = Date.now();
+    const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
+    
+    for (const [id, cache] of this.layerCache.entries()) {
+      if (now - cache.lastUpdated > MAX_CACHE_AGE) {
+        this.layerCache.delete(id);
+      }
+    }
+  }
+
+  // Call cleanup periodically
+  private startCacheCleanup(): void {
+    setInterval(() => {
+      this.cleanupLayerCache();
+    }, 60 * 1000); // Clean up every minute
   }
 }
 

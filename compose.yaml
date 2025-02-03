@@ -273,11 +273,14 @@ services:
     labels:
       - "traefik.enable=true"
       # Main API
-      - "traefik.http.routers.stream-manager.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.stream-manager.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/api/stream`)"
       - "traefik.http.routers.stream-manager.entrypoints=websecure"
       - "traefik.http.routers.stream-manager.service=stream-manager"
       - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
       - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
+      # Strip /api/stream prefix
+      - "traefik.http.middlewares.strip-stream-prefix.stripprefix.prefixes=/api/stream"
+      - "traefik.http.routers.stream-manager.middlewares=strip-stream-prefix"
       # Metrics endpoint
       - "traefik.http.routers.stream-manager-metrics.rule=PathPrefix(`/metrics/stream`)"
       - "traefik.http.routers.stream-manager-metrics.service=stream-manager-metrics"

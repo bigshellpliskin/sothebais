@@ -36,12 +36,22 @@ export class CharacterRenderer {
 
   private async loadCharacterImage(modelUrl: string): Promise<CharacterResources> {
     try {
-      logger.debug('Loading character image', { modelUrl });
-      
       const resource = this.characterResources.get(modelUrl);
       if (resource && !resource.isLoading) {
-        logger.debug('Using cached character image', { modelUrl });
         return resource;
+      }
+
+      // If already loading, wait for it
+      if (resource?.isLoading) {
+        // Wait for a bit and check again (up to 5 seconds)
+        for (let i = 0; i < 50; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const updatedResource = this.characterResources.get(modelUrl);
+          if (updatedResource && !updatedResource.isLoading) {
+            return updatedResource;
+          }
+        }
+        throw new Error('Timeout waiting for character image to load');
       }
 
       // Mark as loading
@@ -54,17 +64,13 @@ export class CharacterRenderer {
 
       // Convert URL paths to filesystem paths
       const modelPath = this.urlToFilePath(modelUrl);
-      const texturePath = null; // Assuming texture is not provided in the URL
 
-      // Load model and texture in parallel
-      const [model, texture] = await Promise.all([
-        loadImage(modelPath),
-        texturePath ? loadImage(texturePath) : Promise.resolve(null)
-      ]);
+      // Load model
+      const model = await loadImage(modelPath);
 
       const characterResource: CharacterResources = {
         model,
-        texture,
+        texture: null,
         lastUpdated: Date.now(),
         isLoading: false
       };
@@ -78,6 +84,8 @@ export class CharacterRenderer {
 
       return characterResource;
     } catch (error) {
+      // Remove failed resource from cache
+      this.characterResources.delete(modelUrl);
       logger.error('Failed to load character image', {
         modelUrl,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -89,12 +97,6 @@ export class CharacterRenderer {
 
   public async renderCharacter(ctx: CanvasRenderingContext2D, layer: HostLayer | AssistantLayer): Promise<void> {
     try {
-      logger.debug('Rendering character', {
-        layerId: layer.id,
-        modelUrl: layer.character.modelUrl,
-        transform: layer.transform
-      });
-
       const resource = await this.loadCharacterImage(layer.character.modelUrl);
       
       if (!resource || !resource.model) {
@@ -105,14 +107,6 @@ export class CharacterRenderer {
       const aspectRatio = resource.model.width / resource.model.height;
       const targetWidth = layer.character.width || resource.model.width;
       const targetHeight = layer.character.height || resource.model.height;
-
-      logger.debug('Character render dimensions', {
-        originalWidth: resource.model.width,
-        originalHeight: resource.model.height,
-        targetWidth,
-        targetHeight,
-        aspectRatio
-      });
 
       // Draw the character
       ctx.drawImage(
@@ -134,10 +128,6 @@ export class CharacterRenderer {
         ctx.globalCompositeOperation = 'source-over';
       }
 
-      logger.debug('Character rendered successfully', {
-        layerId: layer.id,
-        modelUrl: layer.character.modelUrl
-      });
     } catch (error) {
       logger.error('Failed to render character', {
         layerId: layer.id,
