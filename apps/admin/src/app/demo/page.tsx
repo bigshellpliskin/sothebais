@@ -23,6 +23,24 @@ export default function DemoPage() {
     averageRenderTime: 0
   });
 
+  // Function to control stream
+  const controlStream = async (action: 'start' | 'stop' | 'pause') => {
+    try {
+      const response = await fetch('/api/stream/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error controlling stream:', error);
+      }
+    } catch (error) {
+      console.error('Error controlling stream:', error);
+    }
+  };
+
   // Function to fetch stream status
   useEffect(() => {
     const fetchStatus = async () => {
@@ -141,32 +159,59 @@ export default function DemoPage() {
             <Terminal className="h-4 w-4" aria-hidden="true" />
             <CardTitle>Stream Manager Demo</CardTitle>
           </div>
-          <div className="flex items-center gap-4">
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <StreamViewer />
+          <div className="flex flex-col gap-4">
+            {/* Stream Controls */}
+            <div className="flex items-center justify-center gap-4">
+              <Button 
+                onClick={() => controlStream('start')} 
+                variant="default"
+                disabled={streamStatus.isLive}
+              >
+                Start Stream
+              </Button>
+              <Button 
+                onClick={() => controlStream('pause')} 
+                variant="secondary"
+                disabled={!streamStatus.isLive}
+              >
+                Pause Stream
+              </Button>
+              <Button 
+                onClick={() => controlStream('stop')} 
+                variant="destructive"
+                disabled={!streamStatus.isLive}
+              >
+                Stop Stream
+              </Button>
+            </div>
             {/* Stream Status */}
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${
-                streamStatus.isLive ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-              }`} />
-              <span className="text-sm text-gray-600">
-                {streamStatus.isLive ? 'Live' : 'Offline'}
-              </span>
-            </div>
-            {/* FPS Counter */}
-            <div className="text-sm text-gray-600">
-              {Math.round(streamStatus.fps)} FPS
-            </div>
-            {/* Layer Count */}
-            <div className="text-sm text-gray-600">
-              {streamStatus.layerCount} Layers
-            </div>
-            {/* Render Time */}
-            <div className="text-sm text-gray-600">
-              {Math.round(streamStatus.averageRenderTime)}ms
+            <div className="flex items-center justify-center gap-6">
+              {/* Live Status */}
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  streamStatus.isLive ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                }`} />
+                <span className="text-sm text-gray-600">
+                  {streamStatus.isLive ? 'Live' : 'Offline'}
+                </span>
+              </div>
+              {/* FPS Counter */}
+              <div className="text-sm text-gray-600">
+                {Math.round(streamStatus.fps)}/{streamStatus.targetFPS} FPS
+              </div>
+              {/* Layer Count */}
+              <div className="text-sm text-gray-600">
+                {Object.values(layerStates).filter(Boolean).length}/{Object.keys(layerStates).length} Layers
+              </div>
+              {/* Render Time */}
+              <div className="text-sm text-gray-600">
+                {Math.round(streamStatus.averageRenderTime)}ms
+              </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <StreamViewer />
         </CardContent>
       </Card>
 

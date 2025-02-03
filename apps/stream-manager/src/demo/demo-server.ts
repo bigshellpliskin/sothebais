@@ -23,6 +23,9 @@ export async function setupDemoServer(app: express.Application) {
     const demoRouter = express.Router();
     demoRouter.use(express.json());
 
+    // Mount the demo router under /demo path
+    app.use('/demo', demoRouter);
+
     // Serve static assets with proper path resolution
     const assetsPath = path.join(process.cwd(), 'assets');
     logger.info('Starting demo server', {
@@ -452,6 +455,65 @@ export async function setupDemoServer(app: express.Application) {
       `);
     });
 
+    // Add stream control endpoint
+    demoRouter.post('/control', (req: Request, res: Response) => {
+      logger.info('Stream control request received', {
+        action: req.body.action,
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        body: req.body
+      } as LogContext);
+
+      try {
+        const { action } = req.body;
+        
+        if (!action || !['start', 'stop', 'pause'].includes(action)) {
+          logger.error('Invalid stream control action', {
+            action,
+            validActions: ['start', 'stop', 'pause']
+          } as LogContext);
+          return res.status(400).json({ error: 'Invalid action' });
+        }
+
+        logger.info('Processing stream control action', { action } as LogContext);
+
+        switch (action) {
+          case 'start':
+            layerRenderer.startRenderLoop();
+            break;
+          case 'stop':
+            layerRenderer.stopRenderLoop();
+            break;
+          case 'pause':
+            layerRenderer.stopRenderLoop();
+            break;
+        }
+
+        const health = layerRenderer.getHealth();
+        logger.info('Stream control action completed', {
+          action,
+          status: health.status,
+          fps: health.fps
+        } as LogContext);
+
+        res.json({
+          success: true,
+          status: health.status,
+          fps: health.fps
+        });
+      } catch (error) {
+        logger.error('Error controlling stream', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        } as LogContext);
+        res.status(500).json({ 
+          error: 'Failed to control stream',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
     // Add status endpoint
     demoRouter.get('/status', (req: Request, res: Response) => {
       const health = layerRenderer.getHealth();
@@ -617,9 +679,6 @@ export async function setupDemoServer(app: express.Application) {
         res.status(500).json({ error: 'Internal server error' });
       }
     });
-
-    // Mount the demo router under /demo path
-    app.use('/demo', demoRouter);
 
     logger.info('Demo server setup complete');
 

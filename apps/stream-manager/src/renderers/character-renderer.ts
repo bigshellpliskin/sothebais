@@ -1,7 +1,8 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
 import type { VTuberCharacter } from '../types/layers.js';
-import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import type { HostLayer, AssistantLayer } from '../types/layers.js';
 import type { LogContext } from '../utils/logger.js';
 import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
@@ -31,7 +32,7 @@ export class CharacterRenderer {
     // Remove leading slash if present
     const cleanPath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
     // Convert to absolute path in the container
-    return path.join('/app', cleanPath);
+    return join('/app', cleanPath);
   }
 
   private async loadCharacterImage(modelUrl: string): Promise<CharacterResources> {

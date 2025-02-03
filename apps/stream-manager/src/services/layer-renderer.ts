@@ -9,6 +9,9 @@ import { chatRenderer } from '../renderers/chat-renderer.js';
 import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
 import type { LogContext } from '../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
+import { Worker } from 'worker_threads';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -96,6 +99,8 @@ export class LayerRenderer {
     lastUpdated: number;
     hash: string;
   }> = new Map();
+  private workers: Worker[] = [];
+  private maxWorkers: number = 4;
 
   private constructor() {
     const canvas = createCanvas(1280, 720);
@@ -586,6 +591,39 @@ export class LayerRenderer {
     setInterval(() => {
       this.cleanupLayerCache();
     }, 60 * 1000); // Clean up every minute
+  }
+
+  private async initializeWorkers() {
+    const workerPath = join(dirname(fileURLToPath(import.meta.url)), '../workers/render-worker.ts');
+    
+    for (let i = 0; i < this.maxWorkers; i++) {
+      const worker = new Worker(workerPath, {
+        execArgv: ['--loader', 'tsx']
+      });
+      
+      const workerState = {
+        worker,
+        isBusy: false
+      };
+      worker.on('message', (message: { type: string; data?: any }) => {
+        if (message.type === 'render_complete') {
+          // Handle render complete message
+          const { layerId, renderedCanvas } = message.data;
+          if (layerId && renderedCanvas) {
+            this.layerCache.set(layerId, {
+              canvas: renderedCanvas,
+              lastUpdated: Date.now(),
+              hash: '' // TODO: Add hash calculation if needed
+            });
+          }
+          workerState.isBusy = false;
+        } else if (message.type === 'ready') {
+          workerState.isBusy = false;
+        }
+      });
+      
+      this.workers.push(worker);
+    }
   }
 }
 
