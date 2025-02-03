@@ -12,42 +12,34 @@ export const config = {
   }
 };
 
+// Cache for service status to prevent frequent re-queries
+const statusCache = new Map<string, { status: ServiceStatus; timestamp: number }>();
+const CACHE_TTL = 30000; // 30 seconds cache to be longer than Prometheus scrape interval
+
 // Define standard health check queries
 const HEALTH_QUERIES = {
-  // Basic service health
-  up: (service: ServiceConfig) => `up{instance="${service.name}",job="${service.job}"}`,
+  // Basic service health - use instant vector for more stable results
+  up: (service: ServiceConfig) => {
+    // Use a 30s range to ensure we catch the latest scrape
+    return `max_over_time(up{job="${service.job}",instance="${service.name}:${service.metricsPort}"}[30s])`;
+  },
   
-  // Process metrics
-  cpu: (service: ServiceConfig) => `rate(process_cpu_seconds_total{instance="${service.name}",job="${service.job}"}[1m]) * 100`,
-  memory: (service: ServiceConfig) => `process_resident_memory_bytes{instance="${service.name}",job="${service.job}"} / 1024 / 1024`,
-  
-  // HTTP metrics
-  requestRate: (service: ServiceConfig) => `rate(http_request_duration_seconds_count{instance="${service.name}",job="${service.job}"}[1m])`,
-  errorRate: (service: ServiceConfig) => `rate(http_request_duration_seconds_count{instance="${service.name}",job="${service.job}",code=~"5.."}[1m])`,
-  
-  // Redis specific metrics - these come from redis-exporter
-  redisUp: () => 'redis_up',  // This indicates if Redis itself is up
-  redisExporterUp: () => 'up{job="redis"}',  // This indicates if redis-exporter is up
-  redisMemory: () => 'redis_memory_used_bytes / 1024 / 1024',
-  redisConnections: () => 'redis_connected_clients'
+  // Redis specific metrics - also use range vectors
+  redisUp: () => 'max_over_time(redis_up[30s])',
+  redisExporterUp: () => 'max_over_time(up{job="redis"}[30s])'
 };
 
 // Service configurations with health check strategies
 const SERVICES: ServiceConfig[] = [
-  // Core Services
-  // { name: 'auction-manager', metricsPort: 4190 },
-  // { name: 'event-handler', metricsPort: 4390 },
-  // { name: 'stream-manager', metricsPort: 4290 },
-  // { name: 'shape-l2', metricsPort: 4090 },
-  // { name: 'eliza', metricsPort: 4490 },
+  // Core Services - all using common job
+  { name: 'event-handler', metricsPort: 4390, healthStrategy: 'standard', job: 'common' },
+  { name: 'stream-manager', metricsPort: 4290, healthStrategy: 'standard', job: 'common' },
   { name: 'admin-frontend', metricsPort: 3090, healthStrategy: 'standard', job: 'common' },
-  // Infrastructure Services
   { name: 'traefik', metricsPort: 3100, healthStrategy: 'standard', job: 'common' },
+  
+  // Infrastructure Services
   { name: 'prometheus', metricsPort: 9090, healthStrategy: 'dedicated', job: 'prometheus' },
-  // { name: 'grafana', metricsPort: 3001 },
-  // { name: 'node-exporter', metricsPort: 9100 },
-  // Redis is monitored through redis-exporter
-  { name: 'redis', metricsPort: 6379, healthStrategy: 'redis', job: 'redis' }  // Special case for Redis
+  { name: 'redis', metricsPort: 6379, healthStrategy: 'redis', job: 'redis' }
 ];
 
 interface ServiceConfig {
@@ -86,7 +78,7 @@ function getPrometheusUrl(path: string): string {
 
 async function queryPrometheus(query: string, serviceName: string): Promise<number | null> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3000);
+  const timeout = setTimeout(() => controller.abort(), 3000); // 3 second timeout
 
   try {
     const url = getPrometheusUrl(`/api/v1/query?query=${encodeURIComponent(query)}`);
@@ -142,23 +134,46 @@ async function queryPrometheus(query: string, serviceName: string): Promise<numb
 }
 
 async function getServiceHealth(service: ServiceConfig): Promise<ServiceStatus> {
+  // Check cache first - use longer TTL
+  const cached = statusCache.get(service.name);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.status;
+  }
+
+  let status: ServiceStatus;
+
   switch (service.healthStrategy) {
     case 'dedicated':
       // For Prometheus, use its dedicated health endpoint
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+
         const url = `${PROMETHEUS_URL}/prometheus/-/healthy`;
         const response = await fetch(url, {
           headers: { 
             'User-Agent': 'admin-frontend',
             'Connection': 'keep-alive'
           },
+          signal: controller.signal,
           next: { revalidate: 0 }
         });
-        return response.ok ? 'running' : 'error';
+        clearTimeout(timeout);
+        status = response.ok ? 'running' : 'error';
       } catch (error) {
-        console.error(`Error checking Prometheus health:`, error instanceof Error ? error.message : 'Unknown error');
-        return 'error';
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          // On timeout, check cache before failing
+          if (cached) {
+            console.log(`Using cached status for ${service.name} due to timeout`);
+            return cached.status;
+          }
+          console.error(`Timeout checking Prometheus health`);
+        } else {
+          console.error(`Error checking Prometheus health:`, error instanceof Error ? error.message : 'Unknown error');
+        }
+        status = 'error';
       }
+      break;
 
     case 'redis':
       // For Redis, we check both redis-exporter and Redis itself
@@ -167,48 +182,89 @@ async function getServiceHealth(service: ServiceConfig): Promise<ServiceStatus> 
         queryPrometheus(HEALTH_QUERIES.redisUp(), service.name)
       ]);
       
-      // Both redis-exporter and Redis itself must be up
-      if (redisExporterUp === null || redisUp === null) return 'error';
-      if (redisExporterUp !== 1) return 'error';  // redis-exporter must be running
-      return redisUp === 1 ? 'running' : 'stopped';  // Redis status determines final state
+      // On query failure, try to use cache
+      if ((redisExporterUp === null || redisUp === null) && cached) {
+        console.log(`Using cached status for ${service.name} due to query failure`);
+        return cached.status;
+      }
+      
+      if (redisExporterUp === null || redisUp === null) status = 'error';
+      else if (redisExporterUp < 1) status = 'error';
+      else status = redisUp >= 1 ? 'running' : 'stopped';
+      break;
 
     case 'standard':
     default:
-      // For standard services, check up metric and basic health indicators
-      const [up, cpu, errorRate] = await Promise.all([
-        queryPrometheus(HEALTH_QUERIES.up(service), service.name),
-        queryPrometheus(HEALTH_QUERIES.cpu(service), service.name),
-        queryPrometheus(HEALTH_QUERIES.errorRate(service), service.name)
-      ]);
-
-      if (up === null) return 'stopped';
-      if (up !== 1) return 'error';
+      // For all standard services, check the up metric
+      const up = await queryPrometheus(HEALTH_QUERIES.up(service), service.name);
+      console.log(`[DEBUG] Up metric for ${service.name} (query: ${HEALTH_QUERIES.up(service)}):`, up);
       
-      // Consider a service in error if CPU is too high or error rate is significant
-      if (cpu !== null && cpu > 90) return 'error';
-      if (errorRate !== null && errorRate > 0.5) return 'error';
+      // On query failure, try to use cache
+      if (up === null && cached) {
+        console.log(`Using cached status for ${service.name} due to query failure`);
+        return cached.status;
+      }
       
-      return 'running';
+      if (up === null) status = 'error';
+      else status = up >= 1 ? 'running' : 'stopped';  // Any value >= 1 means running
+      break;
   }
+
+  // Update cache
+  statusCache.set(service.name, { status, timestamp: Date.now() });
+  return status;
 }
 
 export async function GET() {
   try {
-    // Get status for all services in parallel
+    // Get status for all services in parallel with a timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5 second total timeout
+
     const servicePromises = SERVICES.map(async service => {
-      const status = await getServiceHealth(service);
-      return [service.name, String(status)] as [string, ServiceStatus];
+      try {
+        const status = await getServiceHealth(service);
+        return [service.name, String(status)] as [string, ServiceStatus];
+      } catch (error) {
+        // Try to use cached value on error
+        const cached = statusCache.get(service.name);
+        if (cached) {
+          console.log(`Using cached status for ${service.name} due to error`);
+          return [service.name, String(cached.status)] as [string, ServiceStatus];
+        }
+        console.error(`Error getting status for ${service.name}:`, error);
+        return [service.name, 'error'] as [string, ServiceStatus];
+      }
     });
 
-    const results = await Promise.all(servicePromises);
-    const statuses = Object.fromEntries(results);
+    const results = await Promise.allSettled(servicePromises);
+    clearTimeout(timeout);
+
+    const statuses = Object.fromEntries(
+      results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        }
+        // If a promise was rejected, try to use cached value
+        const cached = statusCache.get(SERVICES[index].name);
+        if (cached) {
+          return [SERVICES[index].name, String(cached.status)];
+        }
+        return [SERVICES[index].name, 'error'] as [string, ServiceStatus];
+      })
+    );
 
     return NextResponse.json(statuses, {
       headers: {
         'content-type': 'application/json',
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60'
       },
     });
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error('Status check timed out');
+      return new NextResponse('Gateway Timeout', { status: 504 });
+    }
     console.error('Error in status route:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }

@@ -8,10 +8,11 @@ scrape_configs:
     metrics_path: /metrics
     scheme: http
     static_configs:
-      - targets: 
-        - 'traefik:3100'  # Traefik's own metrics
-        - 'admin-frontend:3090'  # Admin frontend metrics
-        - 'event-handler:4390'   # Event handler metrics
+      - targets:
+        - 'traefik:3100'          # Traefik's own metrics
+        - 'admin-frontend:3090'    # Admin frontend metrics
+        - 'event-handler:4390'     # Event handler metrics
+        - 'stream-manager:4290'     # Stream manager metrics
     metric_relabel_configs:
       - source_labels: [__name__]
         regex: '^(up|process_cpu_seconds_total|process_resident_memory_bytes|http_request_duration_seconds_count)$'
@@ -21,7 +22,7 @@ scrape_configs:
   - job_name: 'prometheus'
     metrics_path: /prometheus/metrics
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['prometheus:9090']
     metric_relabel_configs:
       - source_labels: [__name__]
         regex: '^(up|process_cpu_seconds_total|process_resident_memory_bytes)$'

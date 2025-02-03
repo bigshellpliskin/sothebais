@@ -1,11 +1,12 @@
-# syntax=docker/dockerfile:1
-
+# Use Node.js 20 Alpine as the base image
 FROM node:20-alpine
 
-# Install system dependencies
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies required for canvas and other components
 RUN apk add --no-cache \
     python3 \
-    py3-setuptools \
     build-base \
     g++ \
     cairo-dev \
@@ -13,13 +14,11 @@ RUN apk add --no-cache \
     pango-dev \
     ffmpeg \
     curl \
-    lsof \
     # Required for @napi-rs/canvas
     pixman-dev \
-    pkgconfig \
-    libc6-compat
-
-WORKDIR /app
+    giflib-dev \
+    libjpeg-turbo-dev \
+    freetype-dev
 
 # Copy package files
 COPY package*.json ./
@@ -30,25 +29,18 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build TypeScript code
-RUN npm run build && \
-    echo "Build complete. Contents of /app:" && \
-    ls -la /app && \
-    echo "Contents of /app/dist:" && \
-    ls -la /app/dist || true
-
-# Create storage directory with proper permissions
+# Create storage directory and set permissions
 RUN mkdir -p /app/storage && chown -R node:node /app
-USER node
-RUN mkdir -p /app/storage
 
-# Expose ports
+# Switch to non-root user
+USER node
+
+# Expose necessary ports
 EXPOSE 4200 4201 4290 4291
 
-# Health check
-HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:4291/health || exit 1
+# Add health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=3 \
+    CMD curl -f -m 30 http://localhost:4291/health || exit 1
 
-# Start server in production mode
-ENV NODE_ENV=production
-CMD ["npm", "run", "start"] 
+# Start the application
+CMD ["npm", "run", "dev"] 

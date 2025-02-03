@@ -25,6 +25,8 @@ export interface VTuberCharacter {
   modelUrl: string;
   textureUrl: string | null;
   animations: Record<string, string>;
+  width: number;
+  height: number;
 }
 
 export interface NFTContent {

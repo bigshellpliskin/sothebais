@@ -2,15 +2,16 @@ import { createCanvas } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
 import { layerManager } from './layer-manager.js';
 import type { Layer, Transform, Point2D, HostLayer, AssistantLayer, VisualFeedLayer, OverlayLayer } from '../types/layers.js';
-import { metricsCollector } from '../utils/metrics.js';
 import { characterRenderer } from '../renderers/character-renderer.js';
 import { visualFeedRenderer } from '../renderers/visual-feed-renderer.js';
 import { overlayRenderer } from '../renderers/overlay-renderer.js';
 import { chatRenderer } from '../renderers/chat-renderer.js';
+import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
+import type { LogContext } from '../utils/logger.js';
 
 interface RenderContext {
   canvas: ReturnType<typeof createCanvas>;
-  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>;
+  ctx: CanvasRenderingContext2D;
   width: number;
   height: number;
   scale: number;
@@ -26,8 +27,26 @@ export class LayerRenderer {
   private frameInterval: number;
 
   private constructor() {
+    const canvas = createCanvas(1920, 1080);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to get canvas context');
+    }
+
+    this.mainContext = {
+      canvas,
+      ctx,
+      width: 1920,
+      height: 1080,
+      scale: 1
+    };
     this.frameInterval = 1000 / this.targetFPS;
-    this.mainContext = this.createRenderContext(1920, 1080);
+
+    logger.info('Layer renderer initialized', {
+      width: this.mainContext.width,
+      height: this.mainContext.height,
+      targetFPS: this.targetFPS
+    } as LogContext);
   }
 
   public static getInstance(): LayerRenderer {
@@ -60,11 +79,11 @@ export class LayerRenderer {
     this.frameInterval = 1000 / targetFPS;
     this.mainContext = this.createRenderContext(width, height);
     
-    logger.info({ 
+    logger.info('Initialized LayerRenderer', { 
       width, 
       height, 
       targetFPS 
-    }, 'Initialized LayerRenderer');
+    } as LogContext);
   }
 
   public startRenderLoop(): void {
@@ -80,7 +99,6 @@ export class LayerRenderer {
       if (elapsed >= this.frameInterval) {
         this.render();
         this.lastFrameTime = now - (elapsed % this.frameInterval);
-        metricsCollector.updateFPS();
       }
     }, this.frameInterval);
 
@@ -113,35 +131,19 @@ export class LayerRenderer {
 
         await this.renderLayer(layer);
       }
-
-      // Update metrics
-      metricsCollector.updateStreamMetrics({
-        fps: this.getCurrentFPS(),
-        bufferHealth: 100, // TODO: Implement buffer health monitoring
-        encoderLatency: 0  // TODO: Implement encoder latency monitoring
-      });
     } catch (error) {
-      logger.error({ error }, 'Error during render');
+      logger.error('Error during render', { error } as LogContext);
     }
   }
 
   private async renderLayer(layer: Layer): Promise<void> {
-    const { ctx, width, height } = this.mainContext;
-
-    // Get or create layer context
-    let layerCtx = this.layerContexts.get(layer.id);
-    if (!layerCtx) {
-      layerCtx = this.createRenderContext(this.mainContext.width, this.mainContext.height);
-      this.layerContexts.clear(); // Clear all layer contexts to force recreation
-    }
-
-    // Clear layer context
-    layerCtx.ctx.clearRect(0, 0, layerCtx.width, layerCtx.height);
+    const { ctx } = this.mainContext;
 
     // Save main context state
     ctx.save();
 
     try {
+      logger.debug('Rendering layer', { layerId: layer.id } as LogContext);
       // Apply layer transform
       this.applyTransform(ctx, layer.transform);
 
@@ -152,29 +154,31 @@ export class LayerRenderer {
       switch (layer.type) {
         case 'host':
         case 'assistant':
-          await characterRenderer.renderCharacter(ctx, layer.character, width, height);
+          await characterRenderer.renderCharacter(ctx, layer);
           break;
         case 'visualFeed':
-          await visualFeedRenderer.renderVisualFeed(ctx, layer.content, width, height);
+          await visualFeedRenderer.renderVisualFeed(ctx, layer.content, this.mainContext.width, this.mainContext.height);
           break;
         case 'overlay':
-          await overlayRenderer.renderOverlay(ctx, layer.content, width, height);
+          await overlayRenderer.renderOverlay(ctx, layer.content, this.mainContext.width, this.mainContext.height);
           break;
         case 'chat':
-          await chatRenderer.renderChat(ctx, layer, width, height);
+          await chatRenderer.renderChat(ctx, layer, this.mainContext.width, this.mainContext.height);
           break;
-        default:
-          logger.warn({ layer }, 'Unknown layer type');
+        default: {
+          const unknownLayer = layer as Layer;
+          logger.warn('Unknown layer type', { layerId: unknownLayer.id } as LogContext);
+        }
       }
     } catch (error) {
-      logger.error({ error, layerId: layer.id }, 'Error rendering layer');
+      logger.error('Failed to render layer', { error, layerId: layer.id } as LogContext);
     } finally {
       // Restore main context state
       ctx.restore();
     }
   }
 
-  private applyTransform(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, transform: Transform): void {
+  private applyTransform(ctx: CanvasRenderingContext2D, transform: Transform): void {
     const { position, scale, rotation, anchor } = transform;
     
     // Move to position
@@ -199,20 +203,26 @@ export class LayerRenderer {
     return this.mainContext.canvas;
   }
 
-  public getContext(): ReturnType<ReturnType<typeof createCanvas>['getContext']> {
+  public getContext(): CanvasRenderingContext2D {
     return this.mainContext.ctx;
   }
 
   public setResolution(width: number, height: number): void {
     this.mainContext = this.createRenderContext(width, height);
     this.layerContexts.clear(); // Clear all layer contexts to force recreation
-    logger.info({ width, height }, 'Updated renderer resolution');
+    logger.info('Updated renderer resolution', { width, height } as LogContext);
   }
 
   public cleanup(): void {
     this.stopRenderLoop();
     this.layerContexts.clear();
     logger.info('Cleaned up LayerRenderer');
+  }
+
+  public resize(width: number, height: number): void {
+    this.mainContext.width = width;
+    this.mainContext.height = height;
+    logger.info('Canvas resized', { width, height } as LogContext);
   }
 }
 

@@ -1,8 +1,9 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
 import type { VTuberCharacter } from '../types/layers.js';
-import { metricsCollector } from '../utils/metrics.js';
 import path from 'path';
+import type { HostLayer, AssistantLayer } from '../types/layers.js';
+import type { LogContext } from '../utils/logger.js';
 
 interface CharacterResources {
   model: Awaited<ReturnType<typeof loadImage>>;
@@ -32,42 +33,32 @@ export class CharacterRenderer {
     return path.join('/app', cleanPath);
   }
 
-  public async renderCharacter(
-    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
-    character: VTuberCharacter,
-    width: number,
-    height: number
-  ): Promise<void> {
+  public async renderCharacter(ctx: CanvasRenderingContext2D, layer: HostLayer | AssistantLayer): Promise<void> {
     try {
-      const resources = await this.getCharacterResources(character);
+      const resources = await this.getCharacterResources(layer);
       if (!resources || resources.isLoading) {
-        this.renderLoadingState(ctx, width, height);
+        this.renderLoadingState(ctx, layer.character.width, layer.character.height);
         return;
       }
 
       // Draw the base model
-      ctx.drawImage(resources.model, 0, 0, width, height);
+      ctx.drawImage(resources.model, 0, 0, layer.character.width, layer.character.height);
 
       // Apply texture if available
       if (resources.texture) {
         ctx.globalCompositeOperation = 'multiply';
-        ctx.drawImage(resources.texture, 0, 0, width, height);
+        ctx.drawImage(resources.texture, 0, 0, layer.character.width, layer.character.height);
         ctx.globalCompositeOperation = 'source-over';
       }
 
-      // Update metrics
-      metricsCollector.updateStreamMetrics({
-        encoderLatency: Date.now() - resources.lastUpdated
-      });
-
     } catch (error) {
-      logger.error({ error }, 'Error rendering character');
-      this.renderErrorState(ctx, width, height);
+      logger.error('Error rendering character', { error } as LogContext);
+      this.renderErrorState(ctx, layer.character.width, layer.character.height);
     }
   }
 
-  private async getCharacterResources(character: VTuberCharacter): Promise<CharacterResources | undefined> {
-    const resourceKey = `${character.modelUrl}:${character.textureUrl}`;
+  private async getCharacterResources(layer: HostLayer | AssistantLayer): Promise<CharacterResources | undefined> {
+    const resourceKey = `${layer.character.modelUrl}:${layer.character.textureUrl}`;
     let resources = this.characterResources.get(resourceKey);
 
     // Check if resources need to be reloaded
@@ -88,8 +79,8 @@ export class CharacterRenderer {
 
       try {
         // Convert URL paths to filesystem paths
-        const modelPath = this.urlToFilePath(character.modelUrl);
-        const texturePath = character.textureUrl ? this.urlToFilePath(character.textureUrl) : null;
+        const modelPath = this.urlToFilePath(layer.character.modelUrl);
+        const texturePath = layer.character.textureUrl ? this.urlToFilePath(layer.character.textureUrl) : null;
 
         // Load model and texture in parallel
         const [model, texture] = await Promise.all([
@@ -102,14 +93,11 @@ export class CharacterRenderer {
         newResources.isLoading = false;
         newResources.lastUpdated = Date.now();
 
-        logger.info({
-          modelPath,
-          texturePath
-        }, 'Character resources loaded');
+        logger.info('Character resources loaded', { modelPath, texturePath } as LogContext);
 
         return newResources;
       } catch (error) {
-        logger.error({ error }, 'Failed to load character resources');
+        logger.error('Failed to load character resources', { error } as LogContext);
         this.characterResources.delete(resourceKey);
         return undefined;
       }
@@ -119,7 +107,7 @@ export class CharacterRenderer {
   }
 
   private renderLoadingState(
-    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+    ctx: CanvasRenderingContext2D,
     width: number,
     height: number
   ): void {
@@ -133,7 +121,7 @@ export class CharacterRenderer {
   }
 
   private renderErrorState(
-    ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+    ctx: CanvasRenderingContext2D,
     width: number,
     height: number
   ): void {
@@ -149,6 +137,24 @@ export class CharacterRenderer {
   public clearCache(): void {
     this.characterResources.clear();
     logger.info('Cleared character resources cache');
+  }
+
+  public async renderHost(ctx: CanvasRenderingContext2D, layer: HostLayer): Promise<void> {
+    try {
+      // Render host character
+      // ... implementation ...
+    } catch (error) {
+      logger.error('Failed to render host character', { error, layerId: layer.id } as LogContext);
+    }
+  }
+
+  public async renderAssistant(ctx: CanvasRenderingContext2D, layer: AssistantLayer): Promise<void> {
+    try {
+      // Render assistant character
+      // ... implementation ...
+    } catch (error) {
+      logger.error('Failed to render assistant character', { error, layerId: layer.id } as LogContext);
+    }
   }
 }
 

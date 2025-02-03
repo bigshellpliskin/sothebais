@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Box, Server, BarChart3, RefreshCw, Cpu, Network } from "lucide-react";
+import { Activity, Box, Server, BarChart3, RefreshCw, Cpu, Network, HardDrive } from "lucide-react";
 import { Widget } from "@/components/ui/widget";
 import { StatusCard } from "@/components/ui/status-card";
 import { useServiceStatus } from "@/hooks/useServiceStatus";
@@ -90,7 +90,7 @@ export function SystemOverview() {
                 <div className="h-px bg-gray-200 flex-grow" />
               </div>
               <div className="space-y-1">
-                {group.services.map((service) => {
+                {group.services.map(service => {
                   const health = services?.[service.name];
                   const status = health?.status || 'stopped';
                   const metrics = health?.metrics || {};
@@ -111,7 +111,7 @@ export function SystemOverview() {
                         <div className="min-w-0">
                           <p className="font-medium truncate">{service.name}</p>
                           <p className="text-[10px] text-gray-500 truncate">{service.description}</p>
-                          {status === 'running' && (
+                          {status === 'running' && metrics && (
                             <div className="flex gap-2 mt-1">
                               {metrics.cpuUsage !== undefined && (
                                 <div className="flex items-center gap-1">
@@ -121,7 +121,7 @@ export function SystemOverview() {
                               )}
                               {metrics.memoryUsage !== undefined && (
                                 <div className="flex items-center gap-1">
-                                  
+                                  <HardDrive className="w-3 h-3" />
                                   <MetricValue value={metrics.memoryUsage} unit="MB" />
                                 </div>
                               )}

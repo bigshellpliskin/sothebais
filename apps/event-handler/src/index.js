@@ -34,9 +34,29 @@ const customTransport = {
     }
   }
 };
+// Redis connection state
+let redisConnectionState = {
+  isConnected: false,
+  lastError: null,
+  lastErrorTime: null,
+  reconnectAttempts: 0
+};
 
 // Initialize logger with custom transport
 const logger = createLogger('app', [{ stream: customTransport }]);
+// Initialize Redis client
+const redisClient = Redis.createClient({
+  url: process.env.REDIS_URL || 'redis://redis:6379',
+  socket: {
+    reconnectStrategy: (retries) => {
+      redisConnectionState.reconnectAttempts = retries;
+      // Exponential backoff with max delay of 5 seconds
+      return Math.min(retries * 50, 5000);
+    }
+  }
+});
+// Initialize Docker client
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 // Initialize Express app
 const app = express();
@@ -50,34 +70,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Accept', 'If-Modified-Since'],
   credentials: true
 }));
-
 // Add metrics middleware
 app.use(metricsMiddleware);
-
 app.use(express.json());
-
-// Redis connection state
-let redisConnectionState = {
-  isConnected: false,
-  lastError: null,
-  lastErrorTime: null,
-  reconnectAttempts: 0
-};
-
-// Initialize Redis client
-const redisClient = Redis.createClient({
-  url: process.env.REDIS_URL || 'redis://redis:6379',
-  socket: {
-    reconnectStrategy: (retries) => {
-      redisConnectionState.reconnectAttempts = retries;
-      // Exponential backoff with max delay of 5 seconds
-      return Math.min(retries * 50, 5000);
-    }
-  }
-});
-
-// Initialize Docker client
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 // Redis event handlers
 redisClient.on('error', (err) => {

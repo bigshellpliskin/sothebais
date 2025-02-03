@@ -18,9 +18,9 @@ const STANDARD_METRICS = {
   memory: (instance: string) => `process_resident_memory_bytes{instance="${instance}"} / 1024 / 1024`,
   
   // HTTP metrics
-  requestRate: (instance: string) => `rate(traefik_entrypoint_requests_total{instance="${instance}"}[1m])`,
-  errorRate: (instance: string) => `rate(traefik_entrypoint_requests_total{instance="${instance}",code=~"5.."}[1m])`,
-  latency: (instance: string) => `rate(traefik_service_request_duration_seconds_sum{instance="${instance}"}[1m]) / rate(traefik_service_request_duration_seconds_count{instance="${instance}"}[1m])`,
+  requestRate: (instance: string) => `rate(http_request_duration_seconds_count{instance="${instance}"}[1m])`,
+  errorRate: (instance: string) => `rate(http_request_duration_seconds_count{instance="${instance}",code=~"5.."}[1m])`,
+  latency: (instance: string) => `rate(http_request_duration_seconds_sum{instance="${instance}"}[1m]) / rate(http_request_duration_seconds_count{instance="${instance}"}[1m])`,
   
   // Process metrics
   uptime: (instance: string) => `time() - process_start_time_seconds{instance="${instance}"}`,
@@ -32,8 +32,8 @@ const STANDARD_METRICS = {
   redisOps: () => 'rate(redis_commands_processed_total[1m])',
   
   // Traefik specific metrics
-  traefikRequests: () => 'sum(rate(traefik_entrypoint_requests_total[1m]))',
-  traefikErrors: () => 'sum(rate(traefik_entrypoint_requests_total{code=~"5.."}[1m]))',
+  traefikRequests: () => 'sum(rate(http_request_duration_seconds_count[1m]))',
+  traefikErrors: () => 'sum(rate(http_request_duration_seconds_count{code=~"5.."}[1m]))',
   
   // Node exporter metrics
   nodeCpu: () => 'sum(rate(node_cpu_seconds_total{mode!="idle"}[1m])) * 100',
@@ -110,7 +110,7 @@ async function queryPrometheus(query: string): Promise<number | null> {
     }
 
     const responseText = await response.text();
-    console.log(`[DEBUG] Raw Prometheus response:`, responseText);
+    // console.log(`[DEBUG] Raw Prometheus response:`, responseText);
     
     const data = JSON.parse(responseText) as PrometheusQueryResponse;
     
@@ -205,7 +205,7 @@ export async function GET(request: Request) {
       const systemMetricPromises = [
         ['cpu', 'sum(rate(process_cpu_seconds_total[1m])) * 100', '%'],
         ['memory', 'sum(process_resident_memory_bytes) / 1024 / 1024', 'MB'],
-        ['requestRate', 'sum(rate(http_request_duration_seconds_count{status_code=~"2.."}[1m]))', 'req/s'],
+        ['requestRate', 'sum(rate(http_request_duration_seconds_count[1m]))', 'req/s'],
         ['redisMemory', 'redis_memory_used_bytes / 1024 / 1024', 'MB']
       ] as const;
 
@@ -214,7 +214,7 @@ export async function GET(request: Request) {
       await Promise.all(
         systemMetricPromises.map(async ([name, query, unit]) => {
           const value = await queryPrometheus(query);
-          console.log(`[DEBUG] Metric ${name} result:`, { name, value, query });
+          // console.log(`[DEBUG] Metric ${name} result:`, { name, value, query });
           if (value !== null) {
             metrics[name] = {
               value: Number(value.toFixed(2)),

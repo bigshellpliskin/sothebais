@@ -2,27 +2,35 @@ import { createClient } from 'redis';
 import type { LayerState } from '../types/layers.js';
 import type { Config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
+import type { RedisClientType } from 'redis';
 
 class RedisService {
-  private client!: ReturnType<typeof createClient>;
+  private client: RedisClientType | null = null;
   private isConnected = false;
 
-  constructor() {}
+  initialize(config: Config): void {
+    if (this.client) {
+      return;
+    }
 
-  initialize(config: Config) {
     this.client = createClient({
       url: config.REDIS_URL,
       password: config.REDIS_PASSWORD
     });
 
-    this.client.on('error', (err: Error) => {
-      logger.error({ error: err.message }, 'Redis client error');
+    this.client.on('error', (err) => {
       this.isConnected = false;
+      logger.error('Redis client error', { error: err.message });
     });
 
     this.client.on('connect', () => {
-      logger.info({ event: 'redis_connected' }, 'Redis client connected');
       this.isConnected = true;
+      logger.info('Redis client connected');
+    });
+
+    this.client.on('end', () => {
+      this.isConnected = false;
+      logger.info('Redis client disconnected');
     });
   }
 

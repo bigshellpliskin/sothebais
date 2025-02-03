@@ -137,18 +137,18 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9121/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.redis-metrics.rule=PathPrefix(`/metrics/redis`)"
       - "traefik.http.routers.redis-metrics.service=redis-metrics"
       - "traefik.http.services.redis-metrics.loadbalancer.server.port=9121"
       - "traefik.http.routers.redis-metrics.entrypoints=metrics"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9121/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
   # Prometheus for Metrics
   prometheus:
@@ -190,44 +190,6 @@ services:
       timeout: 10s
       retries: 3
   
-  # NFT Auction Core Service
-  # auction-manager:
-  #   build:
-  #     context: ./apps/auction-manager
-  #     dockerfile: Dockerfile
-  #     target: ${NODE_ENV:-development}
-  #   environment:
-  #     - NODE_ENV=${NODE_ENV:-development}
-  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
-  #     - LOG_LEVEL=${LOG_LEVEL:-debug}
-  #     - SHAPE_L2_URL=http://localhost:4000 # Using localhost since shape-l2 is not running
-  #     - PORT=4100
-  #     - METRICS_PORT=4190
-  #     - HEALTH_PORT=4191
-  #   volumes:
-  #     - ./apps/auction-manager/src:/app/src:ro
-  #     - ./apps/auction-manager/package.json:/app/package.json:ro
-  #     - ./data/auction:/app/storage:rw
-  #   ports:
-  #     - "4100:4100" # Main API
-  #     - "4190:4190" # Metrics
-  #     - "4191:4191" # Health
-  #   depends_on:
-  #     - redis
-  #   networks:
-  #     - auction_net
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: ${RESOURCES_CPU:-0.5}
-  #         memory: ${RESOURCES_MEMORY:-512M}
-  #   command: ${STAGE:-dev}.command.auction-manager
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:4191/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-
   # Event Orchestration Service
   event-handler:
     build:
@@ -283,74 +245,93 @@ services:
       retries: 3
 
   # Stream Processing Service
-  # stream-manager:
+  stream-manager:
+    build:
+      context: ./apps/stream-manager
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - PORT=4200
+      - WS_PORT=4201
+      - METRICS_PORT=4290
+      - HEALTH_PORT=4291
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+    volumes:
+      - ./apps/stream-manager/src:/app/src:ro
+      - ./apps/stream-manager/package.json:/app/package.json:ro
+      - ./data/stream-manager:/app/storage:rw
+    ports:
+      - "4200:4200" # Main API
+      - "4201:4201" # WebSocket
+      - "4290:4290" # Metrics
+      - "4291:4291" # Health
+    depends_on:
+      - redis
+    networks:
+      - auction_net
+    labels:
+      - "traefik.enable=true"
+      # Main API
+      - "traefik.http.routers.stream-manager.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.stream-manager.entrypoints=websecure"
+      - "traefik.http.routers.stream-manager.service=stream-manager"
+      - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
+      - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
+      # Metrics endpoint
+      - "traefik.http.routers.stream-manager-metrics.rule=PathPrefix(`/metrics/stream`)"
+      - "traefik.http.routers.stream-manager-metrics.service=stream-manager-metrics"
+      - "traefik.http.services.stream-manager-metrics.loadbalancer.server.port=4290"
+      - "traefik.http.routers.stream-manager-metrics.entrypoints=metrics"
+      # Health check endpoint
+      - "traefik.http.routers.stream-manager-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/stream`)"
+      - "traefik.http.routers.stream-manager-health.entrypoints=websecure"
+      - "traefik.http.services.stream-manager-health.loadbalancer.server.port=4291"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NFT Auction Core Service
+  # auction-manager:
   #   build:
-  #     context: ./apps/stream-manager
+  #     context: ./apps/auction-manager
   #     dockerfile: Dockerfile
+  #     target: ${NODE_ENV:-development}
   #   environment:
-  #     - NODE_ENV=production
-  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-  #     - PORT=4200
-  #     - WS_PORT=4201
-  #     - METRICS_PORT=4290
-  #     - HEALTH_PORT=4291
-  #     - LOG_LEVEL=info  # Changed from debug to info for production
-  #     - HOST=0.0.0.0
-  #     - TWITTER_API_KEY=${TWITTER_API_KEY}
-  #     - TWITTER_API_SECRET=${TWITTER_API_SECRET}
-  #     - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
-  #     - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET}
-  #     - MAX_LAYERS=${MAX_LAYERS:-50}
-  #     - TARGET_FPS=${TARGET_FPS:-30}
-  #     - RENDER_QUALITY=${RENDER_QUALITY:-high}
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-dev_password}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+  #     - LOG_LEVEL=${LOG_LEVEL:-debug}
+  #     - SHAPE_L2_URL=http://localhost:4000 # Using localhost since shape-l2 is not running
+  #     - PORT=4100
+  #     - METRICS_PORT=4190
+  #     - HEALTH_PORT=4191
   #   volumes:
-  #     - type: volume
-  #       source: stream_storage
-  #       target: /app/storage
+  #     - ./apps/auction-manager/src:/app/src:ro
+  #     - ./apps/auction-manager/package.json:/app/package.json:ro
+  #     - ./data/auction:/app/storage:rw
   #   ports:
-  #     - "4200:4200" # Main API
-  #     - "4201:4201" # WebSocket
-  #     - "4290:4290" # Metrics
-  #     - "4291:4291" # Health
+  #     - "4100:4100" # Main API
+  #     - "4190:4190" # Metrics
+  #     - "4191:4191" # Health
+  #   depends_on:
+  #     - redis
   #   networks:
   #     - auction_net
   #   deploy:
   #     resources:
   #       limits:
   #         cpus: ${RESOURCES_CPU:-0.5}
-  #         memory: ${RESOURCES_MEMORY:-1024M}
-  #   depends_on:
-  #     - redis
-  #     - event-handler
-  #   labels:
-  #     - "traefik.enable=true"
-  #     # Development mode access
-  #     - "traefik.http.routers.stream-manager-dev.rule=PathPrefix(`/demo`)"
-  #     - "traefik.http.routers.stream-manager-dev.entrypoints=web"
-  #     - "traefik.http.routers.stream-manager-dev.service=stream-manager-dev"
-  #     - "traefik.http.services.stream-manager-dev.loadbalancer.server.port=4200"
-  #     # Health endpoint
-  #     - "traefik.http.routers.stream-manager-health.rule=Host(`localhost`) && PathPrefix(`/health`)"
-  #     - "traefik.http.routers.stream-manager-health.entrypoints=web,websecure"
-  #     - "traefik.http.routers.stream-manager-health.service=stream-manager-health"
-  #     - "traefik.http.services.stream-manager-health.loadbalancer.server.port=4291"
-  #     # WebSocket endpoint
-  #     - "traefik.http.routers.stream-manager-ws.rule=PathPrefix(`/ws`)"
-  #     - "traefik.http.routers.stream-manager-ws.entrypoints=web"
-  #     - "traefik.http.routers.stream-manager-ws.service=stream-manager-ws"
-  #     - "traefik.http.services.stream-manager-ws.loadbalancer.server.port=4201"
-  #     # Production access
-  #     - "traefik.http.routers.stream-manager.rule=Host(`${DOMAIN}`) && PathPrefix(`/stream`)"
-  #     - "traefik.http.routers.stream-manager.entrypoints=websecure"
-  #     - "traefik.http.routers.stream-manager.service=stream-manager"
-  #     - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
-  #     - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
+  #         memory: ${RESOURCES_MEMORY:-512M}
+  #   command: ${STAGE:-dev}.command.auction-manager
   #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
-  #     interval: 60s
-  #     timeout: 30s
-  #     retries: 5
-  #     start_period: 60s
+  #     test: ["CMD", "curl", "-f", "http://localhost:4191/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+
+  
 
   # Shape L2 Integration Service
   # shape-l2:
