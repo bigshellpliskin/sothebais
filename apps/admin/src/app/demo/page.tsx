@@ -35,7 +35,18 @@ export default function DemoPage() {
       if (!response.ok) {
         const error = await response.json();
         console.error('Error controlling stream:', error);
+        return;
       }
+
+      const data = await response.json();
+      console.log('Stream control response:', data);
+
+      // Update stream status immediately
+      setStreamStatus(prevStatus => ({
+        ...prevStatus,
+        isLive: data.isLive,
+        fps: data.fps || 0
+      }));
     } catch (error) {
       console.error('Error controlling stream:', error);
     }
@@ -161,75 +172,80 @@ export default function DemoPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <StreamViewer />
+          <StreamViewer streamStatus={streamStatus} />
           <div className="flex flex-col gap-4">
-            {/* Stream Controls */}
-            <div className="flex items-center justify-center gap-4">
-              <Button 
-                onClick={() => controlStream('start')} 
-                variant="default"
-                disabled={streamStatus.isLive}
-              >
-                Start Stream
-              </Button>
-              <Button 
-                onClick={() => controlStream('pause')} 
-                variant="secondary"
-                disabled={!streamStatus.isLive}
-              >
-                Pause Stream
-              </Button>
-              <Button 
-                onClick={() => controlStream('stop')} 
-                variant="destructive"
-                disabled={!streamStatus.isLive}
-              >
-                Stop Stream
-              </Button>
-            </div>
-            {/* Stream Status */}
-            <div className="flex items-center justify-center gap-6">
-              {/* Live Status */}
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  streamStatus.isLive ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                }`} />
-                <span className="text-sm text-gray-600">
-                  {streamStatus.isLive ? 'Live' : 'Offline'}
-                </span>
-              </div>
-              {/* FPS Counter */}
-              <div className="text-sm text-gray-600">
-                {Math.round(streamStatus.fps)}/{streamStatus.targetFPS} FPS
-              </div>
-              {/* Layer Count */}
-              <div className="text-sm text-gray-600">
-                {Object.values(layerStates).filter(Boolean).length}/{Object.keys(layerStates).length} Layers
-              </div>
-              {/* Render Time */}
-              <div className="text-sm text-gray-600">
-                {Math.round(streamStatus.averageRenderTime)}ms
+            {/* Playback Controls Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-gray-500">Playback Controls</h3>
+              <div className="flex items-center justify-center gap-4">
+                <Button 
+                  onClick={() => controlStream('start')} 
+                  variant="default"
+                  disabled={streamStatus.isLive}
+                >
+                  Start Stream
+                </Button>
+                <Button 
+                  onClick={() => controlStream('pause')} 
+                  variant="secondary"
+                  disabled={!streamStatus.isLive}
+                >
+                  Pause Stream
+                </Button>
+                <Button 
+                  onClick={() => controlStream('stop')} 
+                  variant="destructive"
+                  disabled={!streamStatus.isLive}
+                >
+                  Stop Stream
+                </Button>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Layer Controls</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
-            {Object.entries(layerStates).map(([type, visible]) => (
-              <Button 
-                key={type}
-                onClick={() => toggleLayer(type)}
-                variant={visible ? "default" : "secondary"}
-              >
-                {visible ? 'Hide' : 'Show'} {type.charAt(0).toUpperCase() + type.slice(1)}
-              </Button>
-            ))}
+            {/* Stream Status Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-gray-500">Stream Status</h3>
+              <div className="flex items-center justify-center gap-6">
+                {/* Live Status */}
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    streamStatus.isLive ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                  }`} />
+                  <span className="text-sm text-gray-600">
+                    {streamStatus.isLive ? 'Live' : 'Offline'}
+                  </span>
+                </div>
+                {/* FPS Counter */}
+                <div className="text-sm text-gray-600">
+                  {streamStatus.isLive ? `${Math.round(streamStatus.fps)}/${streamStatus.targetFPS} FPS` : '-'}
+                </div>
+                {/* Layer Count */}
+                <div className="text-sm text-gray-600">
+                  {Object.values(layerStates).filter(Boolean).length}/{Object.keys(layerStates).length} Layers
+                </div>
+                {/* Render Time */}
+                <div className="text-sm text-gray-600">
+                  {streamStatus.isLive ? `${Math.round(streamStatus.averageRenderTime)}ms` : '-'}
+                </div>
+              </div>
+            </div>
+
+            {/* Layer Controls Section */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-gray-500">Layer Controls</h3>
+              <div className="flex flex-wrap gap-4">
+                {Object.entries(layerStates).map(([type, visible]) => (
+                  <Button 
+                    key={type}
+                    onClick={() => toggleLayer(type)}
+                    variant={visible ? "default" : "secondary"}
+                    size="sm"
+                  >
+                    {visible ? 'Hide' : 'Show'} {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

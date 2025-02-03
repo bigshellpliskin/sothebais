@@ -26,6 +26,77 @@ export async function setupDemoServer(app: express.Application) {
     // Mount the demo router under /demo path
     app.use('/demo', demoRouter);
 
+    // Add stream control endpoint
+    demoRouter.post('/control', async (req: Request, res: Response) => {
+      logger.info('Stream control request received', {
+        body: req.body,
+        method: req.method,
+        url: req.url
+      } as LogContext);
+
+      try {
+        const { action } = req.body;
+        
+        if (!action || !['start', 'stop', 'pause'].includes(action)) {
+          logger.error('Invalid stream control action', {
+            action,
+            validActions: ['start', 'stop', 'pause']
+          } as LogContext);
+          return res.status(400).json({ error: 'Invalid action' });
+        }
+
+        // Get initial health status
+        const initialHealth = layerRenderer.getHealth();
+        logger.info('Initial stream health', initialHealth as LogContext);
+
+        switch (action) {
+          case 'start':
+            layerRenderer.startRenderLoop();
+            break;
+          case 'pause':
+            layerRenderer.pauseRenderLoop();
+            break;
+          case 'stop':
+            layerRenderer.stopRenderLoop();
+            break;
+        }
+
+        // Wait a short time for the status to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Get updated health status
+        const health = layerRenderer.getHealth();
+        const isLive = health.status === 'healthy';
+
+        logger.info('Stream control action completed', {
+          action,
+          status: health.status,
+          fps: health.fps,
+          isLive,
+          isPaused: health.isPaused,
+          renderTime: health.averageRenderTime
+        } as LogContext);
+
+        res.json({
+          success: true,
+          status: health.status,
+          fps: health.fps,
+          isLive,
+          isPaused: health.isPaused,
+          averageRenderTime: health.averageRenderTime
+        });
+      } catch (error) {
+        logger.error('Error controlling stream', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        } as LogContext);
+        res.status(500).json({ 
+          error: 'Failed to control stream',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
     // Serve static assets with proper path resolution
     const assetsPath = path.join(process.cwd(), 'assets');
     logger.info('Starting demo server', {
@@ -453,65 +524,6 @@ export async function setupDemoServer(app: express.Application) {
           </body>
         </html>
       `);
-    });
-
-    // Add stream control endpoint
-    demoRouter.post('/control', (req: Request, res: Response) => {
-      logger.info('Stream control request received', {
-        action: req.body.action,
-        method: req.method,
-        url: req.url,
-        headers: req.headers,
-        body: req.body
-      } as LogContext);
-
-      try {
-        const { action } = req.body;
-        
-        if (!action || !['start', 'stop', 'pause'].includes(action)) {
-          logger.error('Invalid stream control action', {
-            action,
-            validActions: ['start', 'stop', 'pause']
-          } as LogContext);
-          return res.status(400).json({ error: 'Invalid action' });
-        }
-
-        logger.info('Processing stream control action', { action } as LogContext);
-
-        switch (action) {
-          case 'start':
-            layerRenderer.startRenderLoop();
-            break;
-          case 'stop':
-            layerRenderer.stopRenderLoop();
-            break;
-          case 'pause':
-            layerRenderer.stopRenderLoop();
-            break;
-        }
-
-        const health = layerRenderer.getHealth();
-        logger.info('Stream control action completed', {
-          action,
-          status: health.status,
-          fps: health.fps
-        } as LogContext);
-
-        res.json({
-          success: true,
-          status: health.status,
-          fps: health.fps
-        });
-      } catch (error) {
-        logger.error('Error controlling stream', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        } as LogContext);
-        res.status(500).json({ 
-          error: 'Failed to control stream',
-          message: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
     });
 
     // Add status endpoint

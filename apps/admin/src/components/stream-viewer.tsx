@@ -7,6 +7,14 @@ interface StreamViewerProps {
   width?: number;
   height?: number;
   fps?: number;
+  streamStatus?: {
+    isLive: boolean;
+    fps: number;
+    targetFPS: number;
+    layerCount: number;
+    averageRenderTime: number;
+    isPaused?: boolean;
+  };
 }
 
 // Function to fetch stream status
@@ -24,9 +32,10 @@ async function fetchStreamStatus() {
 }
 
 export function StreamViewer({ 
-  width = 1280,  // Match backend resolution
-  height = 720,  // Match backend resolution
-  fps = 30
+  width = 1280,
+  height = 720,
+  fps = 30,
+  streamStatus = { isLive: true, fps: 0, targetFPS: 30, layerCount: 0, averageRenderTime: 0 }
 }: StreamViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +55,16 @@ export function StreamViewer({
       }
     };
 
-    // Poll every second
-    const interval = setInterval(pollStatus, 1000);
-    pollStatus(); // Initial poll
-
-    return () => clearInterval(interval);
-  }, []);
+    // Only poll if we're not getting status from props
+    if (!streamStatus) {
+      // Initial poll
+      pollStatus();
+      // Set up polling interval
+      const interval = setInterval(pollStatus, 1000);
+      // Cleanup
+      return () => clearInterval(interval);
+    }
+  }, [streamStatus]); // Depend on streamStatus
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -160,15 +173,50 @@ export function StreamViewer({
   }, [width, height, fps]);  // Re-initialize when props change
 
   return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+    <div className="relative w-full aspect-video bg-[#1a1a1a] rounded-lg overflow-hidden">
+      {/* Canvas is only visible when streaming or paused */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full object-contain"
+        className={`w-full h-full object-contain ${!streamStatus.isLive && !streamStatus.isPaused ? 'hidden' : ''}`}
         style={{ imageRendering: 'auto' }}
       />
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
-          <p className="text-white text-sm">{error}</p>
+      
+      {/* Offline state - shows when not streaming and not paused */}
+      {!streamStatus.isLive && !streamStatus.isPaused && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <div className="text-lg font-medium">Stream Offline</div>
+          </div>
+          <div className="text-sm text-gray-400">
+            Start the stream to begin broadcasting
+          </div>
+        </div>
+      )}
+
+      {/* Paused state - overlay on top of last frame */}
+      {streamStatus.isPaused && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            <div className="text-lg font-medium">Stream Paused</div>
+          </div>
+          <div className="text-sm text-gray-400">
+            Resume the stream to continue broadcasting
+          </div>
+        </div>
+      )}
+
+      {/* Error state - shows only during active streaming */}
+      {error && streamStatus.isLive && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <div className="text-lg font-medium">Stream Error</div>
+          </div>
+          <div className="text-sm text-gray-400">
+            {error}
+          </div>
         </div>
       )}
     </div>

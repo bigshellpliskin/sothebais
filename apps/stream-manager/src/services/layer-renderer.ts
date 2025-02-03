@@ -91,6 +91,8 @@ export class LayerRenderer {
   private lastFPSUpdate: number = 0;
   private currentFPS: number = 0;
   private isHealthy: boolean = true;
+  private isStreaming: boolean = false;
+  private isPaused: boolean = false;
   private lastError: Error | null = null;
   private renderTimes: number[] = [];
   private lastLayerCount: number = 0;
@@ -160,19 +162,21 @@ export class LayerRenderer {
     lastError: string | null;
     memoryUsage: NodeJS.MemoryUsage;
     layerCount: number;
+    isPaused: boolean;
   } {
     const averageRenderTime = this.renderTimes.length > 0
       ? this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length
       : 0;
 
     return {
-      status: this.isHealthy ? 'healthy' : 'unhealthy',
+      status: this.isStreaming && this.isHealthy ? 'healthy' : 'unhealthy',
       fps: this.currentFPS,
       targetFPS: this.targetFPS,
       averageRenderTime,
       lastError: this.lastError?.message || null,
       memoryUsage: process.memoryUsage(),
-      layerCount: layerManager.getAllLayers().length
+      layerCount: layerManager.getAllLayers().length,
+      isPaused: this.isPaused
     };
   }
 
@@ -256,6 +260,9 @@ export class LayerRenderer {
       return;
     }
 
+    this.isStreaming = true;
+    this.isHealthy = true;
+    this.isPaused = false;
     this.lastFrameTime = performance.now();
     this.lastFPSUpdate = this.lastFrameTime;
     this.frameCount = 0;
@@ -338,7 +345,29 @@ export class LayerRenderer {
     if (this.renderInterval !== null) {
       clearInterval(this.renderInterval);
       this.renderInterval = null;
-      logger.info('Stopped render loop');
+      this.isStreaming = false;
+      this.isPaused = false;
+      this.currentFPS = 0;
+      
+      // Clear the canvas when stopping (not when pausing)
+      const { ctx, width, height } = this.mainContext;
+      ctx.clearRect(0, 0, width, height);
+      // Fill with a dark background
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, width, height);
+      
+      logger.info('Stopped render loop and cleared canvas');
+    }
+  }
+
+  public pauseRenderLoop(): void {
+    if (this.renderInterval !== null) {
+      clearInterval(this.renderInterval);
+      this.renderInterval = null;
+      this.isStreaming = false;
+      this.isPaused = true;
+      this.currentFPS = 0;
+      logger.info('Paused render loop');
     }
   }
 
