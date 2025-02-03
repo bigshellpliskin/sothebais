@@ -2,10 +2,9 @@ import { createCanvas } from '@napi-rs/canvas';
 import { logger } from '../utils/logger.js';
 import { layerManager } from './layer-manager.js';
 import type { Layer, Transform, Point2D, HostLayer, AssistantLayer, VisualFeedLayer, OverlayLayer, ChatLayer, LayerType } from '../types/layers.js';
-import { characterRenderer } from '../renderers/character-renderer.js';
-import { visualFeedRenderer } from '../renderers/visual-feed-renderer.js';
-import { overlayRenderer } from '../renderers/overlay-renderer.js';
-import { chatRenderer } from '../renderers/chat-renderer.js';
+import { SharpRenderer } from '../pipeline/sharp-renderer.js';
+import { OptimizedStreamManager } from '../pipeline/stream-manager.js';
+import { FrameBufferManager } from '../pipeline/frame-buffer.js';
 import type { CanvasRenderingContext2D } from '@napi-rs/canvas';
 import type { LogContext } from '../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
@@ -485,76 +484,24 @@ export class LayerRenderer {
   }
 
   private async renderLayer(layer: Layer): Promise<void> {
-    const { ctx } = this.mainContext;
-    
     if (!layer.visible || layer.opacity === 0) {
       return;
     }
 
-    const currentHash = this.getLayerHash(layer);
-    const cached = this.layerCache.get(layer.id);
-    
-    // Use cached version if available and content hasn't changed
-    if (cached && cached.hash === currentHash) {
-      // Apply opacity even when using cached version
-      ctx.globalAlpha = layer.opacity;
-      ctx.drawImage(cached.canvas, 0, 0);
-      ctx.globalAlpha = 1;
-      return;
-    }
-
-    // Create a new canvas for this layer
-    const layerCanvas = createCanvas(this.mainContext.width, this.mainContext.height);
-    const layerCtx = layerCanvas.getContext('2d');
-
-    // Apply transforms to the layer context
-    if (layer.transform) {
-      this.applyTransform(layerCtx, layer.transform);
-    }
-
-    const renderStartTime = performance.now();
+    const startTime = Date.now();
 
     try {
-      // Render the layer content
-      switch (layer.type) {
-        case 'host':
-        case 'assistant':
-          await characterRenderer.renderCharacter(layerCtx, layer);
-          break;
-        case 'visualFeed': {
-          const visualLayer = layer as VisualFeedLayer;
-          await visualFeedRenderer.renderVisualFeed(layerCtx, visualLayer.content, this.mainContext.width, this.mainContext.height);
-          break;
-        }
-        case 'overlay': {
-          const overlayLayer = layer as OverlayLayer;
-          await overlayRenderer.renderOverlay(layerCtx, overlayLayer.content, this.mainContext.width, this.mainContext.height);
-          break;
-        }
-        case 'chat': {
-          const chatLayer = layer as ChatLayer;
-          await chatRenderer.renderChat(layerCtx, chatLayer, this.mainContext.width, this.mainContext.height);
-          break;
-        }
-      }
-
-      // Cache the rendered layer
-      this.layerCache.set(layer.id, {
-        canvas: layerCanvas,
-        lastUpdated: Date.now(),
-        hash: currentHash
-      });
-
-      // Draw the layer to the main canvas with proper opacity
-      ctx.globalAlpha = layer.opacity;
-      ctx.drawImage(layerCanvas, 0, 0);
-      ctx.globalAlpha = 1;
+      // Use SharpRenderer to composite the layer
+      const buffer = await SharpRenderer.getInstance().composite([layer]);
+      
+      // Convert buffer to canvas
+      const img = await createImageBitmap(new Blob([buffer]));
+      this.mainContext.ctx.drawImage(img, 0, 0);
 
       // Update metrics
-      const renderTime = performance.now() - renderStartTime;
+      const renderTime = Date.now() - startTime;
       layerRenderTimeGauge.set({ layer_id: layer.id, layer_type: layer.type }, renderTime);
       layerVisibilityGauge.set({ layer_id: layer.id, layer_type: layer.type }, layer.visible ? 1 : 0);
-
     } catch (error) {
       logger.error('Failed to render layer', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -562,9 +509,6 @@ export class LayerRenderer {
         layerId: layer.id,
         layerType: layer.type
       } as LogContext);
-      
-      // Remove failed layer from cache
-      this.layerCache.delete(layer.id);
     }
   }
 

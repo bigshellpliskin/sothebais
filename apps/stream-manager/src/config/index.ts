@@ -23,6 +23,14 @@ const configSchema = z.object({
   RENDER_QUALITY: z.enum(["low", "medium", "high"]).default("high"),
   STREAM_RESOLUTION: z.string().regex(/^\d+x\d+$/).default("1920x1080"),
 
+  // FFmpeg specific configuration
+  STREAM_URL: z.string().default("rtmp://localhost/live/stream"),
+  STREAM_BITRATE: z.string().transform(Number).pipe(z.number().min(100).max(10000)).default("4000"),
+  FFMPEG_HWACCEL: z.enum(["nvenc", "qsv", "vaapi", "videotoolbox"]).optional(),
+  AUDIO_ENABLED: z.string().transform((v) => v === "true").default("true"),
+  AUDIO_CODEC: z.enum(["aac", "opus"]).default("aac"),
+  AUDIO_BITRATE: z.string().transform(Number).pipe(z.number().min(64).max(320)).default("128"),
+
   // Environment
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });

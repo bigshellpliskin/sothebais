@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import type { LogContext } from '../../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
 import { EventEmitter } from 'events';
+import { getConfig } from '../../config/index.js';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -291,11 +292,18 @@ export class StreamEncoder extends EventEmitter {
 }
 
 export const streamEncoder = StreamEncoder.getInstance({
-  width: 1920,
-  height: 1080,
-  fps: 30,
-  bitrate: 2500,
-  codec: 'h264',
-  preset: 'veryfast',
-  streamUrl: process.env.STREAM_URL || 'rtmp://localhost/live/stream'
+  ...(() => {
+    const config = getConfig();
+    const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+    return {
+      width,
+      height,
+      fps: config.TARGET_FPS,
+      preset: config.RENDER_QUALITY === 'high' ? 'medium' : 
+              config.RENDER_QUALITY === 'medium' ? 'veryfast' : 'ultrafast',
+      bitrate: config.STREAM_BITRATE,
+      codec: 'h264',
+      streamUrl: config.STREAM_URL
+    };
+  })()
 }); 
