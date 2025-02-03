@@ -9,6 +9,20 @@ interface StreamViewerProps {
   fps?: number;
 }
 
+// Function to fetch stream status
+async function fetchStreamStatus() {
+  try {
+    const response = await fetch('/api/stream/status');
+    if (!response.ok) {
+      throw new Error('Failed to fetch stream status');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching stream status:', error);
+    return null;
+  }
+}
+
 export function StreamViewer({ 
   width = 1280,  // Match backend resolution
   height = 720,  // Match backend resolution
@@ -16,11 +30,28 @@ export function StreamViewer({
 }: StreamViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentFPS, setCurrentFPS] = useState<number>(fps);
   const abortControllerRef = useRef<AbortController | null>(null);
   const frameRequestRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
   const errorCountRef = useRef<number>(0);
   const frameIntervalRef = useRef<number>(1000 / fps);
+
+  // Add status polling effect
+  useEffect(() => {
+    const pollStatus = async () => {
+      const status = await fetchStreamStatus();
+      if (status && typeof status.fps === 'number') {
+        setCurrentFPS(status.fps);
+      }
+    };
+
+    // Poll every second
+    const interval = setInterval(pollStatus, 1000);
+    pollStatus(); // Initial poll
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;

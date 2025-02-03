@@ -18,6 +18,7 @@ export default function DemoPage() {
   const [streamStatus, setStreamStatus] = useState({
     isLive: false,
     fps: 0,
+    targetFPS: 30,
     layerCount: 0,
     averageRenderTime: 0
   });
@@ -26,12 +27,47 @@ export default function DemoPage() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch('/api/stream/status');
-        if (!response.ok) throw new Error('Failed to fetch status');
+        const apiUrl = '/api/stream/status';
+        // console.log('[Frontend] Making request to:', apiUrl);
+        const response = await fetch(apiUrl, {
+          // Add headers to ensure proper routing
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('[Frontend] Bad response:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: response.url
+          });
+          throw new Error('Failed to fetch status');
+        }
+        
         const data = await response.json();
-        setStreamStatus(data);
+        
+        // Log the raw data from stream manager
+        // console.log('[Frontend] Raw status data:', {
+        //   fps: data.fps,
+        //   targetFPS: data.targetFPS,
+        //   timestamp: new Date().toISOString()
+        // });
+        
+        // Verify the data before updating state
+        if (typeof data.fps !== 'number') {
+          console.warn('[Frontend] Invalid FPS value received:', data.fps);
+          return;
+        }
+        
+        setStreamStatus(prevStatus => ({
+          ...prevStatus,
+          ...data,
+          fps: data.fps || 0 // Ensure we have a number, default to 0
+        }));
       } catch (error) {
-        console.error('Error fetching stream status:', error);
+        console.error('[Frontend] Error fetching stream status:', error);
       }
     };
 
@@ -43,7 +79,7 @@ export default function DemoPage() {
 
     // Cleanup
     return () => clearInterval(interval);
-  }, []);
+  }, []); // Keep empty dependency array
 
   const toggleLayer = async (type: string) => {
     //console.log('Toggling layer:', type, 'Current state:', layerStates[type]);

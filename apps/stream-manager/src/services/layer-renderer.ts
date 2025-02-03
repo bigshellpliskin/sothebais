@@ -311,19 +311,17 @@ export class LayerRenderer {
         if (now - this.lastFPSUpdate >= 1000) {
           this.currentFPS = this.frameCount;
           frameRateGauge.set(this.currentFPS);
+          
+          // Log FPS calculation
+          logger.info('FPS Update', {
+            frameCount: this.frameCount,
+            calculatedFPS: this.currentFPS,
+            elapsedTime: now - this.lastFPSUpdate,
+            timestamp: new Date().toISOString()
+          } as LogContext);
+          
           this.frameCount = 0;
           this.lastFPSUpdate = now;
-          
-          // Log performance metrics
-          /*
-          logger.info('Performance metrics', {
-            fps: this.currentFPS,
-            targetFPS: this.targetFPS,
-            averageRenderTime: this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length,
-            consecutiveSlowFrames,
-            memoryUsage: process.memoryUsage()
-          } as LogContext);
-          */
         }
       }
     }, this.frameInterval);
