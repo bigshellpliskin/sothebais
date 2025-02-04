@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const assetsDir = join(__dirname, '../../assets');
 
-// Sample VTuber character
+// Default VTuber character configuration
 const hostCharacter: VTuberCharacter = {
   modelUrl: 'assets/characters/auctioneer.png',
   textureUrl: null,  // No separate texture needed
@@ -21,7 +21,7 @@ const hostCharacter: VTuberCharacter = {
   height: 512
 };
 
-// Sample NFT content
+// Default NFT content configuration
 const nftContent: NFTContent = {
   imageUrl: 'assets/nfts/boy-with-apple.jpg',
   metadata: {
@@ -32,7 +32,7 @@ const nftContent: NFTContent = {
   }
 };
 
-// Auction info overlay content
+// Default auction info overlay content
 const auctionInfoContent: OverlayContent = {
   type: 'text',
   content: 'Current Bid: 1.5 ETH | Time Remaining: 10:00 | Highest Bidder: Collector123',
@@ -55,7 +55,7 @@ const auctionInfoContent: OverlayContent = {
   }
 };
 
-// Sample chat messages
+// Default chat messages
 const chatMessages: ChatMessage[] = [
   {
     id: '1',
@@ -80,7 +80,7 @@ const chatMessages: ChatMessage[] = [
   }
 ];
 
-export async function createTestLayers() {
+export async function createDefaultLayers() {
   try {
     // Calculate dimensions for 720p
     const CANVAS_WIDTH = 1280;  // 720p width
@@ -89,7 +89,7 @@ export async function createTestLayers() {
     const MAIN_PANEL_WIDTH = CANVAS_WIDTH - RIGHT_PANEL_WIDTH;
     const AUCTION_INFO_HEIGHT = 60; // Scaled down for 720p
 
-    logger.info('Creating test layers with dimensions:', {
+    logger.info('Creating default layers with dimensions:', {
       CANVAS_WIDTH,
       CANVAS_HEIGHT,
       RIGHT_PANEL_WIDTH,
@@ -227,8 +227,8 @@ export async function createTestLayers() {
 
     return allLayers;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create test layers';
-    logger.error('Failed to create test layers:', {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create default layers';
+    logger.error('Failed to create default layers:', {
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined
     });

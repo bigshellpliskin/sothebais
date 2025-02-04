@@ -5,7 +5,8 @@ const STREAM_MANAGER_URL = 'http://stream-manager:4200';
 
 export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${STREAM_MANAGER_URL}/demo/frame`, {
+    console.log('[Frame API] Attempting to fetch frame from stream manager...');
+    const response = await fetch(`${STREAM_MANAGER_URL}/stream/frame`, {
       headers: {
         'Accept': 'image/png',
         'User-Agent': 'admin-frontend'
@@ -13,10 +14,19 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
+      console.error('[Frame API] Stream manager responded with error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url
+      });
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const blob = await response.blob();
+    console.log('[Frame API] Successfully fetched frame:', {
+      size: blob.size,
+      type: blob.type
+    });
     
     return new NextResponse(blob, {
       status: 200,
@@ -26,7 +36,11 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Error proxying frame request:', error);
+    console.error('[Frame API] Error proxying frame request:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      url: `${STREAM_MANAGER_URL}/stream/frame`,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return new NextResponse(
       JSON.stringify({ error: 'Failed to fetch frame from stream manager' }),
       { 

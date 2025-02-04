@@ -1,11 +1,13 @@
 import sharp from 'sharp';
-import { logger } from '../../utils/logger.js';
-import type { Layer, Transform } from '../../types/layers.js';
-import type { LogContext } from '../../utils/logger.js';
+import { logger } from '../utils/logger.js';
+import type { Layer, Transform, VisualFeedLayer, NFTContent, LayerType } from '../types/layers.js';
+import type { LogContext } from '../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
 import { join, dirname, basename } from 'path';
 import { glob } from 'glob';
 import { promisify } from 'util';
+import { Canvas, createCanvas } from '@napi-rs/canvas';
+import { existsSync } from 'fs';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -175,17 +177,47 @@ export class SharpRenderer {
     try {
       // Skip invisible layers
       if (!layer.visible || layer.opacity === 0) {
+        logger.info('Skipping invisible layer', {
+          layerId: layer.id,
+          layerType: layer.type,
+          visible: layer.visible,
+          opacity: layer.opacity
+        } as LogContext);
         return null;
       }
+
+      logger.info('Processing layer', {
+        layerId: layer.id,
+        layerType: layer.type,
+        transform: layer.transform,
+        opacity: layer.opacity
+      } as LogContext);
 
       // Get layer content as buffer (implementation depends on layer type)
       const buffer = await this.getLayerBuffer(layer);
       if (!buffer) {
+        logger.warn('Layer buffer is null', {
+          layerId: layer.id,
+          layerType: layer.type
+        } as LogContext);
         return null;
       }
 
+      logger.info('Layer buffer obtained', {
+        layerId: layer.id,
+        layerType: layer.type,
+        bufferSize: buffer.length
+      } as LogContext);
+
       // Apply transformations
       const transformed = await this.applyTransform(buffer, layer.transform);
+
+      logger.info('Layer transformed', {
+        layerId: layer.id,
+        layerType: layer.type,
+        transformedSize: transformed.length,
+        transform: layer.transform
+      } as LogContext);
 
       return {
         input: transformed,
@@ -198,29 +230,26 @@ export class SharpRenderer {
       logger.error('Failed to convert layer to composite', {
         error: error instanceof Error ? error.message : 'Unknown error',
         layerId: layer.id,
-        layerType: layer.type
+        layerType: layer.type,
+        stack: error instanceof Error ? error.stack : undefined
       } as LogContext);
       return null;
     }
   }
 
   private async getLayerBuffer(layer: Layer): Promise<Buffer | null> {
-    // Check cache first
-    const cacheKey = this.getLayerCacheKey(layer);
-    const cached = this.compositeCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      return cached.buffer;
-    }
-
     try {
-      let buffer: Buffer;
+      let buffer: Buffer | null = null;
+      
       switch (layer.type) {
         case 'host':
         case 'assistant':
           buffer = await this.getCharacterBuffer(layer);
           break;
         case 'visualFeed':
-          buffer = await this.getVisualFeedBuffer(layer);
+          if (this.isVisualFeedLayer(layer)) {
+            buffer = await this.getVisualFeedBuffer(layer);
+          }
           break;
         case 'overlay':
           buffer = await this.getOverlayBuffer(layer);
@@ -229,21 +258,34 @@ export class SharpRenderer {
           buffer = await this.getChatBuffer(layer);
           break;
         default:
+          logger.warn('Unknown layer type', {
+            layerId: (layer as Layer).id,
+            layerType: (layer as Layer).type
+          } as LogContext);
           return null;
       }
 
-      // Cache the result
-      this.compositeCache.set(cacheKey, {
-        buffer,
-        timestamp: Date.now()
-      });
+      if (!buffer) {
+        logger.warn('Layer type handler returned null buffer', {
+          layerId: layer.id,
+          layerType: layer.type
+        } as LogContext);
+        return null;
+      }
+
+      logger.info('Layer buffer generated', {
+        layerId: layer.id,
+        layerType: layer.type,
+        bufferSize: buffer.length
+      } as LogContext);
 
       return buffer;
     } catch (error) {
       logger.error('Failed to get layer buffer', {
         error: error instanceof Error ? error.message : 'Unknown error',
         layerId: layer.id,
-        layerType: layer.type
+        layerType: layer.type,
+        stack: error instanceof Error ? error.stack : undefined
       } as LogContext);
       return null;
     }
@@ -451,87 +493,73 @@ export class SharpRenderer {
     }
   }
 
-  private async getVisualFeedBuffer(layer: Layer): Promise<Buffer> {
-    if (layer.type !== 'visualFeed') {
-      throw new Error('Invalid layer type for visual feed buffer');
-    }
+  private isVisualFeedLayer(layer: Layer): layer is VisualFeedLayer {
+    return layer.type === 'visualFeed' && 'content' in layer && 'imageUrl' in (layer as VisualFeedLayer).content;
+  }
 
+  private async getVisualFeedBuffer(layer: VisualFeedLayer): Promise<Buffer | null> {
     try {
-      const { imageUrl, metadata } = layer.content;
-      const cacheKey = `visualfeed-${imageUrl}-${JSON.stringify(metadata)}`;
-      
-      // Check cache first
-      const cached = this.compositeCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-        return cached.buffer;
-      }
-
-      // Convert URL to file path
-      const imagePath = this.urlToFilePath(imageUrl);
-      
-      // Create base image with Sharp
-      let feedImage = sharp(imagePath);
-
-      // Get image metadata
-      const imageInfo = await feedImage.metadata();
-      
-      // Calculate dimensions preserving aspect ratio
-      const aspectRatio = imageInfo.width! / imageInfo.height!;
-      let targetWidth = this.width;
-      let targetHeight = this.height;
-
-      if (this.width / this.height > aspectRatio) {
-        targetWidth = Math.round(this.height * aspectRatio);
-      } else {
-        targetHeight = Math.round(this.width / aspectRatio);
-      }
-
-      // Resize image
-      feedImage = feedImage.resize({
-        width: targetWidth,
-        height: targetHeight,
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 0 }
-      });
-
-      // If metadata exists, create an overlay
-      if (Object.keys(metadata).length > 0) {
-        const metadataBuffer = await this.createMetadataOverlay(
-          metadata,
-          targetWidth,
-          Math.min(150, targetHeight / 3) // Metadata overlay height
-        );
-
-        // Composite the metadata overlay at the bottom of the image
-        feedImage = feedImage.composite([{
-          input: metadataBuffer,
-          gravity: 'south',
-          blend: 'over'
-        }]);
-      }
-
-      // Get final buffer
-      const buffer = await feedImage.toBuffer();
-
-      // Cache the result
-      this.compositeCache.set(cacheKey, {
-        buffer,
-        timestamp: Date.now()
-      });
-
-      return buffer;
-    } catch (error) {
-      logger.error('Failed to generate visual feed buffer', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+      const { imageUrl } = layer.content;
+      logger.info('Loading visual feed image', {
         layerId: layer.id,
-        imageUrl: layer.content.imageUrl
+        imageUrl
       } as LogContext);
 
-      return await this.generateErrorStateBuffer(
-        'Error loading visual feed',
-        this.width,
-        this.height
-      );
+      // Check if the image URL is absolute or relative
+      const imagePath = imageUrl.startsWith('/') ? 
+        imageUrl : 
+        join(process.cwd(), imageUrl);
+
+      logger.info('Resolved image path', {
+        layerId: layer.id,
+        originalUrl: imageUrl,
+        resolvedPath: imagePath,
+        exists: existsSync(imagePath)
+      } as LogContext);
+
+      try {
+        // First try to load the image to verify it exists
+        const metadata = await sharp(imagePath).metadata();
+        logger.info('Image metadata loaded successfully', {
+          layerId: layer.id,
+          path: imagePath,
+          format: metadata.format,
+          width: metadata.width,
+          height: metadata.height
+        } as LogContext);
+      } catch (error) {
+        logger.error('Failed to load image metadata', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          layerId: layer.id,
+          path: imagePath,
+          stack: error instanceof Error ? error.stack : undefined
+        } as LogContext);
+        throw error;
+      }
+
+      // Now load and process the image
+      const imageBuffer = await sharp(imagePath)
+        .ensureAlpha()  // Ensure we have an alpha channel
+        .resize(this.width, this.height, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        })
+        .png()  // Convert to PNG format
+        .toBuffer();
+
+      logger.info('Image processed successfully', {
+        layerId: layer.id,
+        bufferSize: imageBuffer.length
+      } as LogContext);
+
+      return imageBuffer;
+    } catch (error) {
+      logger.error('Failed to process visual feed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        layerId: layer.id,
+        stack: error instanceof Error ? error.stack : undefined
+      } as LogContext);
+      return null;
     }
   }
 

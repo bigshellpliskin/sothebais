@@ -3,14 +3,14 @@ import type { Request, Response } from 'express';
 import { createClient } from 'redis';
 import type { Server as WebSocketServer } from 'ws';
 import { WebSocket } from 'ws';
-import { createCanvas } from '@napi-rs/canvas';
 import { logger } from './utils/logger.js';
 import { getConfig, loadConfig } from './config/index.js';
 import { redisService } from './services/redis.js';
 import { webSocketService } from './services/websocket.js';
 import { layerRenderer } from './services/layer-renderer.js';
 import { Registry, collectDefaultMetrics } from 'prom-client';
-import { setupDemoServer } from './demo/demo-server.js';
+import { setupStreamServer } from './server/stream-server.js';
+import { StreamEncoder } from './pipeline/stream-encoder.js';
 
 // Create a Registry to register metrics
 const register = new Registry();
@@ -56,6 +56,24 @@ async function startServer() {
     logger.info('Redis connection established', {
       host: config.REDIS_URL,
       status: 'connected'
+    });
+
+    // Initialize stream encoder
+    const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+    StreamEncoder.initialize({
+      width,
+      height,
+      fps: config.TARGET_FPS,
+      preset: config.RENDER_QUALITY === 'high' ? 'medium' : 
+              config.RENDER_QUALITY === 'medium' ? 'veryfast' : 'ultrafast',
+      bitrate: config.STREAM_BITRATE,
+      codec: 'h264',
+      streamUrl: config.STREAM_URL
+    });
+    logger.info('Stream encoder initialized', {
+      resolution: config.STREAM_RESOLUTION,
+      fps: config.TARGET_FPS,
+      quality: config.RENDER_QUALITY
     });
 
     // Create Express apps
@@ -136,7 +154,7 @@ async function startServer() {
     });
 
     // Set up demo server
-    await setupDemoServer(app);
+    await setupStreamServer(app);
 
     logger.info('Stream Manager ready', {
       status: 'healthy',

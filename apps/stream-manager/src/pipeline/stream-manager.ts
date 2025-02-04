@@ -1,11 +1,12 @@
-import { logger } from '../../utils/logger.js';
-import type { LogContext } from '../../utils/logger.js';
+import { logger } from '../utils/logger.js';
+import type { LogContext } from '../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
 import { sharpRenderer } from './sharp-renderer.js';
 import { frameBufferManager } from './frame-buffer.js';
-import { streamEncoder } from './stream-encoder.js';
-import type { Layer } from '../../types/layers.js';
+import { StreamEncoder, type StreamConfig } from './stream-encoder.js';
+import type { Layer } from '../types/layers.js';
 import { EventEmitter } from 'events';
+import type { FrameBuffer } from '../types/frame-buffer.js';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -30,36 +31,58 @@ export interface StreamManagerConfig {
   bitrate: number;
 }
 
-export class OptimizedStreamManager extends EventEmitter {
-  private static instance: OptimizedStreamManager;
-  private config: StreamManagerConfig;
+export class StreamManager extends EventEmitter {
+  private static instance: StreamManager | null = null;
+  private streamEncoder: StreamEncoder;
   private isStreaming: boolean = false;
-  private renderInterval: NodeJS.Timeout | null = null;
   private frameCount: number = 0;
   private lastFrameTime: number = 0;
   private currentFPS: number = 0;
   private layers: Layer[] = [];
 
-  private constructor(config: StreamManagerConfig) {
+  private constructor() {
     super();
-    this.config = config;
-
-    // Start metrics collection
+    // Initialize metrics collection
     this.startMetricsCollection();
-
-    // Listen for encoder events
-    this.setupEncoderEvents();
-
-    logger.info('Optimized stream manager initialized', {
-      ...config
-    } as LogContext);
+    logger.info('Stream manager initialized');
   }
 
-  public static getInstance(config?: StreamManagerConfig): OptimizedStreamManager {
-    if (!OptimizedStreamManager.instance && config) {
-      OptimizedStreamManager.instance = new OptimizedStreamManager(config);
+  public static initialize(config: StreamConfig): StreamManager {
+    if (!StreamManager.instance) {
+      StreamManager.instance = new StreamManager();
+      // Initialize the encoder
+      StreamEncoder.initialize(config);
+      StreamManager.instance.streamEncoder = StreamEncoder.getInstance();
+      StreamManager.instance.setupEventHandlers();
     }
-    return OptimizedStreamManager.instance;
+    return StreamManager.instance;
+  }
+
+  public static getInstance(): StreamManager {
+    if (!StreamManager.instance) {
+      throw new Error('StreamManager not initialized. Call initialize() first.');
+    }
+    return StreamManager.instance;
+  }
+
+  private setupEventHandlers(): void {
+    this.streamEncoder.on('error', (error) => {
+      logger.error('Stream encoder error', {
+        error: error.message,
+        code: error.code,
+        status: 'error'
+      } as LogContext);
+      this.emit('error', error);
+    });
+
+    this.streamEncoder.on('fatal_error', (error) => {
+      logger.error('Fatal stream encoder error', {
+        error: error.message,
+        code: error.code,
+        status: 'fatal'
+      } as LogContext);
+      this.emit('fatal_error', error);
+    });
   }
 
   private startMetricsCollection(): void {
@@ -69,46 +92,17 @@ export class OptimizedStreamManager extends EventEmitter {
     }, 5000);
   }
 
-  private setupEncoderEvents(): void {
-    streamEncoder.on('error', (error) => {
-      logger.error('Encoder error', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      } as LogContext);
-      this.emit('error', error);
-    });
-
-    streamEncoder.on('fatal_error', (error) => {
-      logger.error('Fatal encoder error', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      } as LogContext);
-      this.stop();
-      this.emit('fatal_error', error);
-    });
-  }
-
-  public async start(): Promise<void> {
+  public start(): void {
     if (this.isStreaming) {
-      logger.warn('Stream manager is already running');
       return;
     }
 
-    try {
-      // Start the encoder
-      streamEncoder.start();
-
-      // Start the render loop
-      this.startRenderLoop();
-
-      this.isStreaming = true;
-      logger.info('Stream manager started');
-      this.emit('started');
-    } catch (error) {
-      logger.error('Failed to start stream manager', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      } as LogContext);
-      this.emit('error', error);
-      throw error;
-    }
+    this.isStreaming = true;
+    this.streamEncoder.start();
+    
+    logger.info('Stream started', {
+      status: 'started'
+    } as LogContext);
   }
 
   public stop(): void {
@@ -116,111 +110,62 @@ export class OptimizedStreamManager extends EventEmitter {
       return;
     }
 
-    try {
-      // Stop the render loop
-      if (this.renderInterval) {
-        clearInterval(this.renderInterval);
-        this.renderInterval = null;
-      }
+    this.isStreaming = false;
+    this.streamEncoder.stop();
 
-      // Stop the encoder
-      streamEncoder.stop();
-
-      this.isStreaming = false;
-      this.frameCount = 0;
-      logger.info('Stream manager stopped');
-      this.emit('stopped');
-    } catch (error) {
-      logger.error('Failed to stop stream manager', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      } as LogContext);
-      this.emit('error', error);
-    }
+    logger.info('Stream stopped', {
+      status: 'stopped'
+    } as LogContext);
   }
 
-  private startRenderLoop(): void {
-    const frameInterval = 1000 / this.config.fps;
+  public processFrame(frame: FrameBuffer): void {
+    if (!this.isStreaming) {
+      return;
+    }
 
-    this.renderInterval = setInterval(async () => {
-      const startTime = Date.now();
+    // Update FPS calculation
+    const now = Date.now();
+    if (this.lastFrameTime) {
+      const delta = now - this.lastFrameTime;
+      this.currentFPS = 1000 / delta;
+    }
+    this.lastFrameTime = now;
+    this.frameCount++;
 
-      try {
-        // 1. Composite layers using Sharp
-        const composited = await sharpRenderer.composite(this.layers);
+    // Send frame to encoder
+    this.streamEncoder.sendFrame(frame.buffer);
+  }
 
-        // 2. Apply effects using frame buffer
-        frameBufferManager.writeBuffer(composited);
-        frameBufferManager.applyEffects();
+  public updateConfig(config: StreamManagerConfig): void {
+    this.streamEncoder.updateConfig(config);
+  }
 
-        // 3. Get final buffer and send to encoder
-        const finalBuffer = frameBufferManager.getBuffer();
-        streamEncoder.sendFrame(finalBuffer);
-
-        // Update FPS calculation
-        this.frameCount++;
-        const now = Date.now();
-        if (now - this.lastFrameTime >= 1000) {
-          this.currentFPS = this.frameCount;
-          this.frameCount = 0;
-          this.lastFrameTime = now;
-        }
-
-        // Record metrics
-        frameTimeGauge.set(Date.now() - startTime);
-
-      } catch (error) {
-        logger.error('Error in render loop', {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        } as LogContext);
-        this.emit('error', error);
-      }
-    }, frameInterval);
+  public getMetrics(): {
+    isStreaming: boolean;
+    frameCount: number;
+    currentFPS: number;
+    encoderMetrics: ReturnType<typeof StreamEncoder.prototype.getMetrics>;
+  } {
+    return {
+      isStreaming: this.isStreaming,
+      frameCount: this.frameCount,
+      currentFPS: this.currentFPS,
+      encoderMetrics: this.streamEncoder.getMetrics()
+    };
   }
 
   public updateLayers(layers: Layer[]): void {
     this.layers = layers;
   }
-
-  public updateConfig(newConfig: Partial<StreamManagerConfig>): void {
-    this.config = { ...this.config, ...newConfig };
-
-    // Update encoder config
-    streamEncoder.updateConfig({
-      width: this.config.width,
-      height: this.config.height,
-      fps: this.config.fps,
-      bitrate: this.config.bitrate
-    });
-
-    // Restart render loop if FPS changed
-    if (newConfig.fps && this.isStreaming) {
-      if (this.renderInterval) {
-        clearInterval(this.renderInterval);
-      }
-      this.startRenderLoop();
-    }
-  }
-
-  public getMetrics(): {
-    isStreaming: boolean;
-    currentFPS: number;
-    targetFPS: number;
-    encoderMetrics: ReturnType<typeof streamEncoder.getMetrics>;
-    layerCount: number;
-  } {
-    return {
-      isStreaming: this.isStreaming,
-      currentFPS: this.currentFPS,
-      targetFPS: this.config.fps,
-      encoderMetrics: streamEncoder.getMetrics(),
-      layerCount: this.layers.length
-    };
-  }
 }
 
-export const optimizedStreamManager = OptimizedStreamManager.getInstance({
+// Export the singleton instance
+export const streamManager = StreamManager.initialize({
   width: 1920,
   height: 1080,
   fps: 30,
-  bitrate: 2500
+  bitrate: 4000,
+  codec: 'h264',
+  preset: 'medium',
+  streamUrl: 'rtmp://localhost/live/stream'
 }); 

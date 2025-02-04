@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess } from 'child_process';
-import { logger } from '../../utils/logger.js';
-import type { LogContext } from '../../utils/logger.js';
+import { logger } from '../utils/logger.js';
+import type { LogContext } from '../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
 import { EventEmitter } from 'events';
-import { getConfig } from '../../config/index.js';
+import { getConfig } from '../config/index.js';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -38,7 +38,7 @@ export interface StreamConfig {
 }
 
 export class StreamEncoder extends EventEmitter {
-  private static instance: StreamEncoder;
+  private static instance: StreamEncoder | null = null;
   private ffmpeg: ChildProcess | null = null;
   private config: StreamConfig;
   private isStreaming: boolean = false;
@@ -51,18 +51,19 @@ export class StreamEncoder extends EventEmitter {
   private constructor(config: StreamConfig) {
     super();
     this.config = config;
-
-    // Start metrics collection
     this.startMetricsCollection();
-
-    logger.info('Stream encoder initialized', {
-      ...config
-    } as LogContext);
   }
 
-  public static getInstance(config?: StreamConfig): StreamEncoder {
-    if (!StreamEncoder.instance && config) {
+  public static initialize(config: StreamConfig): StreamEncoder {
+    if (!StreamEncoder.instance) {
       StreamEncoder.instance = new StreamEncoder(config);
+    }
+    return StreamEncoder.instance;
+  }
+
+  public static getInstance(): StreamEncoder {
+    if (!StreamEncoder.instance) {
+      throw new Error('StreamEncoder not initialized. Call initialize() first.');
     }
     return StreamEncoder.instance;
   }
@@ -289,21 +290,4 @@ export class StreamEncoder extends EventEmitter {
       restartAttempts: this.restartAttempts
     };
   }
-}
-
-export const streamEncoder = StreamEncoder.getInstance({
-  ...(() => {
-    const config = getConfig();
-    const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
-    return {
-      width,
-      height,
-      fps: config.TARGET_FPS,
-      preset: config.RENDER_QUALITY === 'high' ? 'medium' : 
-              config.RENDER_QUALITY === 'medium' ? 'veryfast' : 'ultrafast',
-      bitrate: config.STREAM_BITRATE,
-      codec: 'h264',
-      streamUrl: config.STREAM_URL
-    };
-  })()
-}); 
+} 

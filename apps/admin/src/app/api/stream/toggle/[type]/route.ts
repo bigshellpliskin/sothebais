@@ -12,7 +12,7 @@ export async function POST(
     const body = await request.json();
     console.log('Request body:', body);
 
-    const streamManagerUrl = `${STREAM_MANAGER_URL}/demo/toggle/${params.type}`;
+    const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/toggle/${params.type}`;
     console.log('Forwarding request to stream manager:', streamManagerUrl);
 
     const response = await fetch(streamManagerUrl, {

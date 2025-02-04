@@ -18,8 +18,8 @@ const navigation = [
     icon: Terminal,
   },
   {
-    name: "Demo",
-    href: "/demo",
+    name: "Livestream",
+    href: "/livestream",
     icon: PlayCircle,
   },
 ];

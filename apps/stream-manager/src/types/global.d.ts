@@ -3,6 +3,5 @@
 /// <reference types="ws" />
 /// <reference types="redis" />
 
-declare module '@napi-rs/canvas';
 declare module 'pino';
 declare module 'pino-pretty'; 

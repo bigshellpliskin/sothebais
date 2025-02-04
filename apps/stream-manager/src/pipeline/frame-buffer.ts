@@ -1,5 +1,5 @@
-import { logger } from '../../utils/logger.js';
-import type { LogContext } from '../../utils/logger.js';
+import { logger } from '../utils/logger.js';
+import type { LogContext } from '../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
 
 // Create a Registry for metrics
