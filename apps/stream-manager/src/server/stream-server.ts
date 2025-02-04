@@ -4,9 +4,10 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { createDefaultLayers } from './default-layers.js';
-import { streamManager } from '../pipeline/stream-manager.js';
+import { StreamManager } from '../pipeline/stream-manager.js';
 import { sharpRenderer } from '../pipeline/sharp-renderer.js';
 import { layerManager } from '../services/layer-manager.js';
+import { layerRenderer } from '../services/layer-renderer.js';
 import { logger } from '../utils/logger.js';
 import type { ChatMessage, ChatLayer } from '../types/layers.js';
 import type { LogContext } from '../utils/logger.js';
@@ -17,6 +18,8 @@ import { StreamEncoder } from '../pipeline/stream-encoder.js';
 // ESM replacement for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let streamManager: StreamManager;
 
 export async function setupStreamServer(app: express.Application) {
   try {
@@ -50,31 +53,20 @@ export async function setupStreamServer(app: express.Application) {
       process.exit(1);
     }
 
-    // Initialize stream manager with default config
+    // Initialize and start the stream manager
     try {
-      const config = getConfig();
-      const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
-      
-      const streamConfig = {
-        width,
-        height,
-        fps: config.TARGET_FPS,
-        bitrate: config.STREAM_BITRATE,
-        codec: config.STREAM_CODEC,
-        preset: config.FFMPEG_PRESET,
-        streamUrl: config.STREAM_URL
-      };
-
-      StreamEncoder.initialize(streamConfig);
+      streamManager = StreamManager.getInstance();
+      layerRenderer.setStreamManager(streamManager);
       await streamManager.start();
       
-      logger.info('Stream manager initialized and started', {
-        resolution: `${width}x${height}`,
+      const config = getConfig();
+      logger.info('Stream manager started', {
+        resolution: config.STREAM_RESOLUTION,
         fps: config.TARGET_FPS,
         bitrate: config.STREAM_BITRATE
       } as LogContext);
     } catch (error) {
-      logger.error('Failed to initialize stream manager', {
+      logger.error('Failed to start stream manager', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       } as LogContext);

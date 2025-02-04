@@ -54,6 +54,7 @@ export default function LivestreamPage() {
     
     // Take all current updates in queue
     const updates = [...updateQueue.current];
+    // Clear the queue
     updateQueue.current = [];
 
     try {

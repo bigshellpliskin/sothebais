@@ -81,7 +81,7 @@ export class StreamManager extends EventEmitter {
 
   public static getInstance(): StreamManager {
     if (!StreamManager.instance) {
-      throw new Error('StreamManager not initialized. Call initialize() first.');
+      return StreamManager.initialize();
     }
     return StreamManager.instance;
   }
@@ -186,7 +186,4 @@ export class StreamManager extends EventEmitter {
   public updateLayers(layers: Layer[]): void {
     this.layers = layers;
   }
-}
-
-// Export the singleton instance
-export const streamManager = StreamManager.initialize(); 
+} 

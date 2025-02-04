@@ -75,7 +75,7 @@ export class LayerRenderer {
   private height: number;
   private sharpRenderer: SharpRenderer;
   private frameBufferManager: FrameBufferManager;
-  private streamManager: StreamManager;
+  private streamManager: StreamManager | null = null;
   private renderLoop: NodeJS.Timeout | null = null;
   private layerCache: Map<string, { buffer: Buffer; lastUpdated: number }> = new Map();
   private readonly CACHE_TTL = 5000; // 5 seconds
@@ -85,7 +85,6 @@ export class LayerRenderer {
     this.height = 1080;
     this.sharpRenderer = SharpRenderer.getInstance();
     this.frameBufferManager = FrameBufferManager.getInstance();
-    this.streamManager = StreamManager.getInstance();
   }
 
   public static getInstance(): LayerRenderer {
@@ -93,6 +92,10 @@ export class LayerRenderer {
       LayerRenderer.instance = new LayerRenderer();
     }
     return LayerRenderer.instance;
+  }
+
+  public setStreamManager(streamManager: StreamManager): void {
+    this.streamManager = streamManager;
   }
 
   public async initialize(): Promise<void> {
@@ -109,7 +112,7 @@ export class LayerRenderer {
   }
 
   public async startRenderLoop(fps: number = 30): Promise<void> {
-    if (this.renderLoop) {
+    if (this.renderLoop || !this.streamManager) {
       return;
     }
 
@@ -125,7 +128,7 @@ export class LayerRenderer {
         const frame = await this.sharpRenderer.composite(layers);
         
         // Process the frame
-        await this.streamManager.emit('frame', frame);
+        await this.streamManager?.emit('frame', frame);
 
         // Update metrics
         const renderTime = Date.now() - startTime;
