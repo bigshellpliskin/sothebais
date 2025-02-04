@@ -74,6 +74,7 @@ export function StreamViewer({
   streamStatus = { isLive: true, fps: 0, targetFPS: 30, layerCount: 0, averageRenderTime: 0 }
 }: StreamViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentFPS, setCurrentFPS] = useState<number>(30);
   const [config, setConfig] = useState<StreamConfig>({
@@ -93,6 +94,42 @@ export function StreamViewer({
 
   // Parse dimensions from resolution
   const [width, height] = config.resolution.split('x').map(Number);
+
+  // Initialize canvas context
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setError('Canvas element not found');
+      return;
+    }
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      setError('Could not get canvas context');
+      return;
+    }
+
+    ctxRef.current = context;
+    
+    // Set initial canvas size
+    canvas.width = width;
+    canvas.height = height;
+
+    // Configure context
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = config.renderQuality;
+
+    return () => {
+      // Cleanup
+      if (frameRequestRef.current) {
+        cancelAnimationFrame(frameRequestRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      ctxRef.current = null;
+    };
+  }, [width, height, config.renderQuality]);
 
   // Fetch initial configuration
   useEffect(() => {
@@ -117,202 +154,145 @@ export function StreamViewer({
   // Add status polling effect
   useEffect(() => {
     const pollStatus = async () => {
-      const status = await fetchStreamStatus();
-      if (status && typeof status.fps === 'number') {
+      try {
+        const status = await fetchStreamStatus();
         setCurrentFPS(status.fps);
+      } catch (err) {
+        console.error('[StreamViewer] Error polling status:', err);
       }
     };
 
-    // Only poll if we're not getting status from props
-    if (!streamStatus) {
-      // Initial poll
-      pollStatus();
-      // Set up polling interval
-      const interval = setInterval(pollStatus, 1000);
-      // Cleanup
-      return () => clearInterval(interval);
-    }
-  }, [streamStatus]); // Depend on streamStatus
+    const intervalId = setInterval(pollStatus, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
-  useEffect(() => {
+  // Function to update canvas with new frame
+  async function updateCanvas(timestamp: number) {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const ctx = ctxRef.current;
 
-    const ctx = canvas.getContext('2d', { alpha: false });  // Disable alpha for better performance
-    if (!ctx) return;
+    if (!ctx || !canvas) {
+      console.error('[StreamViewer] Canvas or context is not available for frame update');
+      return;
+    }
 
-    console.log('[StreamViewer] Initializing canvas with config:', {
-      width,
-      height,
-      renderQuality: config.renderQuality
-    });
+    // Don't fetch frames if stream is not live or is paused
+    if (!streamStatus.isLive || streamStatus.isPaused) {
+      frameRequestRef.current = requestAnimationFrame(updateCanvas);
+      return;
+    }
 
-    // Enable image smoothing based on render quality
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = config.renderQuality;
+    // Check if enough time has passed since last frame
+    const elapsed = timestamp - lastFrameTimeRef.current;
+    if (elapsed < frameIntervalRef.current) {
+      frameRequestRef.current = requestAnimationFrame(updateCanvas);
+      return;
+    }
 
-    // Set canvas size from config
-    canvas.width = width;
-    canvas.height = height;
-
-    // Function to update canvas with new frame
-    async function updateCanvas(timestamp: number) {
-      // Don't fetch frames if stream is not live or is paused
-      if (!streamStatus.isLive || streamStatus.isPaused) {
-        frameRequestRef.current = requestAnimationFrame(updateCanvas);
-        return;
+    try {
+      // Cancel any in-flight requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
+      abortControllerRef.current = new AbortController();
 
-      // Check if enough time has passed since last frame
-      const elapsed = timestamp - lastFrameTimeRef.current;
-      if (elapsed < frameIntervalRef.current) {
-        frameRequestRef.current = requestAnimationFrame(updateCanvas);
-        return;
+      console.log('[StreamViewer] Fetching frame...');
+      const response = await fetch('/api/stream/frame', {
+        signal: abortControllerRef.current.signal,
+        cache: 'no-store'  // Prevent caching of frames
+      });
+
+      if (!response.ok) {
+        console.error('[StreamViewer] Frame fetch failed:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+        throw new Error('Failed to fetch frame');
       }
+      
+      const blob = await response.blob();
+      console.log('[StreamViewer] Frame received:', {
+        size: blob.size,
+        type: blob.type
+      });
 
-      try {
-        // Cancel any in-flight requests
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-        abortControllerRef.current = new AbortController();
+      const img = new Image();
+      
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          try {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw black background first
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Draw the frame
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(null);
+          } catch (err) {
+            reject(err);
+          } finally {
+            // Clean up the blob URL
+            URL.revokeObjectURL(img.src);
+          }
+        };
 
-        console.log('[StreamViewer] Fetching frame...');
-        const response = await fetch('/api/stream/frame', {
-          signal: abortControllerRef.current.signal,
-          cache: 'no-store'  // Prevent caching of frames
-        });
+        img.onerror = () => {
+          URL.revokeObjectURL(img.src);
+          reject(new Error('Failed to load frame image'));
+        };
 
-        if (!response.ok) {
-          console.error('[StreamViewer] Frame fetch failed:', {
-            status: response.status,
-            statusText: response.statusText
-          });
-          throw new Error('Failed to fetch frame');
-        }
-        
-        const blob = await response.blob();
-        console.log('[StreamViewer] Frame received:', {
-          size: blob.size,
-          type: blob.type
-        });
+        img.src = URL.createObjectURL(blob);
+      });
 
-        const img = new Image();
-        
-        await new Promise((resolve, reject) => {
-          img.onload = () => {
-            try {
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              // Draw black background first
-              ctx.fillStyle = '#000000';
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              // Draw the frame
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              resolve(null);
-            } catch (err) {
-              reject(err);
-            } finally {
-              // Clean up the blob URL
-              URL.revokeObjectURL(img.src);
-            }
-          };
-          img.onerror = reject;
-          img.src = URL.createObjectURL(blob);
-        });
-        
-        // Reset error count on success
-        errorCountRef.current = 0;
-        setError(null);
-        
-        // Update last frame time
-        lastFrameTimeRef.current = timestamp;
-      } catch (err) {
-        // Ignore aborted requests
-        if (err instanceof Error && err.name === 'AbortError') {
-          return;
-        }
-
-        // Increase error count and adjust frame rate
-        errorCountRef.current++;
-        if (errorCountRef.current > 3) {
-          // Slow down the frame rate when errors occur
-          frameIntervalRef.current = Math.min(1000, frameIntervalRef.current * 1.5);
-          console.log('[StreamViewer] Reducing frame rate due to errors:', {
-            newInterval: frameIntervalRef.current,
-            errorCount: errorCountRef.current
-          });
-        }
-
-        setError(err instanceof Error ? err.message : 'Failed to update stream');
-        console.error('[StreamViewer] Error updating canvas:', err);
-      } finally {
-        // Add a delay before the next frame if we're experiencing errors
-        const delay = errorCountRef.current > 3 ? 1000 : 0;
-        setTimeout(() => {
-          frameRequestRef.current = requestAnimationFrame(updateCanvas);
-        }, delay);
+      // Update timing references
+      lastFrameTimeRef.current = timestamp;
+      errorCountRef.current = 0;
+    } catch (err) {
+      console.error('[StreamViewer] Error updating canvas:', err);
+      errorCountRef.current++;
+      
+      if (errorCountRef.current > 5) {
+        setError('Stream playback failed');
+        return;
       }
     }
 
-    // Start the render loop
+    // Request next frame
     frameRequestRef.current = requestAnimationFrame(updateCanvas);
+  }
 
-    // Cleanup function
+  // Start animation loop
+  useEffect(() => {
+    frameRequestRef.current = requestAnimationFrame(updateCanvas);
     return () => {
       if (frameRequestRef.current) {
         cancelAnimationFrame(frameRequestRef.current);
       }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
-  }, [width, height, config.renderQuality]);  // Re-initialize when dimensions or quality change
+  }, [streamStatus.isLive, streamStatus.isPaused]);
+
+  if (error) {
+    return (
+      <div className="stream-viewer-error">
+        <p>Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative w-full aspect-video bg-[#1a1a1a] rounded-lg overflow-hidden">
-      {/* Canvas is only visible when streaming or paused */}
+    <div className="stream-viewer">
       <canvas
         ref={canvasRef}
-        className={`w-full h-full object-contain ${!streamStatus.isLive && !streamStatus.isPaused ? 'hidden' : ''}`}
-        style={{ imageRendering: 'auto' }}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          backgroundColor: 'black'
+        }}
       />
-      
-      {/* Offline state - shows when not streaming and not paused */}
-      {!streamStatus.isLive && !streamStatus.isPaused && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <div className="text-lg font-medium">Stream Offline</div>
-          </div>
-          <div className="text-sm text-gray-400">
-            Start the stream to begin broadcasting
-          </div>
-        </div>
-      )}
-
-      {/* Paused state - overlay on top of last frame */}
-      {streamStatus.isPaused && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-yellow-500" />
-            <div className="text-lg font-medium">Stream Paused</div>
-          </div>
-          <div className="text-sm text-gray-400">
-            Resume the stream to continue broadcasting
-          </div>
-        </div>
-      )}
-
-      {/* Error state - shows only during active streaming */}
-      {error && streamStatus.isLive && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <div className="text-lg font-medium">Stream Error</div>
-          </div>
-          <div className="text-sm text-gray-400">
-            {error}
-          </div>
+      {currentFPS > 0 && (
+        <div className="fps-counter">
+          {currentFPS.toFixed(1)} FPS
         </div>
       )}
     </div>

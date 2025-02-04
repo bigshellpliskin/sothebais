@@ -1,52 +1,90 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-// Use internal Docker network URL
-const STREAM_MANAGER_URL = 'http://stream-manager:4200';
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    console.log('[Frame API] Attempting to fetch frame from stream manager...');
-    const response = await fetch(`${STREAM_MANAGER_URL}/stream/frame`, {
+    console.log('[Frame API] Fetching frame...');
+    const response = await fetch('http://stream-manager:4200/frame', {
       headers: {
-        'Accept': 'image/png',
-        'User-Agent': 'admin-frontend'
-      }
+        'Accept': 'image/png'
+      },
+      cache: 'no-store'
     });
 
     if (!response.ok) {
-      console.error('[Frame API] Stream manager responded with error:', {
+      console.error('[Frame API] Failed to fetch frame:', {
         status: response.status,
-        statusText: response.statusText,
-        url: response.url
+        statusText: response.statusText
       });
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to get frame buffer');
     }
 
     const blob = await response.blob();
-    console.log('[Frame API] Successfully fetched frame:', {
+    console.log('[Frame API] Frame received:', {
       size: blob.size,
       type: blob.type
     });
-    
+
     return new NextResponse(blob, {
-      status: 200,
       headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': 'no-store'
+        'Content-Type': 'image/png'
       }
     });
   } catch (error) {
-    console.error('[Frame API] Error proxying frame request:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      url: `${STREAM_MANAGER_URL}/stream/frame`,
-      stack: error instanceof Error ? error.stack : undefined
+    console.error('[Frame API] Error serving frame:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to get frame buffer' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const url = new URL(request.url);
+    if (!url.pathname.endsWith('/config')) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid endpoint' },
+        { status: 404 }
+      );
+    }
+
+    const config = await request.json();
+    if (!config || typeof config !== 'object' ||
+        !config.width || !config.height || !config.fps || !config.format ||
+        typeof config.width !== 'number' ||
+        typeof config.height !== 'number' ||
+        typeof config.fps !== 'number' ||
+        typeof config.format !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid frame configuration' },
+        { status: 400 }
+      );
+    }
+
+    console.log('[Frame API] Updating frame configuration:', config);
+    const response = await fetch('http://stream-manager:4200/frame/config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(config)
     });
-    return new NextResponse(
-      JSON.stringify({ error: 'Failed to fetch frame from stream manager' }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
+
+    if (!response.ok) {
+      console.error('[Frame API] Failed to update config:', {
+        status: response.status,
+        statusText: response.statusText
+      });
+      throw new Error('Failed to update frame configuration');
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[Frame API] Error updating frame config:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update frame configuration' },
+      { status: 500 }
     );
   }
 } 
