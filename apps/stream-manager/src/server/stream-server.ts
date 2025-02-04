@@ -11,6 +11,8 @@ import { logger } from '../utils/logger.js';
 import type { ChatMessage, ChatLayer } from '../types/layers.js';
 import type { LogContext } from '../utils/logger.js';
 import sharp from 'sharp';
+import { getConfig } from '../config/index.js';
+import { StreamEncoder } from '../pipeline/stream-encoder.js';
 
 // ESM replacement for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -27,70 +29,6 @@ export async function setupStreamServer(app: express.Application) {
 
     // Mount the stream router under /stream path
     app.use('/stream', streamRouter);
-
-    // Add stream control endpoint
-    streamRouter.post('/control', async (req: Request, res: Response) => {
-      logger.info('Stream control request received', {
-        body: req.body,
-        method: req.method,
-        url: req.url
-      } as LogContext);
-
-      try {
-        const { action } = req.body;
-        
-        if (!action || !['start', 'stop'].includes(action)) {
-          logger.error('Invalid stream control action', {
-            action,
-            validActions: ['start', 'stop']
-          } as LogContext);
-          return res.status(400).json({ error: 'Invalid action' });
-        }
-
-        switch (action) {
-          case 'start':
-            await streamManager.start();
-            break;
-          case 'stop':
-            streamManager.stop();
-            break;
-        }
-
-        // Get metrics
-        const metrics = streamManager.getMetrics();
-        const isLive = metrics.isStreaming;
-
-        logger.info('Stream control action completed', {
-          action,
-          isLive,
-          fps: metrics.currentFPS,
-          layerCount: layerManager.getAllLayers().length
-        } as LogContext);
-
-        res.json({
-          success: true,
-          isLive,
-          fps: metrics.currentFPS,
-          layerCount: layerManager.getAllLayers().length
-        });
-      } catch (error) {
-        logger.error('Error controlling stream', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        } as LogContext);
-        res.status(500).json({ 
-          error: 'Failed to control stream',
-          message: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-
-    // Serve static assets with proper path resolution
-    const assetsPath = path.join(process.cwd(), 'assets');
-    logger.info('Starting stream server', {
-      assetsPath
-    } as LogContext);
-    streamRouter.use('/assets', express.static(assetsPath));
 
     // Create test layers only if no layers exist
     try {
@@ -112,11 +50,31 @@ export async function setupStreamServer(app: express.Application) {
       process.exit(1);
     }
 
-    // Start the stream manager
+    // Initialize stream manager with default config
     try {
+      const config = getConfig();
+      const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+      
+      const streamConfig = {
+        width,
+        height,
+        fps: config.TARGET_FPS,
+        bitrate: config.STREAM_BITRATE,
+        codec: config.STREAM_CODEC,
+        preset: config.FFMPEG_PRESET,
+        streamUrl: config.STREAM_URL
+      };
+
+      StreamEncoder.initialize(streamConfig);
       await streamManager.start();
+      
+      logger.info('Stream manager initialized and started', {
+        resolution: `${width}x${height}`,
+        fps: config.TARGET_FPS,
+        bitrate: config.STREAM_BITRATE
+      } as LogContext);
     } catch (error) {
-      logger.error('Failed to start stream manager', {
+      logger.error('Failed to initialize stream manager', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       } as LogContext);
@@ -125,13 +83,40 @@ export async function setupStreamServer(app: express.Application) {
 
     // Add status endpoint
     streamRouter.get('/status', (req: Request, res: Response) => {
-      const metrics = streamManager.getMetrics();
-      res.json({
-        isLive: metrics.isStreaming,
-        fps: metrics.currentFPS,
-        layerCount: layerManager.getAllLayers().length,
-        encoderMetrics: metrics.encoderMetrics
-      });
+      try {
+        const metrics = streamManager.getMetrics();
+        if (!metrics) {
+          logger.error('Failed to get stream metrics');
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to get stream metrics'
+          });
+        }
+
+        const status = {
+          success: true,
+          data: {
+            isLive: metrics.isStreaming,
+            fps: metrics.currentFPS || 0,
+            targetFPS: 30, // Default target FPS
+            layerCount: layerManager.getAllLayers().length,
+            averageRenderTime: 0, // Default render time
+            isPaused: false
+          }
+        };
+
+        logger.info('Status request successful', status);
+        res.json(status);
+      } catch (error) {
+        logger.error('Error getting stream status', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        res.status(500).json({
+          success: false,
+          error: 'Failed to get stream status'
+        });
+      }
     });
 
     // Endpoint to get the current frame

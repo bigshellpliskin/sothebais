@@ -9,16 +9,23 @@ interface LayerUpdate {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('[Layer Control] Batch update request received');
+  console.log('[Layer Control] Request received:', {
+    url: request.url,
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+    timestamp: new Date().toISOString()
+  });
+
   try {
     const body = await request.json();
-    const updates: LayerUpdate[] = body.updates;
+    const { updates } = body;
 
     if (!Array.isArray(updates)) {
+      console.error('[Layer Control] Invalid updates:', updates);
       return NextResponse.json(
         { 
           success: false,
-          error: 'Invalid request body. Expected array of layer updates.'
+          error: 'Invalid updates format'
         },
         { status: 400 }
       );
@@ -26,37 +33,37 @@ export async function POST(request: NextRequest) {
 
     console.log('[Layer Control] Processing updates:', updates);
 
-    // Process all updates in parallel
-    const results = await Promise.all(
-      updates.map(async ({ type, visible }) => {
-        const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/toggle/${type}`;
-        const response = await fetch(streamManagerUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'User-Agent': 'admin-frontend'
-          },
-          body: JSON.stringify({ visible })
+    // Process each update sequentially
+    const results = await Promise.all(updates.map(async (update: LayerUpdate) => {
+      const response = await fetch(`${STREAM_MANAGER_URL}/stream/toggle/${update.type}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'admin-frontend'
+        },
+        body: JSON.stringify({ visible: update.visible })
+      });
+
+      if (!response.ok) {
+        console.error(`[Layer Control] Failed to update layer ${update.type}:`, {
+          status: response.status,
+          statusText: response.statusText
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          return {
-            type,
-            success: false,
-            error: errorData.message || 'Failed to update layer'
-          };
-        }
-
-        const data = await response.json();
         return {
-          type,
-          success: true,
-          actualState: data.layer.actualState
+          type: update.type,
+          success: false,
+          error: `Failed to update layer ${update.type}`
         };
-      })
-    );
+      }
+
+      const data = await response.json();
+      return {
+        type: update.type,
+        success: true,
+        data
+      };
+    }));
 
     // Get final layer count
     const countResponse = await fetch(`${STREAM_MANAGER_URL}/stream/layers`, {

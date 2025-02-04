@@ -75,8 +75,7 @@ export default function LivestreamPage() {
       // Don't update local state here - let the status polling handle it
     } catch (error) {
       console.error('[Frontend] Error processing queue:', error);
-      // On error, add failed updates back to queue for retry
-      updateQueue.current = [...updateQueue.current, ...updates];
+      // Don't retry failed updates to avoid infinite loops
     } finally {
       // Process next batch if there are more updates
       if (updateQueue.current.length > 0) {
@@ -148,9 +147,9 @@ export default function LivestreamPage() {
           throw new Error('Failed to fetch status');
         }
         
-        const data = await response.json();
+        const { success, data } = await response.json();
         
-        if (data.success) {
+        if (success && data) {
           setStreamState(prevState => ({
             isLive: data.isLive,
             isPaused: data.isPaused || false,
@@ -180,20 +179,28 @@ export default function LivestreamPage() {
   }, []);
 
   const sendChatMessage = async (highlighted: boolean = false) => {
-    const input = document.getElementById('chatMessage') as HTMLInputElement;
-    const text = input.value.trim();
-    if (!text) return;
+    if (!chatMessage.trim()) return;
 
     try {
       const response = await fetch('/api/stream/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, highlighted })
+        body: JSON.stringify({ 
+          user: 'Admin',  // You might want to make this configurable
+          message: chatMessage,
+          highlighted
+        })
       });
-      if (!response.ok) throw new Error('Failed to send message');
-      input.value = '';
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send message');
+      }
+
+      // Clear the input only if the message was sent successfully
+      setChatMessage('');
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('[Frontend] Error sending message:', error);
     }
   };
 
@@ -247,44 +254,26 @@ export default function LivestreamPage() {
                 <CardTitle className="text-lg">Playback</CardTitle>
                 <div className="flex gap-2 ml-4">
                   <Button
-                    variant={streamState.isLive && !streamState.isPaused ? "default" : "outline"}
+                    variant={streamState.isLive && !streamState.isPaused ? "outline" : "default"}
+                    className={`border-green-200 text-green-700 ${streamState.isLive && !streamState.isPaused ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onClick={() => controlStream('start')}
-                    disabled={streamState.isLive}
-                    className={`${
-                      !streamState.isLive 
-                        ? 'bg-green-600 text-white hover:bg-green-700' 
-                        : 'border-green-200 text-green-700'
-                    } ${
-                      streamState.isLive ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    disabled={streamState.isLive && !streamState.isPaused}
                   >
                     Play
                   </Button>
                   <Button
-                    variant={streamState.isPaused ? "default" : "outline"}
+                    variant="outline"
+                    className="border-gray-200 text-gray-700 hover:bg-gray-50"
                     onClick={() => controlStream('pause')}
                     disabled={!streamState.isLive}
-                    className={`${
-                      streamState.isPaused 
-                        ? 'bg-gray-600 text-white' 
-                        : 'border-gray-200 text-gray-700'
-                    } ${
-                      !streamState.isLive ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'
-                    }`}
                   >
                     Pause
                   </Button>
                   <Button
                     variant="outline"
+                    className="border-red-200 text-red-700 hover:bg-red-50"
                     onClick={() => controlStream('stop')}
                     disabled={!streamState.isLive}
-                    className={`${
-                      !streamState.isLive 
-                        ? 'bg-red-600 text-white' 
-                        : 'border-red-200 text-red-700'
-                    } ${
-                      !streamState.isLive ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-50'
-                    }`}
                   >
                     Stop
                   </Button>
@@ -295,10 +284,10 @@ export default function LivestreamPage() {
             <div className="flex flex-col gap-2">
               <CardTitle className="text-lg">Layer Controls</CardTitle>
               <div className="flex gap-4">
-                {Object.entries(streamState.layers).map(([type, isVisible]) => (
+                {Object.entries(streamState.layers).map(([type, visible]) => (
                   <Button
                     key={type}
-                    variant={isVisible ? "default" : "outline"}
+                    variant={visible ? "default" : "outline"}
                     onClick={() => toggleLayer(type as keyof StreamState['layers'])}
                   >
                     {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -306,7 +295,7 @@ export default function LivestreamPage() {
                 ))}
               </div>
             </div>
-            {/* Chat Controls */}
+            {/* Chat */}
             <Card>
               <CardHeader>
                 <CardTitle>Chat</CardTitle>
@@ -317,8 +306,11 @@ export default function LivestreamPage() {
                     <Input
                       id="chatMessage"
                       placeholder="Type a message..."
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
                           sendChatMessage(false);
                         }
                       }}

@@ -25,18 +25,44 @@ interface StreamConfig {
 }
 
 // Function to fetch stream status
-async function fetchStreamStatus() {
+const fetchStreamStatus = async () => {
   try {
-    const response = await fetch('/api/stream/status');
+    const response = await fetch('/api/stream/status', {
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+
     if (!response.ok) {
+      console.error('[StreamViewer] Error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url
+      });
       throw new Error('Failed to fetch stream status');
     }
-    return await response.json();
+
+    const { success, data } = await response.json();
+    
+    if (!success || !data) {
+      console.error('[StreamViewer] Invalid response format:', { success, data });
+      return null;
+    }
+
+    return {
+      isLive: Boolean(data.isLive),
+      fps: Number(data.fps) || 0,
+      targetFPS: Number(data.targetFPS) || 30,
+      layerCount: Number(data.layerCount) || 0,
+      averageRenderTime: Number(data.encoderMetrics?.averageRenderTime) || 0,
+      isPaused: Boolean(data.isPaused)
+    };
   } catch (error) {
-    console.error('Error fetching stream status:', error);
+    console.error('[StreamViewer] Error fetching stream status:', error);
     return null;
   }
-}
+};
 
 // Function to fetch stream configuration
 async function fetchStreamConfig(): Promise<StreamConfig> {
@@ -76,7 +102,8 @@ export function StreamViewer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentFPS, setCurrentFPS] = useState<number>(30);
+  const [currentFPS, setCurrentFPS] = useState<number>(streamStatus.fps);
+  const [lastKnownStatus, setLastKnownStatus] = useState(streamStatus);
   const [config, setConfig] = useState<StreamConfig>({
     resolution: '1280x720',
     targetFPS: 30,
@@ -153,17 +180,50 @@ export function StreamViewer({
 
   // Add status polling effect
   useEffect(() => {
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000; // 2 seconds
+
     const pollStatus = async () => {
       try {
         const status = await fetchStreamStatus();
-        setCurrentFPS(status.fps);
+        if (status) {
+          // Update last known good status
+          setLastKnownStatus(status);
+          setCurrentFPS(status.fps || lastKnownStatus.fps || 0);
+          retryCount = 0; // Reset retry count on success
+        } else {
+          // Use last known status on error
+          console.warn('[StreamViewer] Using last known status due to fetch error');
+          retryCount++;
+          
+          if (retryCount >= MAX_RETRIES) {
+            console.error('[StreamViewer] Max retries reached, using fallback values');
+            // Only update UI to show offline if we've failed multiple times
+            setLastKnownStatus(prev => ({ ...prev, isLive: false }));
+          }
+        }
       } catch (err) {
         console.error('[StreamViewer] Error polling status:', err);
+        retryCount++;
+        
+        if (retryCount >= MAX_RETRIES) {
+          // After max retries, update UI to show offline state
+          setLastKnownStatus(prev => ({ ...prev, isLive: false }));
+        }
       }
     };
 
+    // Initial poll
+    pollStatus();
+
+    // Set up polling interval
     const intervalId = setInterval(pollStatus, 1000);
-    return () => clearInterval(intervalId);
+    
+    // Cleanup
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   // Function to update canvas with new frame
@@ -177,7 +237,7 @@ export function StreamViewer({
     }
 
     // Don't fetch frames if stream is not live or is paused
-    if (!streamStatus.isLive || streamStatus.isPaused) {
+    if (!lastKnownStatus.isLive || lastKnownStatus.isPaused) {
       frameRequestRef.current = requestAnimationFrame(updateCanvas);
       return;
     }
