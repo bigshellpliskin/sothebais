@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { getConfig } from '../config/index.js';
+import type { Config } from '../config/index.js';
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
@@ -21,16 +21,27 @@ class Logger {
   private lastMetricsLog = 0;
 
   constructor() {
-    this.logger = pino();
+    // Create a basic logger until properly initialized
+    this.logger = pino({
+      level: 'info',
+      transport: {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'HH:MM:ss',
+          ignore: 'pid,hostname'
+        }
+      }
+    });
   }
 
-  initialize(config: any): void {
+  initialize(config: Config): void {
     if (this.initialized) {
       return;
     }
 
     this.logger = pino({
-      level: config.LOG_LEVEL || 'debug',
+      level: config.LOG_LEVEL,
       transport: {
         target: 'pino-pretty',
         options: {
@@ -42,6 +53,7 @@ class Logger {
     });
 
     this.initialized = true;
+    this.info('Logger initialized', { level: config.LOG_LEVEL });
   }
 
   private ensureLogger(): void {

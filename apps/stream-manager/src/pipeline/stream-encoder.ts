@@ -142,6 +142,9 @@ export class StreamEncoder extends EventEmitter {
     }
   }
 
+  /**
+   * Start the FFmpeg process and begin streaming
+   */
   public start(): void {
     if (this.isStreaming) {
       logger.warn('Stream encoder is already running');
@@ -184,6 +187,9 @@ export class StreamEncoder extends EventEmitter {
     }
   }
 
+  /**
+   * Stop the FFmpeg process and clean up resources
+   */
   public stop(): void {
     if (!this.isStreaming || !this.ffmpeg) {
       return;

@@ -17,10 +17,9 @@ export function validateConfig(config: Config): void {
   if (width < 480 || width > 3840 || height < 360 || height > 2160) {
     throw new Error('Stream resolution must be between 480x360 and 3840x2160');
   }
-
   // Validate port conflicts
-  const ports = new Set([config.PORT, config.WS_PORT, config.METRICS_PORT, config.HEALTH_PORT]);
-  if (ports.size !== 4) {
+  const ports = new Set([config.PORT, config.WS_PORT, config.METRICS_PORT]);
+  if (ports.size !== 3) {
     throw new Error('All ports must be unique');
   }
 }

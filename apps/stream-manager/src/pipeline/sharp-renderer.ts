@@ -6,7 +6,6 @@ import { Registry, Gauge } from 'prom-client';
 import { join, dirname, basename } from 'path';
 import { glob } from 'glob';
 import { promisify } from 'util';
-import { Canvas, createCanvas } from '@napi-rs/canvas';
 import { existsSync } from 'fs';
 
 // Create a Registry for metrics

@@ -21,12 +21,15 @@ export async function POST(request: NextRequest) {
     if (!action || !['start', 'stop', 'pause'].includes(action)) {
       console.log('[Stream Control] Invalid action:', action);
       return NextResponse.json(
-        { error: 'Invalid action. Must be one of: start, stop, pause' },
+        { 
+          success: false,
+          error: 'Invalid action. Must be one of: start, stop, pause'
+        },
         { status: 400 }
       );
     }
 
-    const streamManagerUrl = `${STREAM_MANAGER_URL}/demo/control`;
+    const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/control`;
     console.log('[Stream Control] Sending request to:', streamManagerUrl);
 
     const response = await fetch(streamManagerUrl, {
@@ -39,8 +42,6 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ action })
     });
 
-    console.log('[Stream Control] Response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Stream Control] Error response text:', errorText);
@@ -52,18 +53,25 @@ export async function POST(request: NextRequest) {
       }
       console.error('[Stream Control] Error data:', errorData);
       return NextResponse.json(
-        { error: errorData.message || 'Failed to control stream' },
+        { 
+          success: false,
+          error: errorData.message || 'Failed to control stream'
+        },
         { status: response.status }
       );
     }
 
     const data = await response.json();
     console.log('[Stream Control] Success response:', data);
-    return NextResponse.json(data);
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('[Stream Control] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to control stream', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        success: false,
+        error: 'Failed to control stream',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

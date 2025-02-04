@@ -10,7 +10,4 @@ export interface Transform {
   d: number;  // scale y
   e: number;  // translate x
   f: number;  // translate y
-}
-
-// Re-export types from @napi-rs/canvas that we need
-export type { CanvasRenderingContext2D, Canvas } from '@napi-rs/canvas'; 
+} 

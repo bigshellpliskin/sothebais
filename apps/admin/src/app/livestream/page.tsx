@@ -5,59 +5,134 @@ import { Terminal } from "lucide-react";
 import { StreamViewer } from "@/components/stream-viewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+interface StreamState {
+  isLive: boolean;
+  isPaused: boolean;
+  fps: number;
+  targetFPS: number;
+  layerCount: number;
+  averageRenderTime: number;
+  layers: {
+    host: boolean;
+    nft: boolean;
+    overlay: boolean;
+    chat: boolean;
+  };
+}
 
 export default function LivestreamPage() {
   const [chatMessage, setChatMessage] = useState("");
-  const [layerStates, setLayerStates] = useState({
-    host: true,
-    nft: true,
-    overlay: true,
-    chat: true
-  });
-  const [streamStatus, setStreamStatus] = useState({
+  const [streamState, setStreamState] = useState<StreamState>({
     isLive: false,
+    isPaused: false,
     fps: 0,
     targetFPS: 30,
     layerCount: 0,
-    averageRenderTime: 0
+    averageRenderTime: 0,
+    layers: {
+      host: false,
+      nft: false,
+      overlay: false,
+      chat: false
+    }
   });
+
+  // Queue system for layer updates
+  const updateQueue = useRef<{ type: string; visible: boolean }[]>([]);
+  const isProcessingQueue = useRef(false);
+
+  // Process the queue of layer updates
+  const processQueue = async () => {
+    if (updateQueue.current.length === 0) {
+      isProcessingQueue.current = false;
+      return;
+    }
+
+    isProcessingQueue.current = true;
+    
+    // Take all current updates in queue
+    const updates = [...updateQueue.current];
+    updateQueue.current = [];
+
+    try {
+      const response = await fetch('/api/stream/control/layers/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ updates })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('[Frontend] Error processing queue:', error);
+        throw new Error(error.message || 'Failed to process queue');
+      }
+
+      // Don't update local state here - let the status polling handle it
+    } catch (error) {
+      console.error('[Frontend] Error processing queue:', error);
+      // On error, add failed updates back to queue for retry
+      updateQueue.current = [...updateQueue.current, ...updates];
+    } finally {
+      // Process next batch if there are more updates
+      if (updateQueue.current.length > 0) {
+        await processQueue();
+      } else {
+        isProcessingQueue.current = false;
+      }
+    }
+  };
+
+  // Function to add updates to the queue
+  const queueLayerUpdates = async (updates: { type: string; visible: boolean }[]) => {
+    updateQueue.current.push(...updates);
+    
+    if (!isProcessingQueue.current) {
+      await processQueue();
+    }
+  };
+
+  // Function to toggle a single layer (now using queue)
+  const toggleLayer = async (type: keyof StreamState['layers']) => {
+    await queueLayerUpdates([{ 
+      type, 
+      visible: !streamState.layers[type] 
+    }]);
+  };
 
   // Function to control stream
   const controlStream = async (action: 'start' | 'stop' | 'pause') => {
     try {
-      const response = await fetch('/api/stream/control', {
+      const response = await fetch('/api/stream/control/playback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ action })
       });
       
       if (!response.ok) {
         const error = await response.json();
-        console.error('Error controlling stream:', error);
-        return;
+        console.error('[Frontend] Error controlling stream:', error);
+        throw new Error(error.message || 'Failed to control stream');
       }
 
-      const data = await response.json();
-      console.log('Stream control response:', data);
-
-      // Update stream status immediately
-      setStreamStatus(prevStatus => ({
-        ...prevStatus,
-        isLive: data.isLive,
-        fps: data.fps || 0
-      }));
+      // Don't update local state here - let the status polling handle it
     } catch (error) {
-      console.error('Error controlling stream:', error);
+      console.error('[Frontend] Error controlling stream:', error);
     }
   };
 
-  // Function to fetch stream status
+  // Unified status polling
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const apiUrl = '/api/stream/status';
-        const response = await fetch(apiUrl, {
+        const response = await fetch('/api/stream/status', {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache'
@@ -75,18 +150,22 @@ export default function LivestreamPage() {
         
         const data = await response.json();
         
-        if (typeof data.fps !== 'number') {
-          console.warn('[Frontend] Invalid FPS value received:', data.fps);
-          return;
+        if (data.success) {
+          setStreamState(prevState => ({
+            isLive: data.isLive,
+            isPaused: data.isPaused || false,
+            fps: data.fps || 0,
+            targetFPS: data.targetFPS || prevState.targetFPS,
+            averageRenderTime: data.averageRenderTime || 0,
+            layerCount: data.layerCount || 0,
+            layers: {
+              ...prevState.layers,
+              ...(data.layers || {})
+            }
+          }));
         }
-        
-        setStreamStatus(prevStatus => ({
-          ...prevStatus,
-          ...data,
-          fps: data.fps || 0
-        }));
       } catch (error) {
-        console.error('[Frontend] Error fetching stream status:', error);
+        console.error('[Frontend] Error fetching status:', error);
       }
     };
 
@@ -99,36 +178,6 @@ export default function LivestreamPage() {
     // Cleanup
     return () => clearInterval(interval);
   }, []);
-
-  const toggleLayer = async (type: string) => {
-    try {
-      const newState = !layerStates[type];
-      const requestBody = { visible: newState };
-      
-      const response = await fetch(`/api/stream/toggle/${type}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        console.log('Error response:', error);
-        throw new Error(error.error || 'Failed to toggle layer');
-      }
-      
-      const data = await response.json();
-
-      setLayerStates(prev => ({
-        ...prev,
-        [type]: newState
-      }));
-    } catch (error) {
-      console.error('Error toggling layer:', error);
-    }
-  };
 
   const sendChatMessage = async (highlighted: boolean = false) => {
     const input = document.getElementById('chatMessage') as HTMLInputElement;
@@ -159,46 +208,105 @@ export default function LivestreamPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4">
+            {/* Stream Viewer */}
             <StreamViewer
-              streamStatus={streamStatus}
+              streamStatus={{
+                isLive: streamState.isLive,
+                isPaused: streamState.isPaused,
+                fps: streamState.fps,
+                targetFPS: streamState.targetFPS,
+                layerCount: streamState.layerCount,
+                averageRenderTime: streamState.averageRenderTime
+              }}
             />
-            <div className="flex flex-col gap-2">
-              <CardTitle className="text-lg">Stream Controls</CardTitle>
-              <div className="flex gap-4">
-                <Button
-                  variant={streamStatus.isLive ? "default" : "outline"}
-                  onClick={() => controlStream('start')}
-                >
-                  Play
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => controlStream('pause')}
-                >
-                  Pause
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => controlStream('stop')}
-                >
-                  Stop
-                </Button>
+            {/* Status & Playback Controls */}
+            <div className="flex gap-2">
+              {/* Status */}
+              <div className="flex flex-col items-baseline gap-2">
+                <CardTitle className="text-lg">Status</CardTitle>
+                <div className="grid grid-cols-4 gap-1.5 flex-1 max-w-[460px]">
+                  <div className="flex items-center justify-center bg-black/5 rounded-lg px-1.5 py-1 min-w-0">
+                    <div className="flex items-center gap-1 truncate">
+                      <div className={`w-1.5 h-1.5 shrink-0 rounded-full ${streamState.isLive ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-xs font-medium truncate">{streamState.isLive ? 'Live' : 'Offline'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center bg-black/5 rounded-lg px-1.5 py-1 min-w-0">
+                    <span className="text-xs font-medium truncate">FPS: {streamState.fps.toFixed(1)}/{streamState.targetFPS}</span>
+                  </div>
+                  <div className="flex items-center justify-center bg-black/5 rounded-lg px-1.5 py-1 min-w-0">
+                    <span className="text-xs font-medium truncate">Layers: {streamState.layerCount}</span>
+                  </div>
+                  <div className="flex items-center justify-center bg-black/5 rounded-lg px-1.5 py-1 min-w-0">
+                    <span className="text-xs font-medium truncate">Latency: {streamState.averageRenderTime.toFixed(1)}ms</span>
+                  </div>
+                </div>
+              </div>
+              {/* Playback Controls */}
+              <div className="flex flex-col items-baseline gap-2">
+                <CardTitle className="text-lg">Playback</CardTitle>
+                <div className="flex gap-2 ml-4">
+                  <Button
+                    variant={streamState.isLive && !streamState.isPaused ? "default" : "outline"}
+                    onClick={() => controlStream('start')}
+                    disabled={streamState.isLive}
+                    className={`${
+                      !streamState.isLive 
+                        ? 'bg-green-600 text-white hover:bg-green-700' 
+                        : 'border-green-200 text-green-700'
+                    } ${
+                      streamState.isLive ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    Play
+                  </Button>
+                  <Button
+                    variant={streamState.isPaused ? "default" : "outline"}
+                    onClick={() => controlStream('pause')}
+                    disabled={!streamState.isLive}
+                    className={`${
+                      streamState.isPaused 
+                        ? 'bg-gray-600 text-white' 
+                        : 'border-gray-200 text-gray-700'
+                    } ${
+                      !streamState.isLive ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    Pause
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => controlStream('stop')}
+                    disabled={!streamState.isLive}
+                    className={`${
+                      !streamState.isLive 
+                        ? 'bg-red-600 text-white' 
+                        : 'border-red-200 text-red-700'
+                    } ${
+                      !streamState.isLive ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-50'
+                    }`}
+                  >
+                    Stop
+                  </Button>
+                </div>
               </div>
             </div>
+            {/* Layer Controls */}
             <div className="flex flex-col gap-2">
               <CardTitle className="text-lg">Layer Controls</CardTitle>
               <div className="flex gap-4">
-                {Object.entries(layerStates).map(([type, isVisible]) => (
+                {Object.entries(streamState.layers).map(([type, isVisible]) => (
                   <Button
                     key={type}
                     variant={isVisible ? "default" : "outline"}
-                    onClick={() => toggleLayer(type)}
+                    onClick={() => toggleLayer(type as keyof StreamState['layers'])}
                   >
                     {type.charAt(0).toUpperCase() + type.slice(1)}
                   </Button>
                 ))}
               </div>
             </div>
+            {/* Chat Controls */}
             <Card>
               <CardHeader>
                 <CardTitle>Chat</CardTitle>

@@ -6,11 +6,26 @@ This directory contains the API routes for the admin application. The API is org
 
 Endpoints for managing the livestream functionality:
 
-- `/status` - Get the current status of the stream
-- `/control` - Stream control operations
-- `/chat` - Chat-related functionality
-- `/toggle/[type]` - Toggle various stream features
-- `/frame` - Frame-related operations
+### Status (`/api/stream/status`)
+- `GET` - Get the current status of the stream including FPS, layer count, and metrics
+
+### Control (`/api/stream/control`)
+Stream control operations:
+- `POST /playback` - Control stream playback (start/stop/pause)
+- `POST /layers/toggle/[type]` - Toggle visibility of specific layer types
+- `POST /layers/update` - Batch update multiple layer states
+- `GET /layers` - Get current state of all layers
+
+### Chat (`/api/stream/chat`)
+Chat-related functionality:
+- `POST` - Send chat messages
+- `GET` - Get recent chat history
+- `POST /highlight` - Send highlighted messages (e.g., bids)
+
+### Frame (`/api/stream/frame`)
+Frame-related operations:
+- `GET` - Get the current frame buffer
+- `POST /config` - Update frame rendering configuration
 
 ## Events (`/api/events`)
 
@@ -28,6 +43,26 @@ System service monitoring and metrics:
 ## Architecture
 
 The API is built using Next.js API routes, which provide serverless functions that are automatically deployed as edge functions. Each endpoint communicates with the appropriate microservices (such as the stream-manager service) using internal Docker networking.
+
+### API Structure
+```
+/api
+  /stream
+    /status
+    /control
+      /playback
+      /layers
+        /toggle/[type]
+        /update
+    /chat
+      /highlight
+    /frame
+      /config
+  /events
+  /services
+    /status
+    /metrics
+```
 
 ## Common Response Format
 
@@ -52,7 +87,7 @@ The API endpoints are protected and should only be accessed by authenticated adm
 ## Development
 
 When adding new endpoints:
-1. Create a new directory under the appropriate section
+1. Create a new directory under the appropriate section following the hierarchical structure
 2. Implement the route handler using Next.js API routes
 3. Follow the established patterns for error handling and logging
 4. Update this documentation with the new endpoint details 

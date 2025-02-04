@@ -7,6 +7,7 @@ import { StreamEncoder, type StreamConfig } from './stream-encoder.js';
 import type { Layer } from '../types/layers.js';
 import { EventEmitter } from 'events';
 import type { FrameBuffer } from '../types/frame-buffer.js';
+import { getConfig } from '../config/index.js';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -23,6 +24,13 @@ const memoryUsageGauge = new Gauge({
   help: 'Total memory usage of the stream manager',
   registers: [register]
 });
+
+// Quality preset mapping
+const qualityToPreset: Record<string, StreamConfig['preset']> = {
+  'low': 'ultrafast',
+  'medium': 'medium',
+  'high': 'fast'
+} as const;
 
 export interface StreamManagerConfig {
   width: number;
@@ -42,16 +50,29 @@ export class StreamManager extends EventEmitter {
 
   private constructor() {
     super();
-    // Initialize metrics collection
     this.startMetricsCollection();
     logger.info('Stream manager initialized');
   }
 
-  public static initialize(config: StreamConfig): StreamManager {
+  public static initialize(): StreamManager {
     if (!StreamManager.instance) {
       StreamManager.instance = new StreamManager();
-      // Initialize the encoder
-      StreamEncoder.initialize(config);
+      
+      // Get configuration from central config
+      const config = getConfig();
+      const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+      
+      const streamConfig: StreamConfig = {
+        width,
+        height,
+        fps: config.TARGET_FPS,
+        bitrate: config.STREAM_BITRATE,
+        codec: config.STREAM_CODEC,
+        preset: config.FFMPEG_PRESET,
+        streamUrl: config.STREAM_URL
+      };
+
+      StreamEncoder.initialize(streamConfig);
       StreamManager.instance.streamEncoder = StreamEncoder.getInstance();
       StreamManager.instance.setupEventHandlers();
     }
@@ -92,6 +113,9 @@ export class StreamManager extends EventEmitter {
     }, 5000);
   }
 
+  /**
+   * Start streaming to all configured outputs
+   */
   public start(): void {
     if (this.isStreaming) {
       return;
@@ -101,10 +125,14 @@ export class StreamManager extends EventEmitter {
     this.streamEncoder.start();
     
     logger.info('Stream started', {
-      status: 'started'
+      status: 'started',
+      outputs: ['internal', 'twitter']
     } as LogContext);
   }
 
+  /**
+   * Stop streaming to all outputs and clean up resources
+   */
   public stop(): void {
     if (!this.isStreaming) {
       return;
@@ -114,7 +142,8 @@ export class StreamManager extends EventEmitter {
     this.streamEncoder.stop();
 
     logger.info('Stream stopped', {
-      status: 'stopped'
+      status: 'stopped',
+      outputs: ['internal', 'twitter']
     } as LogContext);
   }
 
@@ -160,12 +189,4 @@ export class StreamManager extends EventEmitter {
 }
 
 // Export the singleton instance
-export const streamManager = StreamManager.initialize({
-  width: 1920,
-  height: 1080,
-  fps: 30,
-  bitrate: 4000,
-  codec: 'h264',
-  preset: 'medium',
-  streamUrl: 'rtmp://localhost/live/stream'
-}); 
+export const streamManager = StreamManager.initialize(); 

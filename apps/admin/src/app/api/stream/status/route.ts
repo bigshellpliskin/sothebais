@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   });
   
   try {
-    const streamManagerUrl = `${STREAM_MANAGER_URL}/demo/status`;
+    const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/status`;
     console.log('[API Status] Fetching from:', streamManagerUrl);
 
     const response = await fetch(streamManagerUrl, {

@@ -12,6 +12,12 @@ import { Registry, collectDefaultMetrics } from 'prom-client';
 import { setupStreamServer } from './server/stream-server.js';
 import { StreamEncoder } from './pipeline/stream-encoder.js';
 
+// Load configuration first
+const config = loadConfig();
+
+// Initialize logger early
+logger.initialize(config);
+
 // Create a Registry to register metrics
 const register = new Registry();
 
@@ -23,7 +29,6 @@ collectDefaultMetrics({
 
 // Create metrics server
 const metricsApp = express();
-const metricsPort = process.env.METRICS_PORT ? parseInt(process.env.METRICS_PORT, 10) : 4290;
 
 metricsApp.get('/metrics', async (_req: Request, res: Response) => {
   try {
@@ -37,20 +42,13 @@ metricsApp.get('/metrics', async (_req: Request, res: Response) => {
   }
 });
 
-metricsApp.listen(metricsPort, () => {
-  logger.info(`Metrics server listening on port ${metricsPort}`);
+metricsApp.listen(config.METRICS_PORT, () => {
+  logger.info(`Metrics server listening on port ${config.METRICS_PORT}`);
 });
 
 async function startServer() {
   try {
-    // Load configuration
-    const config = loadConfig();
-    
-    // Initialize logger first
-    logger.initialize(config);
-    logger.info('Stream Manager initializing...');
-
-    // Initialize Redis and connect first
+    // Initialize services
     redisService.initialize(config);
     await redisService.connect();
     logger.info('Redis connection established', {
@@ -76,64 +74,14 @@ async function startServer() {
       quality: config.RENDER_QUALITY
     });
 
-    // Create Express apps
+    // Create Express app
     const app = express();
-    const healthApp = express();
-
-    // Basic health check endpoint
-    app.get('/health', (_req: Request, res: Response) => {
-      const streamHealth = layerRenderer.getHealth();
-      const redisHealth = redisService.isReady();
-
-      const health = {
-        status: streamHealth.status === 'healthy' && redisHealth ? 'healthy' : 'unhealthy',
-        timestamp: new Date().toISOString(),
-        services: {
-          stream: streamHealth,
-          redis: {
-            status: redisHealth ? 'healthy' : 'unhealthy'
-          }
-        }
-      };
-
-      res.json(health);
-    });
-
-    // Dedicated health check endpoint
-    healthApp.get('/health', (_req: Request, res: Response) => {
-      const streamHealth = layerRenderer.getHealth();
-      const redisHealth = redisService.isReady();
-
-      const health = {
-        status: streamHealth.status === 'healthy' && redisHealth ? 'healthy' : 'unhealthy',
-        timestamp: new Date().toISOString(),
-        services: {
-          stream: streamHealth,
-          redis: {
-            status: redisHealth ? 'healthy' : 'unhealthy'
-          }
-        }
-      };
-
-      res.setHeader('Content-Type', 'application/json');
-      res.json(health);
-    });
 
     // Start HTTP server
     const httpServer = app.listen(config.PORT, '0.0.0.0', () => {
       logger.info('HTTP endpoint ready', {
         service: 'http',
         port: config.PORT,
-        address: '0.0.0.0',
-        protocol: 'http'
-      });
-    });
-
-    // Start health check server
-    const healthServer = healthApp.listen(config.HEALTH_PORT, '0.0.0.0', () => {
-      logger.info('Health endpoint ready', {
-        service: 'health',
-        port: config.HEALTH_PORT,
         address: '0.0.0.0',
         protocol: 'http'
       });
@@ -146,7 +94,6 @@ async function startServer() {
     logger.info('Service endpoints configured', {
       endpoints: {
         http: { port: config.PORT, protocol: 'http' },
-        health: { port: config.HEALTH_PORT, protocol: 'http' },
         metrics: { port: config.METRICS_PORT, protocol: 'http' },
         ws: { port: config.WS_PORT, protocol: 'ws' }
       },
