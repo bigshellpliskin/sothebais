@@ -41,7 +41,7 @@ const configSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
   // New fields
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('warn'),
 });
 
 export type Config = z.infer<typeof configSchema>;

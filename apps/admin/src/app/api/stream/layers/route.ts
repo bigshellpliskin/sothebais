@@ -1,0 +1,72 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+// Use internal Docker network URL
+const STREAM_MANAGER_URL = 'http://stream-manager:4200';
+
+export async function GET(request: NextRequest) {
+  console.log('[Layer Control] Fetching all layer states');
+  try {
+    const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/layers`;
+    console.log('[Layer Control] Requesting from:', streamManagerUrl);
+
+    const response = await fetch(streamManagerUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'admin-frontend'
+      }
+    });
+
+    // First try to get the response as text to handle potential HTML errors
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[Layer Control] Failed to parse response:', responseText);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid response from stream manager',
+          details: 'Failed to parse JSON response'
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!response.ok) {
+      console.error('[Layer Control] Error fetching layers:', data);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: data.error || 'Failed to fetch layer states',
+          details: data.details || 'Unknown error'
+        },
+        { status: response.status }
+      );
+    }
+
+    console.log('[Layer Control] Success response:', data);
+    
+    // Handle the stream manager's response structure
+    return NextResponse.json({
+      success: true,
+      data: data.data,
+      count: data.count || (Array.isArray(data.data) ? data.data.length : 0)
+    });
+  } catch (error) {
+    console.error('[Layer Control] Error:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: 'Failed to fetch layer states',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+} 

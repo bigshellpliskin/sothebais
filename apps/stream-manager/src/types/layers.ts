@@ -90,4 +90,91 @@ export type Layer = HostLayer | AssistantLayer | VisualFeedLayer | OverlayLayer 
 export interface LayerState {
   layers: Layer[];
   activeLayerId: string | null;
-} 
+}
+
+// New Generic Layer System
+export interface GenericLayer {
+  id: string;
+  name: string;
+  zIndex: number;
+  visible: boolean;
+  opacity: number;
+  transform: Transform;
+  content: {
+    type: string;
+    data: unknown;
+  };
+}
+
+export interface ContentValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ContentTypeHandler {
+  validate: (data: unknown) => ContentValidationError[] | null;
+  render: (data: unknown) => Promise<Buffer>;
+}
+
+export type ContentRegistry = Record<string, ContentTypeHandler>;
+
+// New layer state interface
+export interface NewLayerState {
+  layers: GenericLayer[];
+  version: string;
+}
+
+// Content type specific interfaces
+export interface ImageContent {
+  url: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface VTuberContent {
+  modelUrl: string;
+  textureUrl?: string;
+  animations: Record<string, string>;
+  width: number;
+  height: number;
+}
+
+export interface ChatContent {
+  messages: {
+    id: string;
+    author: string;
+    text: string;
+    timestamp: number;
+    highlighted: boolean;
+  }[];
+  maxMessages: number;
+  style: {
+    font: string;
+    fontSize: number;
+    textColor: string;
+    backgroundColor: string;
+    padding: number;
+    messageSpacing: number;
+    fadeOutOpacity: number;
+  };
+}
+
+// Type guards for content validation
+export const isImageContent = (data: unknown): data is ImageContent => {
+  const img = data as ImageContent;
+  return typeof img?.url === 'string';
+};
+
+export const isVTuberContent = (data: unknown): data is VTuberContent => {
+  const vtuber = data as VTuberContent;
+  return (
+    typeof vtuber?.modelUrl === 'string' &&
+    typeof vtuber?.width === 'number' &&
+    typeof vtuber?.height === 'number' &&
+    typeof vtuber?.animations === 'object'
+  );
+};
+
+export const isChatContent = (data: unknown): data is ChatContent => {
+  const chat = data as ChatContent;
+  return Array.isArray(chat?.messages) && typeof chat?.maxMessages === 'number';
+}; 

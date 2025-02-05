@@ -23,7 +23,7 @@ class Logger {
   constructor() {
     // Create a basic logger until properly initialized
     this.logger = pino({
-      level: 'info',
+      level: 'warn',
       transport: {
         target: 'pino-pretty',
         options: {
@@ -41,7 +41,7 @@ class Logger {
     }
 
     this.logger = pino({
-      level: config.LOG_LEVEL,
+      level: config.LOG_LEVEL || 'warn',
       transport: {
         target: 'pino-pretty',
         options: {
@@ -53,7 +53,7 @@ class Logger {
     });
 
     this.initialized = true;
-    this.info('Logger initialized', { level: config.LOG_LEVEL });
+    this.info('Logger initialized', { level: config.LOG_LEVEL || 'warn' });
   }
 
   private ensureLogger(): void {
