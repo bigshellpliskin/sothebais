@@ -1,11 +1,13 @@
 # Stream Manager Server
 
-This directory contains the HTTP server components that provide the REST API and default configuration for the streaming platform.
+This directory contains the HTTP server components that provide the REST API, WebSocket communication, monitoring capabilities, and default configuration for the streaming platform.
 
 ## Architecture Overview
 
 The server components provide:
 - REST API endpoints for stream control
+- Real-time WebSocket communication
+- Monitoring and metrics collection
 - Layer management endpoints
 - Default layer configurations
 - Asset management
@@ -15,6 +17,8 @@ The server components provide:
 graph TB
     subgraph HTTP Server
         API[REST API]
+        WS[WebSocket Server]
+        MON[Monitoring]
         DL[Default Layers]
         AM[Asset Manager]
         VM[Validation Middleware]
@@ -22,6 +26,7 @@ graph TB
 
     subgraph External
         Client[HTTP Clients]
+        WSClient[WebSocket Clients]
         Assets[(Asset Storage)]
     end
 
@@ -32,15 +37,50 @@ graph TB
     end
 
     Client --> API
+    WSClient --> WS
+    WS --> LM
+    WS --> SM
     API --> VM
     VM --> LM
     VM --> SM
     DL --> LM
     DL --> Assets
     AM --> Assets
+    MON --> SM
+    MON --> LM
 ```
 
 ## Components
+
+### API (`/api`)
+Contains all REST API endpoints organized by domain:
+- Stream control endpoints
+- Layer management
+- Asset handling
+- Configuration management
+
+### WebSocket Server (`websocket.ts`)
+Provides real-time communication for:
+- Layer state updates
+- Stream events
+- Client notifications
+- Error reporting
+
+```typescript
+// Example: WebSocket message structure
+interface WebSocketMessage {
+  type: 'layerUpdate' | 'streamEvent' | 'error';
+  payload: LayerState | StreamEvent | { message: string };
+}
+```
+
+### Monitoring (`/monitoring`)
+Handles system monitoring and metrics:
+- Performance metrics
+- Resource usage
+- Stream health
+- Client connections
+- Error tracking
 
 ### Stream Server (`stream-server.ts`)
 
@@ -125,25 +165,31 @@ const defaultLayers = {
 
 ## Server Features
 
-1. **Request Validation**
+1. **Real-time Communication**
+   - WebSocket-based updates
+   - Bi-directional messaging
+   - Connection management
+   - Client state tracking
+
+2. **Request Validation**
    - Input sanitization
    - Schema validation
    - Type checking
    - Error formatting
 
-2. **Error Handling**
+3. **Error Handling**
    - Structured error responses
    - Error logging
    - Recovery mechanisms
    - Client-friendly messages
 
-3. **Asset Management**
+4. **Asset Management**
    - File upload handling
    - Asset validation
    - Storage management
    - URL generation
 
-4. **Security**
+5. **Security**
    - Request rate limiting
    - Input validation
    - Error sanitization
@@ -151,7 +197,13 @@ const defaultLayers = {
 
 ## Metrics
 
-The server exposes Prometheus metrics for monitoring:
+The server exposes monitoring and metrics through multiple channels:
+
+- **WebSocket Metrics**:
+  - Connected clients
+  - Message throughput
+  - Connection status
+  - Event broadcasting
 
 - **HTTP Metrics**:
   - Request counts
@@ -172,6 +224,7 @@ Server configuration via environment variables:
 ```typescript
 interface ServerConfig {
   PORT: number;
+  WS_PORT: number;
   HOST: string;
   ASSET_STORAGE_PATH: string;
   MAX_UPLOAD_SIZE: number;

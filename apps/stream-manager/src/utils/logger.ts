@@ -7,12 +7,6 @@ export interface LogContext {
   [key: string]: any;
 }
 
-export interface LoggerOptions {
-  name?: string;
-  level?: LogLevel;
-  prettyPrint?: boolean;
-}
-
 class Logger {
   private static instance: Logger;
   private logger: ReturnType<typeof pino>;
@@ -23,50 +17,49 @@ class Logger {
   constructor() {
     // Create a basic logger until properly initialized
     this.logger = pino({
-      level: 'warn',
+      level: 'info',
       transport: {
         target: 'pino-pretty',
         options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname'
+          colorize: true
         }
       }
     });
   }
 
-  initialize(config: Config): void {
+  public static getInstance(): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger();
+    }
+    return Logger.instance;
+  }
+
+  public initialize(config: Config): void {
     if (this.initialized) {
       return;
     }
 
     this.logger = pino({
-      level: config.LOG_LEVEL || 'warn',
-      transport: {
+      level: config.LOG_LEVEL,
+      transport: config.LOG_PRETTY_PRINT ? {
         target: 'pino-pretty',
         options: {
           colorize: true,
           translateTime: 'HH:MM:ss',
           ignore: 'pid,hostname'
         }
-      }
+      } : undefined
     });
 
     this.initialized = true;
-    this.info('Logger initialized', { level: config.LOG_LEVEL || 'warn' });
+    this.info('Logger initialized', { level: config.LOG_LEVEL });
   }
 
   private ensureLogger(): void {
-    if (!this.logger) {
-      this.logger = pino();
+    if (!this.initialized) {
+      // TODO: Initialize with proper config when available
+      this.initialized = true;
     }
-  }
-
-  public static getInstance(options?: LoggerOptions): Logger {
-    if (!Logger.instance) {
-      Logger.instance = new Logger();
-    }
-    return Logger.instance;
   }
 
   public info(message: string, context?: LogContext): void {
@@ -130,7 +123,6 @@ class Logger {
   }
 }
 
-// Export a singleton instance
 export const logger = Logger.getInstance();
 
 // Export the class for testing or specialized instances

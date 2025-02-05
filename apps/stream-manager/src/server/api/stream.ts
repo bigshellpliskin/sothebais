@@ -2,29 +2,43 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { v4 as uuidv4 } from 'uuid';
-import { StreamManager } from '../pipeline/stream-manager.js';
-import { layerRenderer } from '../pipeline/layer-renderer.js';
-import { NewLayerManager } from '../services/new-layer-manager.js';
-import { logger } from '../utils/logger.js';
-import type { ChatMessage, ChatContent, GenericLayer, Layer } from '../types/layers.js';
-import type { LogContext } from '../utils/logger.js';
-import sharp from 'sharp';
-import { getConfig } from '../config/index.js';
-import { setupDefaultLayers } from '../services/default-layers.js';
+import { Router } from 'express';
+import { PreviewServer } from '../monitoring/preview.js';
+import { logger } from '../../utils/logger.js';
+import { config } from '../../config/index.js';
 
 // ESM replacement for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let streamManager: StreamManager;
-const newLayerManager = NewLayerManager.getInstance();
+const previewServer = PreviewServer.getInstance();
+
+// Mock layers for initial implementation
+const defaultLayers = [
+  {
+    id: 'background',
+    name: 'Background',
+    visible: true,
+    content: {
+      type: 'color',
+      data: '#000000'
+    }
+  },
+  {
+    id: 'overlay',
+    name: 'Overlay',
+    visible: true,
+    content: {
+      type: 'image',
+      data: '/overlay.png'
+    }
+  }
+];
+
+let layers = [...defaultLayers];
 
 export async function setupStreamServer(app: express.Application) {
   try {
-    // Initialize layer manager and create default layers
-    await setupDefaultLayers();
-    
     // Add JSON body parser middleware for stream routes
     const streamRouter = express.Router();
     streamRouter.use(express.json());
@@ -35,7 +49,6 @@ export async function setupStreamServer(app: express.Application) {
     // Add config endpoint
     streamRouter.get('/config', (req: Request, res: Response) => {
       try {
-        const config = getConfig();
         logger.info('Config request received');
         
         const publicConfig = {
@@ -43,218 +56,53 @@ export async function setupStreamServer(app: express.Application) {
           TARGET_FPS: config.TARGET_FPS,
           RENDER_QUALITY: config.RENDER_QUALITY,
           MAX_LAYERS: config.MAX_LAYERS,
-          AUDIO_BITRATE: config.AUDIO_BITRATE,
-          AUDIO_ENABLED: config.AUDIO_ENABLED,
-          STREAM_BITRATE: config.STREAM_BITRATE
+          STREAM_BITRATE: config.STREAM_BITRATE,
+          ENABLE_HARDWARE_ACCELERATION: config.ENABLE_HARDWARE_ACCELERATION,
+          METRICS_INTERVAL: config.METRICS_INTERVAL
         };
 
-        logger.info('Sending config response', { config: publicConfig } as LogContext);
+        logger.info('Sending config response', { config: publicConfig });
         res.json(publicConfig);
       } catch (error) {
         logger.error('Error serving config', {
           error: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : undefined
-        } as LogContext);
+        });
         res.status(500).json({ error: 'Failed to get stream configuration' });
       }
     });
 
-    // Initialize and start the stream manager
+    // Initialize preview server
     try {
-      streamManager = StreamManager.getInstance();
-      await streamManager.start();
-      
-      const config = getConfig();
-      logger.info('Stream manager started', {
-        resolution: config.STREAM_RESOLUTION,
-        fps: config.TARGET_FPS,
-        bitrate: config.STREAM_BITRATE
-      } as LogContext);
+      logger.info('Stream server setup started');
     } catch (error) {
-      logger.error('Failed to start stream manager', {
+      logger.error('Failed to start stream server', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
-      } as LogContext);
+      });
       process.exit(1);
     }
 
-    // Add status endpoint
-    streamRouter.get('/status', (req: Request, res: Response) => {
-      try {
-        const metrics = streamManager.getMetrics();
-        if (!metrics) {
-          logger.error('Failed to get stream metrics');
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to get stream metrics'
-          });
-        }
-
-        const status = {
-          success: true,
-          data: {
-            isLive: metrics.isStreaming,
-            fps: metrics.currentFPS || 0,
-            targetFPS: 30, // Default target FPS
-            layerCount: newLayerManager.getAllLayers().length,
-            averageRenderTime: 0, // Default render time
-            isPaused: false
-          }
-        };
-
-        logger.info('Status request successful', status);
-        res.json(status);
-      } catch (error) {
-        logger.error('Error getting stream status', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        });
-        res.status(500).json({
-          success: false,
-          error: 'Failed to get stream status'
-        });
-      }
-    });
-
-    // Endpoint to get the current frame
-    streamRouter.get('/frame', async (req: Request, res: Response) => {
-      try {
-        const metrics = streamManager.getMetrics();
-        logger.info('Frame request received', {
-          isStreaming: metrics.isStreaming,
-          fps: metrics.currentFPS,
-          layerCount: newLayerManager.getAllLayers().length
-        } as LogContext);
-
-        if (!metrics.isStreaming) {
-          logger.info('Stream not active, returning black frame');
-          // Return a black frame if not streaming
-          const blackFrame = await sharp({
-            create: {
-              width: 1280,
-              height: 720,
-              channels: 4,
-              background: { r: 0, g: 0, b: 0, alpha: 1 }
-            }
-          }).png().toBuffer();
-          res.setHeader('Content-Type', 'image/png');
-          res.send(blackFrame);
-          return;
-        }
-
-        // Get the current frame from the stream manager
-        const layers = newLayerManager.getAllLayers();
-        logger.info('Retrieved layers for compositing', {
-          layerCount: layers.length,
-          layerTypes: layers.map(l => l.content.type),
-          layerVisibility: layers.map(l => ({ type: l.content.type, visible: l.visible }))
-        } as LogContext);
-
-        // Log layer details before compositing
-        layers.forEach(layer => {
-          logger.info('Layer details', {
-            id: layer.id,
-            type: layer.content.type,
-            visible: layer.visible,
-            opacity: layer.opacity,
-            transform: layer.transform,
-            content: layer.content.type === 'image' ? {
-              ...layer.content,
-              data: layer.content.data
-            } : 'content-omitted'
-          } as LogContext);
-        });
-
-        logger.info('Attempting to composite layers...');
-        const composited = await layerRenderer.renderFrame(1280, 720);
-        logger.info('Layers composited successfully', {
-          compositedBuffer: composited ? 'buffer-present' : 'buffer-missing',
-          bufferSize: composited?.length
-        } as LogContext);
-
-        logger.info('Resizing and converting to PNG...');
-        const pngBuffer = await sharp(composited)
-          .resize(1280, 720)
-          .png()
-          .toBuffer();
-
-        logger.info('Frame generated successfully', {
-          pngSize: pngBuffer.length
-        } as LogContext);
-
-        res.setHeader('Content-Type', 'image/png');
-        res.send(pngBuffer);
-      } catch (error) {
-        logger.error('Error serving frame', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-          phase: error instanceof Error && error.message.includes('composite') ? 'compositing' : 
-                error instanceof Error && error.message.includes('resize') ? 'resizing' : 'unknown'
-        } as LogContext);
-        res.status(500).json({
-          error: 'Error generating frame',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-
-    // New Layer Management API Endpoints
+    // Layer Management Endpoints
     streamRouter.get('/layers', (req: Request, res: Response) => {
       try {
-        logger.info('Fetching all layers from NewLayerManager');
-        const layers = newLayerManager.getAllLayers();
-        
-        if (!layers) {
-          logger.error('NewLayerManager returned null or undefined layers');
-          return res.status(500).json({
-            success: false,
-            error: 'Layer manager not properly initialized',
-            details: 'Layer manager returned null or undefined'
-          });
-        }
-
-        // Ensure we're returning a valid array
-        if (!Array.isArray(layers)) {
-          logger.error('NewLayerManager returned non-array value', {
-            returnType: typeof layers,
-            value: layers
-          } as LogContext);
-          return res.status(500).json({
-            success: false,
-            error: 'Invalid layer data format',
-            details: 'Expected array of layers'
-          });
-        }
-
-        // Ensure proper content type
-        res.setHeader('Content-Type', 'application/json');
-        
-        // Return the layers with proper structure
+        logger.info('Fetching layers');
         res.json({
           success: true,
           data: layers,
           count: layers.length
         });
       } catch (error) {
-        logger.error('Failed to get layers from NewLayerManager:', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-          type: error instanceof Error ? error.constructor.name : typeof error
-        } as LogContext);
-
-        // Ensure proper content type even for errors
-        res.setHeader('Content-Type', 'application/json');
-        
+        logger.error('Error fetching layers', { error });
         res.status(500).json({
           success: false,
-          error: 'Failed to fetch layer states',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          error: 'Failed to fetch layers'
         });
       }
     });
 
     // Layer visibility endpoint
-    streamRouter.post('/layers/:id/visibility', async (req: Request, res: Response) => {
+    streamRouter.post('/layers/:id/visibility', (req: Request, res: Response) => {
       try {
         const { id } = req.params;
         const { visible } = req.body;
@@ -266,131 +114,101 @@ export async function setupStreamServer(app: express.Application) {
           });
         }
 
-        const success = newLayerManager.setLayerVisibility(id, visible);
-        if (!success) {
+        const layerIndex = layers.findIndex(layer => layer.id === id);
+        if (layerIndex === -1) {
           return res.status(404).json({
             success: false,
             error: 'Layer not found'
           });
         }
 
-        const layer = newLayerManager.getLayer(id);
+        layers[layerIndex] = {
+          ...layers[layerIndex],
+          visible
+        };
+
         res.json({
           success: true,
-          data: layer
+          data: layers[layerIndex]
         });
       } catch (error) {
-        logger.error('Error setting layer visibility', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        } as LogContext);
+        logger.error('Error updating layer visibility', { error });
         res.status(500).json({
           success: false,
-          error: 'Failed to set layer visibility'
+          error: 'Failed to update layer visibility'
         });
       }
     });
 
-    // Layer batch update endpoint
-    streamRouter.post('/layers/update', async (req: Request, res: Response) => {
+    // Add status endpoint
+    streamRouter.get('/status', (req: Request, res: Response) => {
       try {
-        const { updates } = req.body;
+        const status = previewServer.getStatus();
+        res.json({
+          success: true,
+          data: status
+        });
+      } catch (error) {
+        logger.error('Error getting stream status', { error });
+        res.status(500).json({
+          success: false,
+          error: 'Failed to get stream status'
+        });
+      }
+    });
 
-        if (!Array.isArray(updates)) {
-          return res.status(400).json({
+    // Endpoint to get the current frame
+    streamRouter.get('/frame', (req: Request, res: Response) => {
+      try {
+        const frame = previewServer.getCurrentFrame();
+        if (!frame) {
+          return res.status(404).json({
             success: false,
-            error: 'Updates must be an array'
+            error: 'No frame available'
           });
         }
 
-        const results = await Promise.all(updates.map(async (update) => {
-          const success = newLayerManager.setLayerVisibility(update.id, update.visible);
-          return {
-            id: update.id,
-            success,
-            error: success ? undefined : 'Layer not found'
-          };
-        }));
-
-        const allSuccessful = results.every(r => r.success);
-        const layerCount = newLayerManager.getAllLayers().length;
-
-        res.json({
-          success: allSuccessful,
-          data: {
-            results,
-            layerCount
-          }
-        });
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(frame);
       } catch (error) {
-        logger.error('Error processing batch update', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        } as LogContext);
+        logger.error('Error getting frame', { error });
         res.status(500).json({
           success: false,
-          error: 'Failed to process batch update'
+          error: 'Failed to get frame'
         });
       }
     });
 
     // Stream playback endpoints
-    streamRouter.post('/playback/:action', async (req: Request, res: Response) => {
+    streamRouter.post('/start', (req: Request, res: Response) => {
       try {
-        const { action } = req.params;
-        
-        if (!['start', 'stop'].includes(action)) {
-          return res.status(400).json({
-            success: false,
-            error: 'Invalid action. Must be either "start" or "stop"'
-          });
-        }
-
-        logger.info('Stream playback request received', {
-          action,
-          currentState: streamManager.getMetrics().isStreaming
-        } as LogContext);
-
-        if (action === 'start') {
-          if (streamManager.getMetrics().isStreaming) {
-            return res.status(400).json({
-              success: false,
-              error: 'Stream is already running'
-            });
-          }
-          await streamManager.start();
-        } else {
-          if (!streamManager.getMetrics().isStreaming) {
-            return res.status(400).json({
-              success: false,
-              error: 'Stream is not running'
-            });
-          }
-          await streamManager.stop();
-        }
-
-        const metrics = streamManager.getMetrics();
-        logger.info('Stream playback action completed', {
-          action,
-          isStreaming: metrics.isStreaming,
-          fps: metrics.currentFPS
-        } as LogContext);
-
+        previewServer.start();
         res.json({
           success: true,
-          data: {
-            isStreaming: metrics.isStreaming,
-            fps: metrics.currentFPS || 0
-          }
+          message: 'Stream started'
         });
       } catch (error) {
-        logger.error('Error controlling stream playback', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        } as LogContext);
+        logger.error('Error starting stream', { error });
         res.status(500).json({
           success: false,
-          error: 'Failed to control stream playback'
+          error: 'Failed to start stream'
+        });
+      }
+    });
+
+    streamRouter.post('/stop', (req: Request, res: Response) => {
+      try {
+        previewServer.stop();
+        res.json({
+          success: true,
+          message: 'Stream stopped'
+        });
+      } catch (error) {
+        logger.error('Error stopping stream', { error });
+        res.status(500).json({
+          success: false,
+          error: 'Failed to stop stream'
         });
       }
     });
@@ -404,14 +222,92 @@ export async function setupStreamServer(app: express.Application) {
         stack: err.stack,
         url: req.url,
         method: req.method
-      } as LogContext);
+      });
       res.status(500).json({ error: 'Internal server error' });
     });
   } catch (error) {
     logger.error('Stream server setup failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined
-    } as LogContext);
+    });
     process.exit(1);
   }
 }
+
+const router = Router();
+
+// Get stream status
+router.get('/status', (req, res) => {
+  try {
+    const status = previewServer.getStatus();
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    logger.error('Error getting stream status', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get stream status'
+    });
+  }
+});
+
+// Get current frame
+router.get('/frame', (req, res) => {
+  try {
+    const frame = previewServer.getCurrentFrame();
+    if (!frame) {
+      return res.status(404).json({
+        success: false,
+        error: 'No frame available'
+      });
+    }
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(frame);
+  } catch (error) {
+    logger.error('Error getting frame', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get frame'
+    });
+  }
+});
+
+// Start streaming
+router.post('/start', (req, res) => {
+  try {
+    previewServer.start();
+    res.json({
+      success: true,
+      message: 'Stream started'
+    });
+  } catch (error) {
+    logger.error('Error starting stream', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start stream'
+    });
+  }
+});
+
+// Stop streaming
+router.post('/stop', (req, res) => {
+  try {
+    previewServer.stop();
+    res.json({
+      success: true,
+      message: 'Stream stopped'
+    });
+  } catch (error) {
+    logger.error('Error stopping stream', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to stop stream'
+    });
+  }
+});
+
+export default router;
