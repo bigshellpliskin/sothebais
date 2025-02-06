@@ -1,62 +1,43 @@
 import { z } from 'zod';
 import type { LogLevel } from '../utils/logger.js';
 
-const configSchema = z.object({
-  // Server
-  PORT: z.string().transform(Number).pipe(z.number().min(1024).max(65535)).default("3000"),
-  WS_PORT: z.string().transform(Number).pipe(z.number().min(1024).max(65535)).default("3001"),
-  METRICS_PORT: z.string().transform(Number).pipe(z.number().min(1024).max(65535)).default("3002"),
-
-  // Redis
-  REDIS_URL: z.string().default("redis://localhost:6379"),
-  REDIS_PASSWORD: z.string().optional(),
-
-  // Scene Management
-  MAX_LAYERS: z.string().transform(Number).pipe(z.number().min(1).max(100)).default("10"),
-  TARGET_FPS: z.string().transform(Number).pipe(z.number().min(1).max(60)).default("30"),
+const ConfigSchema = z.object({
+  PORT: z.number().default(4200),
+  WS_PORT: z.number().default(4201),
+  METRICS_PORT: z.number().default(9090),
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+  STREAM_RESOLUTION: z.string().default('1920x1080'),
+  TARGET_FPS: z.number().default(30),
   RENDER_QUALITY: z.enum(['low', 'medium', 'high']).default('medium'),
-  STREAM_RESOLUTION: z.string().default("1920x1080"),
-  STREAM_BITRATE: z.string().transform(Number).pipe(z.number().min(1000).max(10000000)).default("5000000"),
-
-  // Logging
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('warn'),
-  LOG_PRETTY_PRINT: z.boolean().default(true),
-
-  // Worker Pool
-  MIN_WORKERS: z.string().transform(Number).pipe(z.number().min(1).max(100)).default("5"),
-  MAX_WORKERS: z.string().transform(Number).pipe(z.number().min(1).max(100)).default("10"),
-  TASK_TIMEOUT: z.string().transform(Number).pipe(z.number().min(1000).max(300000)).default("30000"),
-  WORKER_TIMEOUT: z.string().transform(Number).pipe(z.number().min(1000).max(600000)).default("60000"),
-  MAX_RETRIES: z.string().transform(Number).pipe(z.number().min(1).max(10)).default("3"),
-  QUEUE_SIZE: z.string().transform(Number).pipe(z.number().min(1).max(1000)).default("100"),
-
-  // Rendering
-  MAX_RENDER_SIZE: z.string().transform(Number).pipe(z.number().min(1024).max(4096)).default("4096"),
+  MAX_LAYERS: z.number().default(10),
+  STREAM_BITRATE: z.string().default('4000k'),
   ENABLE_HARDWARE_ACCELERATION: z.boolean().default(true),
-
-  // Asset Management
-  ASSET_CACHE_SIZE: z.string().transform(Number).pipe(z.number().min(1024 * 1024 * 1024).max(1024 * 1024 * 1024 * 1024)).default("1073741824"), // 1GB
-  ASSET_CACHE_TTL: z.string().transform(Number).pipe(z.number().min(3600).max(86400)).default("3600"), // 1 hour
-  ASSET_PREFETCH_ENABLED: z.boolean().default(true),
-
-  // Monitoring
-  METRICS_INTERVAL: z.string().transform(Number).pipe(z.number().min(1000).max(30000)).default("5000"),
-  HEALTH_CHECK_INTERVAL: z.string().transform(Number).pipe(z.number().min(10000).max(300000)).default("30000"),
-  ENABLE_PERFORMANCE_MONITORING: z.boolean().default(true),
+  METRICS_INTERVAL: z.number().default(5000),
+  STREAM_URL: z.string().default('rtmp://localhost/live/stream')
 });
 
-export type Config = z.infer<typeof configSchema>;
+export type Config = z.infer<typeof ConfigSchema>;
 
-function loadConfig(): Config {
-  try {
-    return configSchema.parse(process.env);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      console.error('Configuration validation failed:', error.errors);
-      process.exit(1);
-    }
-    throw error;
-  }
+let config: Config;
+
+export async function loadConfig(): Promise<Config> {
+  const envConfig = {
+    PORT: process.env.PORT ? parseInt(process.env.PORT, 10) : undefined,
+    WS_PORT: process.env.WS_PORT ? parseInt(process.env.WS_PORT, 10) : undefined,
+    METRICS_PORT: process.env.METRICS_PORT ? parseInt(process.env.METRICS_PORT, 10) : undefined,
+    REDIS_URL: process.env.REDIS_URL,
+    STREAM_RESOLUTION: process.env.STREAM_RESOLUTION,
+    TARGET_FPS: process.env.TARGET_FPS ? parseInt(process.env.TARGET_FPS, 10) : undefined,
+    RENDER_QUALITY: process.env.RENDER_QUALITY as 'low' | 'medium' | 'high' | undefined,
+    MAX_LAYERS: process.env.MAX_LAYERS ? parseInt(process.env.MAX_LAYERS, 10) : undefined,
+    STREAM_BITRATE: process.env.STREAM_BITRATE,
+    ENABLE_HARDWARE_ACCELERATION: process.env.ENABLE_HARDWARE_ACCELERATION === 'true',
+    METRICS_INTERVAL: process.env.METRICS_INTERVAL ? parseInt(process.env.METRICS_INTERVAL, 10) : undefined,
+    STREAM_URL: process.env.STREAM_URL
+  };
+
+  config = ConfigSchema.parse(envConfig);
+  return config;
 }
 
-export const config = loadConfig(); 
+export { config }; 

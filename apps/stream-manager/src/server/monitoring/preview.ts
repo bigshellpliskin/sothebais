@@ -13,17 +13,16 @@ interface PreviewClient {
 
 export class PreviewServer extends EventEmitter {
   private static instance: PreviewServer | null = null;
-  private wss: WebSocketServer;
+  private wss: WebSocketServer | null = null;
   private clients: Map<string, PreviewClient> = new Map();
   private renderer: Renderer;
   private isStreaming: boolean = false;
   private lastFrameBuffer: Buffer | null = null;
+  private isInitialized: boolean = false;
 
   private constructor() {
     super();
     this.renderer = Renderer.getInstance();
-    this.wss = new WebSocketServer({ port: config.WS_PORT });
-    this.initialize();
   }
 
   public static getInstance(): PreviewServer {
@@ -33,67 +32,86 @@ export class PreviewServer extends EventEmitter {
     return PreviewServer.instance;
   }
 
-  private initialize(): void {
-    this.wss.on('connection', (ws: WebSocket) => {
-      const clientId = `preview_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  public async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+
+    // Wait for config to be available
+    if (!config.WS_PORT) {
+      logger.warn('WS_PORT not available in config, waiting for config to load...');
+      return;
+    }
+
+    try {
+      this.wss = new WebSocketServer({ port: config.WS_PORT });
       
-      const client: PreviewClient = {
-        id: clientId,
-        ws,
-        quality: 'medium',
-        lastPing: Date.now()
-      };
+      this.wss.on('connection', (ws: WebSocket) => {
+        const clientId = `preview_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const client: PreviewClient = {
+          id: clientId,
+          ws,
+          quality: 'medium',
+          lastPing: Date.now()
+        };
 
-      this.clients.set(clientId, client);
+        this.clients.set(clientId, client);
 
-      logger.info('Preview client connected', { clientId });
+        logger.info('Preview client connected', { clientId });
 
-      // Send last frame if available
-      if (this.lastFrameBuffer) {
-        this.sendFrameToClient(client, this.lastFrameBuffer);
-      }
-
-      // Handle client messages
-      ws.on('message', (message: string) => {
-        try {
-          const data = JSON.parse(message);
-          this.handleClientMessage(clientId, data);
-        } catch (error) {
-          logger.error('Error handling preview client message', { clientId, error });
+        // Send last frame if available
+        if (this.lastFrameBuffer) {
+          this.sendFrameToClient(client, this.lastFrameBuffer);
         }
+
+        // Handle client messages
+        ws.on('message', (message: string) => {
+          try {
+            const data = JSON.parse(message);
+            this.handleClientMessage(clientId, data);
+          } catch (error) {
+            logger.error('Error handling preview client message', { clientId, error });
+          }
+        });
+
+        // Handle client disconnect
+        ws.on('close', () => {
+          this.clients.delete(clientId);
+          logger.info('Preview client disconnected', { clientId });
+        });
+
+        // Send initial configuration
+        ws.send(JSON.stringify({
+          type: 'config',
+          data: {
+            width: 1920,
+            height: 1080,
+            fps: 30,
+            quality: client.quality
+          }
+        }));
       });
 
-      // Handle client disconnect
-      ws.on('close', () => {
-        this.clients.delete(clientId);
-        logger.info('Preview client disconnected', { clientId });
+      // Listen for new frames from renderer
+      this.renderer.on('frame:ready', (frame: Buffer) => {
+        this.lastFrameBuffer = frame;
+        this.broadcastFrame(frame);
       });
 
-      // Send initial configuration
-      ws.send(JSON.stringify({
-        type: 'config',
-        data: {
-          width: 1920,
-          height: 1080,
-          fps: 30,
-          quality: client.quality
-        }
-      }));
-    });
+      // Start ping interval
+      setInterval(() => this.pingClients(), 30000);
 
-    // Listen for new frames from renderer
-    this.renderer.on('frame:ready', (frame: Buffer) => {
-      this.lastFrameBuffer = frame;
-      this.broadcastFrame(frame);
-    });
-
-    // Start ping interval
-    setInterval(() => this.pingClients(), 30000);
-
-    logger.info('Preview server initialized', { 
-      port: config.WS_PORT,
-      rendererStatus: this.renderer.getStats()
-    });
+      this.isInitialized = true;
+      logger.info('Preview server initialized', { 
+        port: config.WS_PORT,
+        rendererStatus: this.renderer.getStats()
+      });
+    } catch (error) {
+      logger.error('Failed to initialize preview server', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
   }
 
   private handleClientMessage(clientId: string, message: any): void {
@@ -121,7 +139,7 @@ export class PreviewServer extends EventEmitter {
   }
 
   private sendFrameToClient(client: PreviewClient, frame: Buffer): void {
-    if (client.ws.readyState !== WebSocket.OPEN) return;
+    if (!client.ws || client.ws.readyState !== WebSocket.OPEN) return;
 
     try {
       const frameData = frame.toString('base64');
@@ -202,7 +220,9 @@ export class PreviewServer extends EventEmitter {
       client.ws.close();
     }
     this.clients.clear();
-    this.wss.close();
+    if (this.wss) {
+      this.wss.close();
+    }
     PreviewServer.instance = null;
     logger.info('Preview server shut down');
   }

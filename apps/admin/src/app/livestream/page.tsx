@@ -186,11 +186,11 @@ export default function LivestreamPage() {
           status: response.status,
           error: data
         });
-        throw new Error(`Failed to fetch layers: ${data.error || response.statusText}`);
+        throw new Error(data.error || response.statusText);
       }
 
-      if (!data.success && data.error) {
-        throw new Error(data.error);
+      if (!data.success) {
+        throw new Error(data.error || 'Unknown error occurred');
       }
 
       setStreamState(prev => ({

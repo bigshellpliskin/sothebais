@@ -1,22 +1,17 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createClient } from 'redis';
-import type { Server as WebSocketServer } from 'ws';
-import { WebSocket } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import { logger } from './utils/logger.js';
-import { getConfig, loadConfig } from './config/index.js';
-import { redisService } from './services/redis.js';
-import { webSocketService } from './services/websocket.js';
-import { layerRenderer } from './services/layer-renderer.js';
+import { config, loadConfig } from './config/index.js';
+import { setupStreamServer } from './server/api/stream.js';
 import { Registry, collectDefaultMetrics } from 'prom-client';
-import { setupStreamServer } from './server/stream-server.js';
-import { StreamEncoder } from './pipeline/stream-encoder.js';
 
 // Load configuration first
-const config = loadConfig();
+const loadedConfig = await loadConfig();
 
 // Initialize logger early
-logger.initialize(config);
+logger.initialize(loadedConfig);
 
 // Create a Registry to register metrics
 const register = new Registry();
@@ -32,76 +27,94 @@ const metricsApp = express();
 
 metricsApp.get('/metrics', async (_req: Request, res: Response) => {
   try {
-    // Combine default metrics with stream manager metrics
-    const defaultMetrics = await register.metrics();
-    const streamMetrics = await layerRenderer.getMetrics();
+    // Get default metrics
+    const metrics = await register.metrics();
     res.set('Content-Type', register.contentType);
-    res.end(defaultMetrics + '\n' + streamMetrics);
+    res.end(metrics);
   } catch (err) {
     res.status(500).end(err);
   }
 });
 
-metricsApp.listen(config.METRICS_PORT, () => {
-  logger.info(`Metrics server listening on port ${config.METRICS_PORT}`);
+metricsApp.listen(loadedConfig.METRICS_PORT, () => {
+  logger.info(`Metrics server listening on port ${loadedConfig.METRICS_PORT}`);
 });
 
 async function startServer() {
   try {
-    // Initialize services
-    redisService.initialize(config);
-    await redisService.connect();
-    logger.info('Redis connection established', {
-      host: config.REDIS_URL,
-      status: 'connected'
+    // Create Redis client
+    const redis = createClient({
+      url: loadedConfig.REDIS_URL
     });
 
-    // Initialize stream encoder
-    const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
-    StreamEncoder.initialize({
-      width,
-      height,
-      fps: config.TARGET_FPS,
-      preset: config.RENDER_QUALITY === 'high' ? 'medium' : 
-              config.RENDER_QUALITY === 'medium' ? 'veryfast' : 'ultrafast',
-      bitrate: config.STREAM_BITRATE,
-      codec: 'h264',
-      streamUrl: config.STREAM_URL
-    });
-    logger.info('Stream encoder initialized', {
-      resolution: config.STREAM_RESOLUTION,
-      fps: config.TARGET_FPS,
-      quality: config.RENDER_QUALITY
+    await redis.connect();
+    logger.info('Redis connection established', {
+      host: loadedConfig.REDIS_URL,
+      status: 'connected'
     });
 
     // Create Express app
     const app = express();
 
+    // Add request logging middleware
+    app.use((req: Request, res: Response, next) => {
+      logger.info('Incoming request', {
+        method: req.method,
+        path: req.path,
+        query: req.query
+      });
+      next();
+    });
+
+    // Set up stream server routes first
+    logger.info('Setting up stream server routes');
+    await setupStreamServer(app);
+    logger.info('Stream server routes configured');
+
+    // Log all registered routes
+    app._router.stack.forEach((r: any) => {
+      if (r.route && r.route.path) {
+        logger.info('Registered route:', {
+          path: r.route.path,
+          methods: Object.keys(r.route.methods)
+        });
+      }
+    });
+
     // Start HTTP server
-    const httpServer = app.listen(config.PORT, '0.0.0.0', () => {
+    const httpServer = app.listen(loadedConfig.PORT, '0.0.0.0', () => {
       logger.info('HTTP endpoint ready', {
         service: 'http',
-        port: config.PORT,
+        port: loadedConfig.PORT,
         address: '0.0.0.0',
         protocol: 'http'
       });
     });
 
-    // Initialize WebSocket service
-    webSocketService.initialize(config);
+    // Create WebSocket server
+    const wsServer = new WebSocketServer({ server: httpServer });
+    
+    wsServer.on('connection', (ws: WebSocket) => {
+      logger.info('WebSocket client connected');
+      
+      ws.on('message', (message: string) => {
+        logger.debug('Received WebSocket message', { message });
+      });
+      
+      ws.on('close', () => {
+        logger.info('WebSocket client disconnected');
+      });
+    });
 
     // Log endpoints configuration
     logger.info('Service endpoints configured', {
       endpoints: {
-        http: { port: config.PORT, protocol: 'http' },
-        metrics: { port: config.METRICS_PORT, protocol: 'http' },
-        ws: { port: config.WS_PORT, protocol: 'ws' }
+        http: { port: loadedConfig.PORT, protocol: 'http' },
+        metrics: { port: loadedConfig.METRICS_PORT, protocol: 'http' },
+        ws: { port: loadedConfig.WS_PORT, protocol: 'ws' }
       },
       status: 'ready'
     });
-
-    // Set up demo server
-    await setupStreamServer(app);
 
     logger.info('Stream Manager ready', {
       status: 'healthy',
@@ -132,8 +145,7 @@ process.on('SIGTERM', async () => {
     uptime: process.uptime()
   });
   try {
-    await redisService.disconnect();
-    webSocketService.shutdown();
+    // Cleanup will happen through GC since we're not storing service references
     logger.info('Shutdown complete', {
       status: 'shutdown_complete',
       code: 0
