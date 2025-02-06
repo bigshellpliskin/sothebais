@@ -246,6 +246,9 @@ services:
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
       - PORT=4200
       - WS_PORT=4201

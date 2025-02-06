@@ -1,3 +1,4 @@
+// Stream Configuration Types
 export interface StreamConfig {
   resolution: {
     width: number;
@@ -17,6 +18,7 @@ export interface AudioConfig {
   channels: number;
 }
 
+// Stream Metrics Types
 export interface StreamMetrics {
   fps: number;
   bitrate: number;
@@ -27,20 +29,30 @@ export interface StreamMetrics {
   memoryUsage: number;
 }
 
+// Stream Runtime State
 export interface StreamState {
-  isStreaming: boolean;
-  streamConfig: StreamConfig;
-  audioConfig: AudioConfig;
-  metrics: StreamMetrics;
-  error?: string;
+  isLive: boolean;
+  isPaused: boolean;
+  fps: number;
+  targetFPS: number;
+  frameCount: number;
+  droppedFrames: number;
+  averageRenderTime: number;
+  startTime?: number | null;
+  error?: string | null;
+  config?: StreamConfig;
+  audio?: AudioConfig;
+  metrics?: StreamMetrics;
 }
 
+// Stream Output Configuration
 export interface StreamOutput {
   type: 'twitter' | 'rtmp' | 'file';
   url: string;
   key?: string;
 }
 
+// Stream Events
 export type StreamEvent = 
   | { type: 'streamStart'; timestamp: number }
   | { type: 'streamStop'; timestamp: number }

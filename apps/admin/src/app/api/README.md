@@ -28,8 +28,11 @@ Essential layer control operations:
 ### Stream Playback (`/api/stream/playback`)
 
 Stream playback operations:
-- `POST /start` - Start the stream
-- `POST /stop` - Stop the stream
+- `POST /` - Control stream playback
+  - Accepts `action` parameter with values:
+    - `start` - Start the stream
+    - `stop` - Stop the stream
+    - `pause` - Pause the stream
 
 ### Stream Status (`/api/stream/status`)
 
@@ -39,6 +42,29 @@ Monitoring and metrics:
   - FPS and performance metrics
   - Layer statistics
   - Resource usage
+
+### Events API (`/api/events`)
+
+Event handling and management:
+- Dynamic path routing via `[...path]`
+- `GET /{path}` - Fetch event data
+- `POST /{path}` - Send event data
+- Proxies requests to event-handler service
+- Handles both JSON requests and responses
+
+### Services API (`/api/services`)
+
+Service monitoring and metrics:
+- `GET /status` - Get service health status
+  - Public endpoint (no auth required)
+  - Cached responses (30s TTL)
+  - Supports multiple service types:
+    - Core services (event-handler, stream-manager, admin-frontend)
+    - Infrastructure services (prometheus, redis)
+- `GET /metrics` - Get detailed service metrics
+  - Public endpoint (no auth required)
+  - Standard metrics (CPU, memory, request rate, error rate, uptime)
+  - Service-specific metrics (e.g., Redis memory, connections, operations)
 
 ## Usage Examples
 
@@ -87,13 +113,15 @@ await fetch('/api/stream/layers/update', {
 ### Stream Playback
 ```typescript
 // Start stream
-await fetch('/api/stream/playback/start', {
-  method: 'POST'
+await fetch('/api/stream/playback', {
+  method: 'POST',
+  body: JSON.stringify({ action: 'start' })
 });
 
 // Stop stream
-await fetch('/api/stream/playback/stop', {
-  method: 'POST'
+await fetch('/api/stream/playback', {
+  method: 'POST',
+  body: JSON.stringify({ action: 'stop' })
 });
 ```
 
@@ -162,33 +190,45 @@ enum ErrorCode {
 
 ## Error Handling
 
-All endpoints implement comprehensive error handling:
-- Input validation
-- Resource existence checks
-- Permission verification
-- Rate limiting
-- Error logging and monitoring
+All endpoints implement comprehensive error handling with detailed logging:
+
+```typescript
+try {
+  // API operation
+} catch (error) {
+  console.error('[API Name] Error:', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined
+  });
+  return NextResponse.json(
+    { 
+      success: false,
+      error: 'Operation failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    },
+    { status: 500 }
+  );
+}
+```
 
 Example error response:
 ```typescript
 {
   success: false,
-  error: {
-    code: ErrorCode.LAYER_NOT_FOUND,
-    message: 'Layer not found',
-    details: { layerId: '123' }
-  }
+  error: 'Failed to update layer visibility',
+  details: 'Layer not found: overlay-1'
 }
 ```
 
 ## Security
 
 The API implements several security measures:
-- Authentication via session tokens
+- Authentication via session tokens (except public endpoints)
 - Rate limiting for control operations
 - Input validation and sanitization
 - Audit logging for all operations
 - Permission-based access control
+- Internal Docker network isolation
 
 ## Development Guidelines
 
@@ -199,10 +239,17 @@ When implementing new endpoints:
 4. Include appropriate logging and metrics
 5. Update this documentation
 6. Add tests for new functionality
+7. Consider caching strategies where appropriate
+8. Use internal Docker networking URLs
 
 ## Architecture
 
-The API is built using Next.js API routes, which provide serverless functions that are automatically deployed as edge functions. Each endpoint communicates with the appropriate microservices (such as the stream-manager service) using internal Docker networking.
+The API is built using Next.js API routes, which provide serverless functions that are automatically deployed as edge functions. Each endpoint communicates with the appropriate microservices using internal Docker networking:
+
+- Stream Manager (`http://stream-manager:4200`) - Handles stream operations
+- Event Handler (`http://event-handler:4300`) - Manages event processing
+- Redis (`redis:6379`) - Caching and data storage
+- Prometheus (`prometheus:9090`) - Metrics collection
 
 ### API Structure
 ```
@@ -212,10 +259,11 @@ The API is built using Next.js API routes, which provide serverless functions th
       /config
     /status
     /playback
-      /start
-      /stop
     /layers
       /[id]/visibility
+      /update
+  /events
+    /[...path]
   /services
     /status
     /metrics

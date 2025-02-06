@@ -14,19 +14,21 @@ async function fetchServiceMetrics(serviceName: string, port: number): Promise<P
     return {};
   }
 
-  const queries = {
+  const queries: Record<keyof ServiceMetrics, string> = {
     requestRate: `rate(http_request_duration_seconds_count{instance="${serviceName}:${port}"}[1m])`,
     errorRate: `rate(http_request_duration_seconds_count{instance="${serviceName}:${port}",code=~"5.."}[1m])`,
     cpuUsage: `rate(process_cpu_seconds_total{instance="${serviceName}:${port}"}[1m]) * 100`,
     memoryUsage: `process_resident_memory_bytes{instance="${serviceName}:${port}"} / 1024 / 1024`,
     uptime: `process_start_time_seconds{instance="${serviceName}:${port}"}`,
+    lastReload: '',  // Default empty string for non-Traefik services
+    connectionCount: ''  // Default empty string for non-Redis services
   };
 
   // Add service-specific metrics
   if (serviceName === 'traefik') {
-    queries['lastReload'] = 'traefik_config_last_reload_success';
+    queries.lastReload = 'traefik_config_last_reload_success';
   } else if (serviceName === 'redis') {
-    queries['connectionCount'] = 'redis_connected_clients';
+    queries.connectionCount = 'redis_connected_clients';
   }
 
   const results: Partial<ServiceMetrics> = {};

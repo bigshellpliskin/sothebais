@@ -6,6 +6,7 @@ import { PlaybackControls } from "@/components/stream/playback-controls";
 import { StreamStatus } from "@/components/stream/stream-status";
 import { LayerControls } from "@/components/stream/layer-controls";
 import { ChatControls } from "@/components/stream/chat-controls";
+import { useStreamState } from "@/hooks/useStreamState";
 import { useState, useEffect, useRef } from "react";
 
 interface Layer {
@@ -29,14 +30,14 @@ interface StreamState {
 }
 
 export default function LivestreamPage() {
-  const [streamState, setStreamState] = useState<StreamState>({
-    isLive: false,
-    isPaused: false,
-    fps: 0,
-    targetFPS: 30,
-    layerCount: 0,
-    averageRenderTime: 0,
-    layers: []
+  const { 
+    streamState, 
+    layers, 
+    error, 
+    isLoading,
+    refetch: refetchState 
+  } = useStreamState({
+    pollInterval: 1000 // Poll every second
   });
 
   // Queue system for layer updates
@@ -76,8 +77,8 @@ export default function LivestreamPage() {
         }
       }));
 
-      // Fetch updated layers
-      await fetchLayers();
+      // Fetch updated state after layer changes
+      await refetchState();
     } catch (error) {
       console.error('[Frontend] Error processing queue:', error);
     } finally {
@@ -125,7 +126,8 @@ export default function LivestreamPage() {
         throw new Error(error.message || 'Failed to control stream');
       }
 
-      // Don't update local state here - let the status polling handle it
+      // Immediately refetch state after control action
+      await refetchState();
     } catch (error) {
       console.error('[Frontend] Error controlling stream:', error);
     }
@@ -149,106 +151,25 @@ export default function LivestreamPage() {
       if (!response.ok) {
         throw new Error('Failed to send chat message');
       }
+
+      // Refetch state after sending message
+      await refetchState();
     } catch (error) {
       console.error('[Frontend] Error sending chat message:', error);
     }
   };
 
-  // Function to fetch layers
-  const fetchLayers = async () => {
-    try {
-      const response = await fetch('/api/stream/layers', {
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-store'
-        }
-      });
-      
-      // Try to parse response as JSON, handle parse errors explicitly
-      let errorData;
-      let data;
-      
-      try {
-        const text = await response.text();
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error('[Frontend] Failed to parse response:', text);
-          throw new Error('Invalid JSON response from server');
-        }
-      } catch (e) {
-        console.error('[Frontend] Error reading response:', e);
-        throw new Error('Failed to read server response');
-      }
-
-      if (!response.ok) {
-        console.error('[Frontend] Layer fetch failed:', {
-          status: response.status,
-          error: data
-        });
-        throw new Error(data.error || response.statusText);
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Unknown error occurred');
-      }
-
-      setStreamState(prev => ({
-        ...prev,
-        layers: data.data,
-        layerCount: data.count || data.data.length
-      }));
-    } catch (error) {
-      console.error('[Frontend] Error fetching layers:', error);
-      // Set empty layers array on error to prevent UI from breaking
-      setStreamState(prev => ({
-        ...prev,
-        layers: [],
-        layerCount: 0
-      }));
-    }
-  };
-
-  // Function to fetch stream status
-  const fetchStatus = async () => {
-    try {
-      const response = await fetch('/api/stream/status');
-      if (!response.ok) {
-        throw new Error('Failed to fetch stream status');
-      }
-      const data = await response.json();
-      
-      setStreamState(prev => ({
-        ...prev,
-        isLive: Boolean(data.isLive),
-        isPaused: Boolean(data.isPaused),
-        fps: Number(data.fps) || 0,
-        targetFPS: Number(data.targetFPS) || prev.targetFPS,
-        averageRenderTime: Number(data.averageRenderTime) || 0
-      }));
-    } catch (error) {
-      console.error('[Frontend] Error fetching status:', error);
-      setStreamState(prev => ({
-        ...prev,
-        isLive: false
-      }));
-    }
-  };
-
-  // Fetch initial data and set up polling
-  useEffect(() => {
-    const fetchData = async () => {
-      await Promise.all([
-        fetchLayers(),
-        fetchStatus()
-      ]);
-    };
-
-    fetchData();
-
-    const interval = setInterval(fetchData, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  if (error) {
+    return (
+      <div className="container mx-auto p-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-red-500">Error: {error}</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -258,23 +179,22 @@ export default function LivestreamPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4">
-            
             <StreamStatus
               isLive={streamState.isLive}
               isPaused={streamState.isPaused}
               fps={streamState.fps}
               targetFPS={streamState.targetFPS}
-              layerCount={streamState.layerCount}
+              layerCount={layers.length}
               averageRenderTime={streamState.averageRenderTime}
             />
-            <StreamViewer streamStatus={streamState} />
+            <StreamViewer streamState={streamState} />
             <PlaybackControls
               isLive={streamState.isLive}
               isPaused={streamState.isPaused}
               onControlStream={controlStream}
             />
             <LayerControls
-              layers={streamState.layers}
+              layers={layers}
               onToggleLayer={toggleLayer}
             />
             <ChatControls

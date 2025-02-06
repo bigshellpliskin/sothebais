@@ -4,22 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 const STREAM_MANAGER_URL = 'http://stream-manager:4200';
 
 export async function POST(request: NextRequest) {
-  // Log full request details
-  console.log('[Stream Control] Full request details:', {
-    url: request.url,
-    method: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
-    timestamp: new Date().toISOString()
-  });
-
   try {
     const body = await request.json();
     const { action } = body;
 
-    console.log('[Stream Control] Request body:', body);
-
     if (!action || !['start', 'stop', 'pause'].includes(action)) {
-      console.log('[Stream Control] Invalid action:', action);
+      console.error('[Stream Control] Invalid action:', action);
       return NextResponse.json(
         { 
           success: false,
@@ -29,8 +19,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/control`;
-    console.log('[Stream Control] Sending request to:', streamManagerUrl);
+    console.log('[Stream Control] Sending action:', action);
+    const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/${action}`;
 
     const response = await fetch(streamManagerUrl, {
       method: 'POST',
@@ -39,33 +29,53 @@ export async function POST(request: NextRequest) {
         'Accept': 'application/json',
         'User-Agent': 'admin-frontend'
       },
-      body: JSON.stringify({ action })
+      // Add a timeout to prevent hanging requests
+      signal: AbortSignal.timeout(5000)
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Stream Control] Error response text:', errorText);
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {
-        errorData = { message: 'Failed to parse error response' };
-      }
-      console.error('[Stream Control] Error data:', errorData);
+    const responseText = await response.text();
+    let data;
+    
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[Stream Control] Failed to parse response:', responseText);
       return NextResponse.json(
         { 
           success: false,
-          error: errorData.message || 'Failed to control stream'
+          error: 'Invalid response from stream manager',
+          details: responseText
+        },
+        { status: 502 }
+      );
+    }
+
+    if (!response.ok) {
+      console.error('[Stream Control] Stream manager error:', {
+        status: response.status,
+        data
+      });
+      return NextResponse.json(
+        { 
+          success: false,
+          error: data.error || 'Failed to control stream',
+          details: data
         },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
-    console.log('[Stream Control] Success response:', data);
-    return NextResponse.json({ success: true, data });
+    console.log('[Stream Control] Action completed successfully:', {
+      action,
+      response: data
+    });
+    
+    return NextResponse.json({ 
+      success: true, 
+      data: data.data || data 
+    });
   } catch (error) {
-    console.error('[Stream Control] Error:', error);
+    console.error('[Stream Control] Unexpected error:', error);
     return NextResponse.json(
       { 
         success: false,

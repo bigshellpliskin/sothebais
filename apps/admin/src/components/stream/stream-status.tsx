@@ -17,37 +17,66 @@ export function StreamStatus({
   layerCount,
   averageRenderTime
 }: StreamStatusProps) {
+  // Determine status text and styles
+  const getStatusConfig = () => {
+    if (isLive) {
+      if (isPaused) {
+        return {
+          text: 'Paused',
+          borderColor: 'border-yellow-200',
+          bgColor: 'bg-yellow-50',
+          textColor: 'text-yellow-700',
+          dotColor: 'bg-yellow-500',
+          animate: false
+        };
+      }
+      return {
+        text: 'Live',
+        borderColor: 'border-green-200',
+        bgColor: 'bg-green-50',
+        textColor: 'text-green-700',
+        dotColor: 'bg-green-500',
+        animate: true
+      };
+    }
+    return {
+      text: 'Offline',
+      borderColor: 'border-red-200',
+      bgColor: 'bg-red-50',
+      textColor: 'text-red-700',
+      dotColor: 'bg-red-500',
+      animate: false
+    };
+  };
+
+  const status = getStatusConfig();
+
   return (
     <div className="flex items-center justify-center gap-2 -my-1">
       {/* Status Tab */}
       <div className={cn(
-        "flex items-center gap-2 rounded-md border px-2.5 py-0.5 text-sm font-medium",
-        isLive 
-          ? isPaused 
-            ? "border-yellow-200 bg-yellow-50 text-yellow-700" 
-            : "border-green-200 bg-green-50 text-green-700 animate-pulse"
-          : "border-red-200 bg-red-50 text-red-700"
+        "flex items-center gap-2 rounded-md border px-2.5 py-0.5 text-sm font-medium transition-colors duration-200",
+        status.borderColor,
+        status.bgColor,
+        status.textColor,
+        status.animate && "animate-pulse"
       )}>
         <div className={cn(
-          "h-1.5 w-1.5 rounded-full",
-          isLive 
-            ? isPaused 
-              ? "bg-yellow-500" 
-              : "bg-green-500"
-            : "bg-red-500"
+          "h-1.5 w-1.5 rounded-full transition-colors duration-200",
+          status.dotColor
         )} />
-        {isLive ? (isPaused ? 'Paused' : 'Live') : 'Offline'}
+        {status.text}
       </div>
 
       {/* Metrics Tabs */}
       <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-medium text-slate-700">
-        FPS: {(fps || 0).toFixed(1)} / {targetFPS || 30}
+        FPS: {isLive ? (fps || 0).toFixed(1) : '0.0'} / {targetFPS || 30}
       </div>
       <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-medium text-slate-700">
         Layers: {layerCount || 0}
       </div>
       <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-medium text-slate-700">
-        Render: {(averageRenderTime || 0).toFixed(1)}ms
+        Render: {isLive ? (averageRenderTime || 0).toFixed(1) : '0.0'}ms
       </div>
     </div>
   );

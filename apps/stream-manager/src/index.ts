@@ -1,11 +1,11 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { createClient } from 'redis';
 import { WebSocketServer, WebSocket } from 'ws';
 import { logger } from './utils/logger.js';
 import { config, loadConfig } from './config/index.js';
 import { setupStreamServer } from './server/api/stream.js';
 import { Registry, collectDefaultMetrics } from 'prom-client';
+import { redisService } from './state/persistence.js';
 
 // Load configuration first
 const loadedConfig = await loadConfig();
@@ -42,27 +42,22 @@ metricsApp.listen(loadedConfig.METRICS_PORT, () => {
 
 async function startServer() {
   try {
-    // Create Redis client
-    const redis = createClient({
-      url: loadedConfig.REDIS_URL
-    });
-
-    await redis.connect();
-    logger.info('Redis connection established', {
-      host: loadedConfig.REDIS_URL,
-      status: 'connected'
-    });
+    // Initialize Redis service first
+    await redisService.initialize(loadedConfig);
+    logger.info('Redis service initialized');
 
     // Create Express app
     const app = express();
 
     // Add request logging middleware
     app.use((req: Request, res: Response, next) => {
+      /*
       logger.info('Incoming request', {
         method: req.method,
         path: req.path,
         query: req.query
       });
+      */
       next();
     });
 
@@ -145,7 +140,10 @@ process.on('SIGTERM', async () => {
     uptime: process.uptime()
   });
   try {
-    // Cleanup will happen through GC since we're not storing service references
+    // Disconnect Redis before shutdown
+    await redisService.disconnect();
+    logger.info('Redis disconnected');
+
     logger.info('Shutdown complete', {
       status: 'shutdown_complete',
       code: 0

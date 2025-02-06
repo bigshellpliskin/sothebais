@@ -17,14 +17,15 @@ export function PlaybackControls({ isLive, isPaused, onControlStream }: Playback
         {/* Start/Stop Stream Button */}
         <Button
           variant={isLive ? "destructive" : "default"}
-          onClick={() => onControlStream(isLive ? 'stop' : 'start')}
+          onClick={() => onControlStream('start')}
+          disabled={isLive}
           className={cn(
             "flex items-center gap-2",
             !isLive && "bg-green-500 hover:bg-green-600 text-white"
           )}
         >
           <Play className="h-4 w-4" />
-          {isLive ? 'Stop Stream' : 'Start Stream'}
+          Start Stream
         </Button>
 
         {/* Play/Pause Button */}
@@ -52,7 +53,10 @@ export function PlaybackControls({ isLive, isPaused, onControlStream }: Playback
           variant="outline"
           onClick={() => onControlStream('stop')}
           disabled={!isLive}
-          className="flex items-center gap-2"
+          className={cn(
+            "flex items-center gap-2",
+            isLive && "hover:bg-red-50"
+          )}
         >
           <Square className="h-4 w-4" fill="currentColor" />
           Stop
