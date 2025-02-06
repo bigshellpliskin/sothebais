@@ -36,7 +36,7 @@ function isLayerState(obj: unknown): obj is LayerState {
 }
 
 class RedisService {
-  private client: RedisClientType | null = null;
+  public client: RedisClientType | null = null;
   private isConnected = false;
 
   async initialize(config: Config): Promise<void> {
@@ -53,7 +53,7 @@ class RedisService {
 
     this.client.on('error', (err) => {
       this.isConnected = false;
-      logger.error('Redis client error', { 
+      logger.error('Redis client error', {
         error: err instanceof Error ? err.message : 'Unknown error',
         stack: err instanceof Error ? err.stack : undefined
       } as LogContext);

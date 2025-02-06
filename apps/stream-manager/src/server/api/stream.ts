@@ -46,31 +46,6 @@ const streamRouter = express.Router();
 // Add JSON body parser middleware
 streamRouter.use(express.json());
 
-// Middleware to ensure state is loaded
-streamRouter.use(async (_req: Request, res: Response, next: express.NextFunction) => {
-  try {
-    // Check if state is already loaded
-    const currentState = stateManager.getStreamState();
-    if (currentState) {
-      return next();
-    }
-
-    // Load state if not already loaded
-    await stateManager.loadState();
-    next();
-  } catch (error) {
-    logger.error('Failed to load state', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    res.status(503).json({
-      success: false,
-      error: 'State system unavailable',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
 // Get stream status
 streamRouter.get('/status', (_req: Request, res: Response) => {
   try {

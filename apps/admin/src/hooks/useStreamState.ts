@@ -85,18 +85,35 @@ export function useStreamState(options: UseStreamStateOptions = {}) {
 
       if (!isMountedRef.current) return;
 
+      /*
+      console.log('🟡 [Stream State] Received response:', {
+        status: statusData,
+        layers: layersData
+      });
+      */
+
       // Validate response structure
-      if (!statusData || !statusData.success || !statusData.data) {
-        console.error('[Stream State] Invalid response format:', { statusData });
+      if (!statusData?.success || !statusData?.data) {
+        console.error('🔴 [Stream State] Invalid response format:', { 
+          hasData: !!statusData,
+          hasSuccess: statusData?.success,
+          hasDataField: !!statusData?.data,
+          fullResponse: statusData 
+        });
         throw new Error('Invalid response format: missing or invalid response structure');
       }
 
       // Get the stream state from the response
       const streamStateData = statusData.data;
+      
+      //console.log('🟡 [Stream State] Parsed state data:', streamStateData);
 
       // Validate stream state data
       if (typeof streamStateData.isLive !== 'boolean') {
-        console.error('[Stream State] Invalid stream state:', { streamStateData });
+        console.error('🔴 [Stream State] Invalid stream state:', { 
+          streamStateData,
+          isLiveType: typeof streamStateData.isLive
+        });
         throw new Error('Invalid stream state: missing or invalid isLive field');
       }
 

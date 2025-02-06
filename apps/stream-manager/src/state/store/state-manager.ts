@@ -162,17 +162,26 @@ export class StateManagerImpl implements StateManager {
     try {
       // Load stream state from Redis
       const streamState = await redisService.getStreamState();
+
       if (streamState) {
         this.state.stream = streamState;
         logger.info('Loaded stream state from Redis', { state: streamState });
-      } else {
-        // Initialize default state if none exists
-        this.state.stream = { ...DEFAULT_STREAM_STATE };
-        await redisService.saveStreamState(this.state.stream);
-        logger.info('Initialized default stream state', { state: this.state.stream });
+      } else if (streamState === null) {
+          // Explicitly check for null, which indicates either no state or an error
+          const redisState = await redisService.client?.get('streamState');
+          if (redisState === null || redisState === undefined) {
+              // Key does not exist in Redis, initialize default state
+              this.state.stream = { ...DEFAULT_STREAM_STATE };
+              await redisService.saveStreamState(this.state.stream);
+              logger.info('Initialized default stream state', { state: this.state.stream });
+          } else {
+              // Key exists, but there was an error parsing. Log and keep in-memory default, but don't overwrite Redis
+              logger.warn('Failed to load or parse stream state from Redis. Using in-memory default.');
+              this.state.stream = { ...DEFAULT_STREAM_STATE }; // Use default, but don't save
+          }
       }
 
-      // Load layer state from Redis
+      // Load layer state from Redis (similar handling)
       const layerState = await redisService.getLayerState();
       if (layerState) {
         this.state.layers = layerState;
@@ -183,7 +192,7 @@ export class StateManagerImpl implements StateManager {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       });
-      throw error;
+      throw error; // Re-throw the error to be handled upstream
     }
   }
 
