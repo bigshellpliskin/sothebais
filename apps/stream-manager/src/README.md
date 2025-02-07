@@ -29,12 +29,6 @@ src/
 │       ├── messages.ts    # Worker message types
 │       └── state.ts       # Shared state types
 │
-├── config/                 # Configuration management
-│   ├── schema.ts          # Zod schema definitions
-│   ├── defaults.ts        # Default configuration
-│   ├── env.ts            # Environment loading
-│   └── index.ts          # Configuration singleton
-│
 ├── state/                  # State management
 │   ├── store/             # State stores
 │   │   ├── config.ts     # Dynamic config store
@@ -53,14 +47,15 @@ src/
 │
 ├── server/                 # HTTP & WebSocket servers
 │   ├── api/               # HTTP API endpoints
-│   │   ├── stream.ts     # Stream control and monitoring
+│   │   ├── stream.ts     # Stream control
 │   │   ├── layers.ts     # Layer management
 │   │   └── metrics.ts    # Prometheus metrics
 │   ├── websocket/         # WebSocket handlers
 │   │   ├── stream.ts     # Stream events
 │   │   └── layers.ts     # Layer updates
 │   └── monitoring/        # Monitoring interfaces
-│       └── preview.ts     # Stream preview server
+│       ├── dashboard.ts   # Web dashboard
+│       └── preview.ts     # Stream preview
 │
 ├── utils/                  # Utilities
 │   ├── logger.ts          # Logging utilities
@@ -289,176 +284,173 @@ sequenceDiagram
 
 ## Implementation Status
 
-### Fully Implemented (✓)
-1. **Core Domain Logic**
-   - Viewport management system ✓
-   - Layout and scene management ✓
-   - Asset management and caching ✓
-   - Composition engine ✓
+### ✅ Completed (Core)
+1. **State Management**
+   - Redis-backed persistence
+   - Type-safe state updates
+   - Event system
+   - Preview client tracking
+   - WebSocket synchronization
 
 2. **Rendering Pipeline**
-   - Main renderer ✓
-   - Effects system ✓
-   - Frame buffer management ✓
-   - Basic encoding ✓
+   - Frame buffer management
+   - Asset composition
+   - Layer management
+   - Real-time preview
+   - Effect system
 
-3. **Worker System**
-   - Worker pool management ✓
-   - Task distribution system ✓
-   - Worker metrics collection ✓
-   - Basic error recovery ✓
-   - Task prioritization ✓
-   - Dynamic worker scaling ✓
-   - CPU usage monitoring ✓
-   - Memory usage monitoring ✓
-   - Resource-aware scaling ✓
-   - Memory optimization ✓
+3. **Streaming Output**
+   - FFmpeg integration
+   - RTMP server
+   - Quality management
+   - Performance monitoring
+   - Error recovery
 
-4. **Base Infrastructure**
-   - Configuration system ✓
-   - Basic event system ✓
-   - Logging utilities ✓
-   - Type definitions (core) ✓
-   - Metrics collection ✓
-   - Resource monitoring ✓
+4. **API Layer**
+   - REST endpoints
+   - WebSocket server
+   - Layer management
+   - Stream control
+   - Preview delivery
 
-### Work in Progress (WIP)
-1. **Worker System**
-   - Advanced error recovery (WIP)
-   - Worker-specific configuration (TODO)
-   - Predictive scaling (TODO)
+### 🚧 In Progress
+1. **Performance Optimization**
+   - Worker pool scaling
+   - Memory management
+   - Frame caching
+   - Asset preloading
 
-2. **Stream Output**
-   - RTMP server implementation (WIP)
-   - Stream multiplexing (TODO)
-   - Quality adaptation (TODO)
-   - Error recovery (TODO)
+2. **Monitoring**
+   - Prometheus metrics
+   - Resource tracking
+   - Error reporting
+   - Performance profiling
 
-3. **Monitoring & Development Tools**
-   - Basic metrics collection ✓
-   - Resource monitoring ✓
-   - Development dashboard (TODO)
-   - Stream preview interface (WIP)
-   - Performance profiling (WIP)
+### 📋 Planned
+1. **Advanced Features**
+   - Scene transitions
+   - Advanced effects
+   - Audio support
+   - Recording system
 
-### Planned Features (TODO)
-1. **Advanced Worker Features**
-   - Advanced load balancing strategies
-   - Cross-worker task sharing
-   - Resource usage optimization
-   - Advanced health monitoring
-   - Predictive resource allocation
+## Core Components
 
-2. **Enhanced Configuration**
-   - Dynamic config updates
-   - Redis-backed persistence
-   - Config validation
-   - Hot reloading
-   - Worker-specific settings
+### State Management
+The state system provides:
+- Centralized state management
+- Redis persistence
+- Real-time updates
+- Type-safe operations
+- Event broadcasting
 
-3. **Monitoring Improvements**
-   - Advanced performance metrics
-   - Predictive alerts
-   - Resource optimization
-   - Debug tooling
-   - Real-time monitoring dashboard
+### Rendering Pipeline
+The rendering system handles:
+- Frame composition
+- Asset management
+- Layer ordering
+- Effect application
+- Memory optimization
 
-## Development Priorities
+### Streaming Output
+The streaming system manages:
+- FFmpeg encoding
+- RTMP delivery
+- Quality control
+- Error recovery
+- Performance monitoring
 
-### High Priority
-1. Implement worker-specific configuration
-2. Add advanced error recovery strategies
-3. Add predictive scaling
-4. Implement RTMP error recovery
+## Usage Example
 
-### Medium Priority
-1. Enhance load balancing strategies
-2. Implement cross-worker task sharing
-3. Add resource usage optimization
-4. Improve monitoring dashboard
+```typescript
+import { ViewportManager } from './core/viewport.js';
+import { LayoutManager } from './core/layout.js';
+import { AssetManager } from './core/assets.js';
+import { Renderer } from './rendering/renderer.js';
 
-### Low Priority
-1. Add more transition effects
-2. Implement hot reloading
-3. Add debug tooling
-4. Enhance documentation
+// Initialize managers
+const viewport = ViewportManager.getInstance();
+const layout = LayoutManager.getInstance();
+const assets = AssetManager.getInstance();
+const renderer = Renderer.getInstance();
 
-## Current Limitations
+// Create a scene
+const scene = layout.createScene('main');
 
-1. **Worker System**
-   - Basic error recovery strategies
-   - Limited worker configuration
-   - Simple load balancing
-   - Basic predictive capabilities
+// Add assets to scene
+const asset = assets.createAsset(
+  'image',
+  '/path/to/image.png',
+  { x: 100, y: 100 },
+  {
+    scale: 1,
+    rotation: 0,
+    opacity: 1
+  }
+);
 
-2. **Stream Output**
-   - Basic RTMP implementation
-   - No quality adaptation
-   - Limited error recovery
-   - Missing multiplexing
+layout.addAsset(scene.id, asset);
 
-3. **Development Tools**
-   - Basic metrics only
-   - No visual monitoring
-   - Limited debugging tools
-   - Basic profiling
+// Start rendering
+renderer.start();
+
+// Handle frame updates
+renderer.on('frame:ready', (frame: Buffer) => {
+  // Handle the rendered frame
+});
+```
+
+## Development
+
+### Prerequisites
+- Node.js 18+
+- Redis
+- FFmpeg
+- Docker
+
+### Setup
+1. Install dependencies: `npm install`
+2. Build the project: `npm run build`
+3. Start the service: `npm start`
+
+### Testing
+- Unit tests: `npm test`
+- Integration tests: `npm run test:integration`
+- Performance tests: `npm run test:perf`
+
+## Configuration
+
+Environment variables:
+- `STREAM_RESOLUTION`: Output resolution (default: "1920x1080")
+- `TARGET_FPS`: Target frame rate (default: 60)
+- `STREAM_BITRATE`: Output bitrate (default: 6000000)
+- `STREAM_CODEC`: Video codec (default: "h264")
+- `FFMPEG_PRESET`: FFmpeg encoding preset (default: "veryfast")
 
 ## Next Steps
 
-1. **Immediate Tasks**
-   - Implement worker-specific configuration
-   - Enhance error recovery strategies
-   - Add predictive scaling
-   - Implement RTMP error recovery
+1. **Performance Optimization**
+   - Implement worker pool scaling
+   - Optimize memory usage
+   - Add frame caching
+   - Improve asset loading
 
-2. **Short-term Goals**
-   - Enhance load balancing
-   - Implement task sharing
-   - Add monitoring dashboard
-   - Improve error handling
+2. **Monitoring Enhancement**
+   - Add detailed metrics
+   - Implement profiling
+   - Enhance error tracking
+   - Add performance alerts
 
-3. **Long-term Goals**
-   - Advanced monitoring
-   - Predictive analytics
-   - Debug tooling
-   - Documentation improvements
+3. **Feature Additions**
+   - Scene transitions
+   - Advanced effects
+   - Audio support
+   - Recording system
 
 ## Contributing
 
 When working on this codebase:
-
-1. **Adding Features**
-   - Update implementation status
-   - Add type definitions
-   - Include tests
-   - Update documentation
-
-2. **Fixing Issues**
-   - Check component status
-   - Maintain patterns
-   - Update status sections
-
-3. **Performance Improvements**
-   - Measure before/after
-   - Document trade-offs
-   - Update metrics
-
-## Best Practices
-
-1. **Code Organization**
-   - Follow directory structure
-   - Maintain clear boundaries
-   - Document interfaces
-   - Use type definitions
-
-2. **Error Handling**
-   - Use typed errors
-   - Implement recovery
-   - Log appropriately
-   - Add monitoring
-
-3. **Performance**
-   - Use worker threads
-   - Implement caching
-   - Monitor memory
-   - Profile critical paths 
+1. Follow TypeScript best practices
+2. Add tests for new features
+3. Update documentation
+4. Follow error handling patterns
+5. Add appropriate logging 

@@ -1,0 +1,22 @@
+# .cursorrules
+
+Docker
+- Use `docker compose` to control the services
+- Name of docker compose file: `compose.yml`
+
+File & Folder Names
+- Next.js routes in kebab-case (e.g. `app/dashboard/page.tsx`).
+- Shared types in `src/lib/types.ts`.
+
+Next.js Structure
+- Use App Router in `app/`. Server components by default, `"use client"` for client logic.
+- Use Clerk for auth. `.env` for secrets.
+
+Misc
+- Keep code short; commits semantic.
+- Use `tsx` scripts for migrations.
+
+IMPORTANT
+- Always add a one-sentence summary of changes to `.cursor-updates` file in markdown format at the end of every agent interaction.
+- If you forget, the user can type the command "finish" and you will run the build and update `.cursor-updates` file.
+

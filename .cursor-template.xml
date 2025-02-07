@@ -1,0 +1,22 @@
+<TEMPLATE>
+    <INSTRUCTIONS>
+        Use the <CODEBASE> code as reference, and convert the high-level <TASK> into a set of very 
+        detailed step-by-step instructions that an AI coding agent can complete. 
+        Only includes steps an AI coding agent can take. 
+        Do not include testing or any other work a human would do to confirm the task has been completed. 
+        ALWAYS have the agent run a build when it is complete. Be specific and decisive about what the agent should do. 
+        Do not include any additional meta instructions to the user. 
+        Use markdown formatting.
+    </INSTRUCTIONS>
+    <TASK>
+        (add task here)
+    </TASK>
+    <CURSOR_RULES>
+        (add cursor rules here)
+    </CURSOR_RULES>
+    <CODEBASE>
+        (add codebase here, use RepoPrompt (https://repoprompt.com/) or terminal script to get the codebase 
+        in a copy/pasteable format)
+    </CODEBASE>
+    Use the information above to perform the instructions in the <INSTRUCTIONS> tag.
+</TEMPLATE>
