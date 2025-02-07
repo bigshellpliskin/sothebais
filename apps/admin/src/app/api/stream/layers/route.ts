@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const STREAM_MANAGER_URL = 'http://stream-manager:4200';
 
 export async function GET(request: NextRequest) {
-  console.log('[Layer Control] Fetching all layer states');
+  // console.log('[Layer Control] Fetching all layer states');
   try {
     const streamManagerUrl = `${STREAM_MANAGER_URL}/stream/layers`;
-    console.log('[Layer Control] Requesting from:', streamManagerUrl);
+    // console.log('[Layer Control] Requesting from:', streamManagerUrl);
 
     const response = await fetch(streamManagerUrl, {
       headers: {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // First try to get the response as text to handle potential HTML errors
     const responseText = await response.text();
-    console.log('[Layer Control] Raw response from stream manager:', responseText);
+    // console.log('[Layer Control] Raw response from stream manager:', responseText);
     
     let data;
     try {
@@ -54,8 +54,6 @@ export async function GET(request: NextRequest) {
         { status: response.status }
       );
     }
-
-    console.log('[Layer Control] Success response:', data);
     
     // Handle the stream manager's response structure
     return NextResponse.json({

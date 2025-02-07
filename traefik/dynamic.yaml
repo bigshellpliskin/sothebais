@@ -5,11 +5,6 @@ http:
         scheme: https
         permanent: true
         port: "443"
-    redirect-to-admin:
-      redirectRegex:
-        regex: "^https://sothebais\\.com/(.*)"
-        replacement: "https://admin.sothebais.com/${1}"
-        permanent: true
 
   routers:
     # ACME challenge router - must be first to handle challenges
@@ -30,48 +25,6 @@ http:
       service: noop@internal
       priority: 1
 
-    # Root domain handling
-    root-domain:
-      rule: "Host(`sothebais.com`)"
-      middlewares:
-        - redirect-to-admin
-      entryPoints:
-        - websecure
-      service: noop@internal
-      tls:
-        certResolver: letsencrypt
-      priority: 2
-
-    # Admin frontend service
-    admin-frontend:
-      rule: "Host(`admin.sothebais.com`)"
-      entryPoints:
-        - websecure
-      service: admin-frontend
-      tls:
-        certResolver: letsencrypt
-      priority: 3
-
-    # Stream manager service
-    stream-manager:
-      rule: "Host(`admin.sothebais.com`) && PathPrefix(`/api/stream`)"
-      entryPoints:
-        - websecure
-      service: stream-manager
-      tls:
-        certResolver: letsencrypt
-      priority: 4
-
-  services:
-    admin-frontend:
-      loadBalancer:
-        servers:
-          - url: "http://admin:3000"
-    stream-manager:
-      loadBalancer:
-        servers:
-          - url: "http://stream-manager:4200"
-
 tls:
   options:
     default:
@@ -80,4 +33,4 @@ tls:
       alpnProtocols:
         - h2
         - http/1.1
-        - acme-tls/1 
+        - acme-tls/1

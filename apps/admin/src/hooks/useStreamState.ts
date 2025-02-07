@@ -32,6 +32,8 @@ export function useStreamState(options: UseStreamStateOptions = {}) {
     retryDelay = 1000
   } = options;
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const prevStateRef = useRef<StreamState | null>(null);
   const [streamState, setStreamState] = useState<StreamState>({
     isLive: false,
@@ -48,168 +50,133 @@ export function useStreamState(options: UseStreamStateOptions = {}) {
   const [isLoading, setIsLoading] = useState(true);
   
   const retryCountRef = useRef<number>(0);
-  const pollTimeoutRef = useRef<NodeJS.Timeout>();
   const isMountedRef = useRef(true);
 
-  const fetchData = useCallback(async () => {
+  // WebSocket connection handling
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Connect through the new WebSocket endpoint
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/stream/ws?target=state`);
+    
+    ws.onopen = () => {
+      console.log('🟢 [Stream State] WebSocket connected');
+      retryCountRef.current = 0;
+      setIsLoading(false);
+      
+      // Subscribe to state updates
+      ws.send(JSON.stringify({
+        type: 'subscribe',
+        payload: { topics: ['state'] }
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'stateUpdate' && message.payload?.stream) {
+          const newState = message.payload.stream;
+          
+          // Log state changes
+          if (prevStateRef.current?.isLive !== newState.isLive) {
+            console.log('🟡 [Stream State] Live state changed:', {
+              from: prevStateRef.current?.isLive,
+              to: newState.isLive,
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          prevStateRef.current = newState;
+          setStreamState(newState);
+          setError(null);
+        }
+      } catch (error) {
+        console.error('🔴 [Stream State] WebSocket message error:', error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('🔴 [Stream State] WebSocket closed');
+      wsRef.current = null;
+
+      // Attempt reconnection with exponential backoff
+      const backoffDelay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      retryCountRef.current++;
+
+      if (isMountedRef.current && retryCountRef.current <= maxRetries) {
+        console.log(`🟡 [Stream State] Reconnecting in ${backoffDelay}ms...`);
+        reconnectTimeoutRef.current = setTimeout(connectWebSocket, backoffDelay);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('🔴 [Stream State] WebSocket error:', error);
+    };
+
+    wsRef.current = ws;
+  }, [maxRetries]);
+
+  // Fetch layers via HTTP (no WebSocket needed for this)
+  const fetchLayers = useCallback(async () => {
     if (!isMountedRef.current) return;
     
     try {
-      const [statusResponse, layersResponse] = await Promise.all([
-        fetch('/api/stream/status', {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-store'
-          }
-        }),
-        fetch('/api/stream/layers', {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-store'
-          }
-        })
-      ]);
-
-      if (!isMountedRef.current) return;
-
-      if (!statusResponse.ok || !layersResponse.ok) {
-        const errorResponse = !statusResponse.ok ? statusResponse : layersResponse;
-        const errorData = await errorResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${errorResponse.status}: ${errorResponse.statusText}`);
-      }
-
-      const [statusData, layersData] = await Promise.all([
-        statusResponse.json(),
-        layersResponse.json()
-      ]);
-
-      if (!isMountedRef.current) return;
-
-      /*
-      console.log('🟡 [Stream State] Received response:', {
-        status: statusData,
-        layers: layersData
+      const response = await fetch('/api/stream/layers', {
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-store'
+        }
       });
-      */
 
-      // Validate response structure
-      if (!statusData?.success || !statusData?.data) {
-        console.error('🔴 [Stream State] Invalid response format:', { 
-          hasData: !!statusData,
-          hasSuccess: statusData?.success,
-          hasDataField: !!statusData?.data,
-          fullResponse: statusData 
-        });
-        throw new Error('Invalid response format: missing or invalid response structure');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      // Get the stream state from the response
-      const streamStateData = statusData.data;
-      
-      //console.log('🟡 [Stream State] Parsed state data:', streamStateData);
-
-      // Validate stream state data
-      if (typeof streamStateData.isLive !== 'boolean') {
-        console.error('🔴 [Stream State] Invalid stream state:', { 
-          streamStateData,
-          isLiveType: typeof streamStateData.isLive
-        });
-        throw new Error('Invalid stream state: missing or invalid isLive field');
+      const data = await response.json();
+      if (!data?.success || !Array.isArray(data?.data)) {
+        throw new Error('Invalid layer data format');
       }
 
-      // Create new state with proper type checking
-      const newState = {
-        isLive: Boolean(streamStateData.isLive),
-        isPaused: Boolean(streamStateData.isPaused),
-        fps: Number(streamStateData.fps) || 0,
-        targetFPS: Number(streamStateData.targetFPS) || 30,
-        frameCount: Number(streamStateData.frameCount) || 0,
-        droppedFrames: Number(streamStateData.droppedFrames) || 0,
-        averageRenderTime: Number(streamStateData.averageRenderTime) || 0,
-        startTime: streamStateData.startTime || null,
-        error: streamStateData.error || null
-      };
-
-      // Log state changes
-      if (prevStateRef.current?.isLive !== newState.isLive) {
-        console.log('[Stream State] State changed:', {
-          previous: prevStateRef.current?.isLive,
-          current: newState.isLive,
-          raw: streamStateData,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      prevStateRef.current = newState;
-      setStreamState(newState);
-
-      // Update layers with validation
-      if (layersData.success && Array.isArray(layersData.data)) {
-        setLayers(layersData.data);
-      } else {
-        console.warn('[Stream State] Invalid layers data format');
-        setLayers([]);
-      }
-
-      setError(null);
-      retryCountRef.current = 0;
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      
-      console.error('[Stream State] Error fetching data:', err);
-      retryCountRef.current++;
-
-      if (retryCountRef.current >= maxRetries) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch stream data');
-        // Keep last known good state but mark stream as offline if we can't connect
-        setStreamState(prev => ({
-          ...prev,
-          isLive: false,
-          error: err instanceof Error ? err.message : 'Connection lost'
-        }));
-      }
-    } finally {
       if (isMountedRef.current) {
-        setIsLoading(false);
+        setLayers(data.data);
       }
+    } catch (error) {
+      console.error('🔴 [Stream State] Error fetching layers:', error);
     }
-  }, [maxRetries]);
+  }, []);
 
-  // Set up polling with exponential backoff on errors
+  // Initial setup and cleanup
   useEffect(() => {
     isMountedRef.current = true;
-    
-    const poll = () => {
-      if (!isMountedRef.current) return;
-      
-      fetchData();
-      
-      if (isMountedRef.current) {
-        const nextPollDelay = retryCountRef.current > 0 
-          ? Math.min(pollInterval * Math.pow(2, retryCountRef.current), 10000)
-          : pollInterval;
-          
-        pollTimeoutRef.current = setTimeout(poll, nextPollDelay);
-      }
-    };
+    connectWebSocket();
+    fetchLayers();
 
-    // Initial fetch
-    poll();
+    // Set up layer polling
+    const layerInterval = setInterval(fetchLayers, pollInterval);
 
-    // Cleanup
     return () => {
       isMountedRef.current = false;
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
+      if (wsRef.current) {
+        wsRef.current.close();
       }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      clearInterval(layerInterval);
     };
-  }, [fetchData, pollInterval]);
+  }, [connectWebSocket, fetchLayers, pollInterval]);
+
+  // Manual refetch function (useful after actions)
+  const refetch = useCallback(async () => {
+    await fetchLayers();
+  }, [fetchLayers]);
 
   return {
     streamState,
     layers,
     error,
     isLoading,
-    refetch: fetchData
+    refetch
   };
 } 

@@ -49,10 +49,10 @@ export function usePreviewSocket(options: UsePreviewSocketOptions = {}) {
   const isMountedRef = useRef(true);
 
   const getWebSocketUrl = useCallback((): string => {
-    // Use a fixed WebSocket URL instead of fetching config
+    // Use the new WebSocket endpoint
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:4201/stream/preview`;
+    return `${protocol}//${hostname}/api/stream/ws?target=preview`;
   }, []);
 
   const connect = useCallback(async () => {

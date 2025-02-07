@@ -40,14 +40,12 @@ export class PreviewServer extends EventEmitter {
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    // Wait for config to be available
-    if (!config.WS_PORT) {
-      logger.warn('WS_PORT not available in config, waiting for config to load...');
-      return;
-    }
-
     try {
-      this.wss = new WebSocketServer({ port: config.WS_PORT });
+      // Create WebSocket server with noServer option
+      this.wss = new WebSocketServer({ 
+        noServer: true,
+        path: '/stream/preview'  // Base path for preview updates
+      });
       
       this.wss.on('connection', this.handleNewConnection.bind(this));
 
@@ -71,7 +69,7 @@ export class PreviewServer extends EventEmitter {
 
       this.isInitialized = true;
       logger.info('Preview server initialized', { 
-        port: config.WS_PORT,
+        path: '/stream/preview',
         rendererStatus: this.renderer.getStats()
       });
     } catch (error) {
@@ -81,6 +79,15 @@ export class PreviewServer extends EventEmitter {
       });
       throw error;
     }
+  }
+
+  // Handle upgrade requests from HTTP server
+  handleUpgrade(request: any, socket: any, head: any) {
+    if (!this.wss) return;
+
+    this.wss.handleUpgrade(request, socket, head, (ws) => {
+      this.wss?.emit('connection', ws);
+    });
   }
 
   private handleNewConnection(ws: WebSocket): void {

@@ -1,108 +1,153 @@
 import { WebSocket, WebSocketServer } from 'ws';
-import type { StreamEvent } from '../types/stream.js';
-import type { LayerState } from '../types/layers.js';
-import type { Config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
-import type { LogContext } from '../utils/logger.js';
 
 interface WebSocketMessage {
-  type: 'layerUpdate' | 'streamEvent' | 'error';
-  payload: LayerState | StreamEvent | { message: string };
+  type: string;
+  payload: any;
 }
 
 class WebSocketService {
   private wss: WebSocketServer | null = null;
-  private clients: Set<WebSocket> = new Set();
+  private static instance: WebSocketService | null = null;
 
-  constructor() {}
+  private constructor() {}
 
-  initialize(config: Config) {
-    this.wss = new WebSocketServer({ port: config.WS_PORT });
-    this.wss.on('connection', this.handleConnection.bind(this));
-    logger.logWebSocketEvent('server_started', undefined, { port: config.WS_PORT });
+  public static getInstance(): WebSocketService {
+    if (!WebSocketService.instance) {
+      WebSocketService.instance = new WebSocketService();
+    }
+    return WebSocketService.instance;
   }
 
-  private handleConnection(ws: WebSocket): void {
-    this.clients.add(ws);
-    logger.logWebSocketEvent('client_connected', undefined, { totalClients: this.clients.size });
-
-    ws.on('message', (message: string) => {
-      try {
-        const data = JSON.parse(message);
-        this.handleMessage(ws, data);
-      } catch (error) {
-        this.sendError(ws, 'Invalid message format');
-      }
+  initialize() {
+    // Create WebSocket server without path restriction
+    this.wss = new WebSocketServer({ 
+      port: 4201,
+      // Remove path restriction to accept any path
+      // path: '/ws'
     });
-
-    ws.on('close', () => {
-      this.clients.delete(ws);
-      logger.logWebSocketEvent('client_disconnected', undefined, { totalClients: this.clients.size });
+    
+    logger.info('WebSocket server initialized', { 
+      port: 4201
     });
-
-    ws.on('error', (error) => {
+    
+    this.wss.on('connection', this.handleConnection.bind(this));
+    
+    // Log any server errors
+    this.wss.on('error', (error) => {
       logger.error('WebSocket server error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
-      } as LogContext);
-      this.clients.delete(ws);
+      });
+    });
+
+    // Log listening events
+    this.wss.on('listening', () => {
+      logger.info('WebSocket server listening', {
+        port: 4201,
+        clients: this.wss?.clients.size || 0
+      });
+    });
+
+    // Add connection attempt logging
+    this.wss.on('headers', (headers, request) => {
+      logger.info('WebSocket upgrade headers received', {
+        path: request.url,
+        headers: headers,
+        method: request.method
+      });
     });
   }
 
-  private handleMessage(ws: WebSocket, message: any): void {
-    // Handle incoming messages based on type
-    // To be implemented based on specific message types needed
-    logger.logWebSocketEvent('message_received', undefined, { message });
+  private handleConnection(ws: WebSocket, request: any): void {
+    logger.info('Client connected', {
+      path: request.url,
+      headers: request.headers
+    });
+
+    // Send a welcome message
+    ws.send(JSON.stringify({ 
+      type: 'welcome', 
+      message: 'Connected to stream manager',
+      timestamp: Date.now()
+    }));
+
+    ws.on('message', (message: string) => {
+      try {
+        const data = JSON.parse(message.toString());
+        logger.info('Received message', { 
+          type: data.type,
+          payload: data.payload
+        });
+        // Echo the message back
+        ws.send(message);
+      } catch (error) {
+        logger.error('Failed to handle message', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          message: message.toString()
+        });
+      }
+    });
+
+    ws.on('close', (code, reason) => {
+      logger.info('Client disconnected', {
+        code,
+        reason: reason.toString()
+      });
+    });
+
+    ws.on('error', (error) => {
+      logger.error('WebSocket error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    });
+
+    // Send initial state
+    this.broadcastStateUpdate({
+      connected: true,
+      timestamp: Date.now()
+    });
   }
 
-  broadcastLayerState(state: LayerState): void {
+  public broadcastStateUpdate(state: any): void {
+    if (!this.wss) return;
+
     const message: WebSocketMessage = {
-      type: 'layerUpdate',
-      payload: state
+      type: 'stateUpdate',
+      payload: {
+        state,
+        timestamp: Date.now()
+      }
     };
-    this.broadcast(message);
-  }
 
-  broadcastStreamEvent(event: StreamEvent): void {
-    const message: WebSocketMessage = {
-      type: 'streamEvent',
-      payload: event
-    };
     this.broadcast(message);
-  }
-
-  private sendError(ws: WebSocket, message: string): void {
-    const errorMessage: WebSocketMessage = {
-      type: 'error',
-      payload: { message }
-    };
-    ws.send(JSON.stringify(errorMessage));
   }
 
   private broadcast(message: WebSocketMessage): void {
-    if (!this.wss) {
-      throw new Error('WebSocket server not initialized. Call initialize() first.');
-    }
-    const messageStr = JSON.stringify(message);
-    this.clients.forEach((client) => {
+    if (!this.wss) return;
+
+    const clientCount = this.wss.clients.size;
+    logger.debug('Broadcasting message', {
+      type: message.type,
+      clientCount
+    });
+
+    this.wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(messageStr);
+        client.send(JSON.stringify(message));
       }
     });
   }
 
-  getConnectedClientsCount(): number {
-    return this.clients.size;
-  }
-
-  shutdown(): void {
+  public shutdown(): void {
     if (this.wss) {
       this.wss.close(() => {
-        logger.logWebSocketEvent('server_shutdown');
+        logger.info('WebSocket server shutdown');
       });
       this.wss = null;
     }
   }
 }
 
-export const webSocketService = new WebSocketService(); 
+export const webSocketService = WebSocketService.getInstance(); 

@@ -2,53 +2,55 @@
 
 This directory contains the HTTP server components that provide the REST API, WebSocket communication, monitoring capabilities, and default configuration for the streaming platform.
 
-## Architecture Overview
+## Current Implementation Status
 
-The server components provide:
-- REST API endpoints for stream control
-- Real-time WebSocket communication
-- Monitoring and metrics collection
-- Layer management endpoints
-- Default layer configurations
-- Asset management
-- Error handling and validation
+### ✅ Completed (MVP)
+- Basic HTTP server setup
+- REST endpoints for stream control
+- Initial WebSocket server implementation
+- Basic layer management
+- Stream state monitoring
 
-```mermaid
-graph TB
-    subgraph HTTP Server
-        API[REST API]
-        WS[WebSocket Server]
-        MON[Monitoring]
-        DL[Default Layers]
-        AM[Asset Manager]
-        VM[Validation Middleware]
-    end
+### 🚧 In Progress
+- WebSocket event standardization
+- Layer state synchronization
+- Preview frame optimization
 
-    subgraph External
-        Client[HTTP Clients]
-        WSClient[WebSocket Clients]
-        Assets[(Asset Storage)]
-    end
+### 📋 MVP Roadmap
+1. **WebSocket Event Standardization**
+   ```typescript
+   // Standardize event types
+   type StreamEvent = 
+     | { type: 'stateUpdate'; payload: StreamState }
+     | { type: 'layerUpdate'; payload: LayerState }
+     | { type: 'preview'; payload: PreviewFrame };
+   ```
 
-    subgraph Core
-        LM[Layer Manager]
-        SM[Stream Manager]
-        SR[Sharp Renderer]
-    end
+2. **Layer State Events**
+   ```typescript
+   // Layer state update format
+   interface LayerStateEvent {
+     type: 'layerUpdate';
+     payload: {
+       id: string;
+       visible: boolean;
+       content?: LayerContent;
+     };
+   }
+   ```
 
-    Client --> API
-    WSClient --> WS
-    WS --> LM
-    WS --> SM
-    API --> VM
-    VM --> LM
-    VM --> SM
-    DL --> LM
-    DL --> Assets
-    AM --> Assets
-    MON --> SM
-    MON --> LM
-```
+3. **Preview Frame Delivery**
+   ```typescript
+   // Optimize frame delivery
+   interface PreviewEvent {
+     type: 'preview';
+     payload: {
+       data: string;  // Base64 encoded frame
+       timestamp: number;
+       quality: 'low' | 'medium' | 'high';
+     };
+   }
+   ```
 
 ## Components
 
@@ -60,52 +62,32 @@ Contains all REST API endpoints organized by domain:
 - Configuration management
 
 ### WebSocket Server (`websocket.ts`)
-Provides real-time communication for:
-- Layer state updates
-- Stream events
-- Client notifications
+Currently implements:
+- Basic connection handling
+- Event forwarding
 - Error reporting
 
-```typescript
-// Example: WebSocket message structure
-interface WebSocketMessage {
-  type: 'layerUpdate' | 'streamEvent' | 'error';
-  payload: LayerState | StreamEvent | { message: string };
-}
-```
+Next steps:
+1. Standardize event types
+2. Add layer state events
+3. Optimize preview frames
 
 ### Monitoring (`/monitoring`)
-Handles system monitoring and metrics:
-- Performance metrics
-- Resource usage
-- Stream health
-- Client connections
-- Error tracking
+MVP focus:
+- Stream health (FPS, latency)
+- Basic error tracking
+- Connection status
 
 ### Stream Server (`stream-server.ts`)
+Currently implements:
+- Stream control endpoints
+- Basic layer management
+- State monitoring
 
-The main HTTP server component that:
-- Provides RESTful API endpoints for stream control
-- Handles layer management requests
-- Manages stream state
-- Implements error handling and validation
-- Provides metrics endpoints
-
-```typescript
-// Example: Stream control endpoint
-app.post('/stream/control', async (req, res) => {
-  const { action } = req.body;
-  
-  switch (action) {
-    case 'start':
-      await streamManager.start();
-      break;
-    case 'stop':
-      await streamManager.stop();
-      break;
-  }
-});
-```
+Next steps:
+1. Add layer state sync
+2. Improve error handling
+3. Add basic metrics
 
 #### API Endpoints
 
@@ -239,30 +221,49 @@ interface ServerConfig {
 }
 ```
 
-## Usage Example
+## Immediate Tasks
+
+1. **Event Standardization**
+   - Define core event types
+   - Implement validation
+   - Add type checking
+
+2. **Layer State**
+   - Add real-time updates
+   - Handle visibility changes
+   - Basic content updates
+
+3. **Preview Optimization**
+   - Implement quality levels
+   - Add frame dropping
+   - Basic compression
+
+4. **Error Handling**
+   - Standardize error formats
+   - Add reconnection logic
+   - Basic logging
+
+## Usage Example (Current MVP)
 
 ```typescript
 import express from 'express';
-import { setupStreamServer } from './stream-server.js';
-import { createDefaultLayers } from './default-layers.js';
+import { setupStreamServer } from './stream-server';
+import { setupWebSocketServer } from './websocket';
 
 async function main() {
   const app = express();
   
-  // Setup server middleware
+  // Basic setup
   app.use(express.json());
-  app.use(express.static('assets'));
   
-  // Initialize stream server
-  await setupStreamServer(app);
-  
-  // Create default layers
-  await createDefaultLayers();
+  // Initialize servers
+  const httpServer = await setupStreamServer(app);
+  await setupWebSocketServer(httpServer);
   
   // Start server
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`Stream server listening on port ${port}`);
+  const port = process.env.PORT || 4200;
+  httpServer.listen(port, () => {
+    console.log(`Stream manager running on port ${port}`);
   });
 }
 

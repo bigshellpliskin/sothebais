@@ -21,6 +21,13 @@ services:
       - "--metrics.prometheus.addServicesLabels=true"
       # Health Check
       - "--ping=true"
+      # Enable WebSocket support
+      - "--accesslog=true"
+      - "--accesslog.fields.headers.names.X-Forwarded-For=keep"
+      - "--accesslog.fields.headers.names.X-Forwarded-Proto=keep"
+      - "--accesslog.fields.headers.names.X-Forwarded-Host=keep"
+      - "--accesslog.fields.headers.names.Upgrade=keep"
+      - "--accesslog.fields.headers.names.Connection=keep"
     ports:
       - "80:80"     # HTTP
       - "443:443"   # HTTPS
@@ -246,70 +253,23 @@ services:
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
       - PORT=4200
       - WS_PORT=4201
-      - METRICS_PORT=4290
-      - HEALTH_PORT=4291
-      - LOG_LEVEL=${LOG_LEVEL:-debug}
-      - STREAM_URL=rtmp://127.0.0.1/live/stream  # Using loopback IP for local RTMP server
-      # Debug logging for RTMP and nginx
-      - NGINX_DEBUG=1
-      - NGINX_ERROR_LOG_LEVEL=debug
-    volumes:
-      - ./apps/stream-manager/src:/app/src:ro
-      - ./apps/stream-manager/package.json:/app/package.json:ro
-      - ./data/stream-manager:/app/storage:rw
-    ports:
-      - "1935:1935" # RTMP
-      - "4200:4200" # Main API
-      - "4201:4201" # WebSocket
-      - "4290:4290" # Metrics
-      - "4291:4291" # Health
-      - "8080:8080" # RTMP Stats
-    depends_on:
-      - redis
     networks:
       - auction_net
-    restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      # Main API
-      - "traefik.http.routers.stream-manager.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/api/stream`)"
-      - "traefik.http.routers.stream-manager.entrypoints=websecure"
-      - "traefik.http.routers.stream-manager.service=stream-manager"
-      - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
-      - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
-      # Strip /api/stream prefix
-      - "traefik.http.middlewares.strip-stream-prefix.stripprefix.prefixes=/api/stream"
-      - "traefik.http.routers.stream-manager.middlewares=strip-stream-prefix"
-      # RTMP Stats endpoint
-      - "traefik.http.routers.rtmp-stats.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/rtmp`)"
-      - "traefik.http.routers.rtmp-stats.entrypoints=websecure"
-      - "traefik.http.routers.rtmp-stats.service=rtmp-stats"
-      - "traefik.http.services.rtmp-stats.loadbalancer.server.port=8080"
-      - "traefik.http.routers.rtmp-stats.tls.certresolver=letsencrypt"
-      # Strip /rtmp prefix
-      - "traefik.http.middlewares.strip-rtmp-prefix.stripprefix.prefixes=/rtmp"
-      - "traefik.http.routers.rtmp-stats.middlewares=strip-rtmp-prefix"
-      # Metrics endpoint
-      - "traefik.http.routers.stream-manager-metrics.rule=PathPrefix(`/metrics/stream`)"
-      - "traefik.http.routers.stream-manager-metrics.service=stream-manager-metrics"
-      - "traefik.http.services.stream-manager-metrics.loadbalancer.server.port=4290"
-      - "traefik.http.routers.stream-manager-metrics.entrypoints=metrics"
-      # Health check endpoint
-      - "traefik.http.routers.stream-manager-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/stream`)"
-      - "traefik.http.routers.stream-manager-health.entrypoints=websecure"
-      - "traefik.http.services.stream-manager-health.loadbalancer.server.port=4291"
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "4291"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      # HTTP API
+      - "traefik.http.routers.stream-api.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/api/stream`) && !PathPrefix(`/api/stream/ws`)"
+      - "traefik.http.routers.stream-api.entrypoints=websecure"
+      - "traefik.http.services.stream-api.loadbalancer.server.port=4200"
+      # WebSocket endpoint with built-in upgrade handling
+      - "traefik.http.routers.stream-ws.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/api/stream/ws`)"
+      - "traefik.http.routers.stream-ws.entrypoints=websecure"
+      - "traefik.http.services.stream-ws.loadbalancer.server.port=4201"
+      # Enable WebSocket protocol
+      - "traefik.http.services.stream-ws.loadbalancer.serversTransport.websocketEnabled=true"
 
 x-volumes:
   dev.volumes.auction-manager: &dev-volumes

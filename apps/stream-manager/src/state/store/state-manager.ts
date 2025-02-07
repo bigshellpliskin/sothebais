@@ -9,6 +9,7 @@ import type { LayerState } from '../../types/layers.js';
 import type { StreamState } from '../../types/stream.js';
 import { redisService } from '../persistence.js';
 import { logger } from '../../utils/logger.js';
+import { webSocketService } from '../../server/websocket.js';
 
 const DEFAULT_STREAM_STATE: StreamState = {
   isLive: false,
@@ -80,6 +81,9 @@ export class StateManagerImpl implements StateManager {
 
       // Save immediately to Redis
       await redisService.saveStreamState(this.state.stream);
+
+      // Broadcast via WebSocket
+      webSocketService.broadcastStateUpdate(this.state.stream);
 
       logger.info('Stream state updated and persisted:', {
         newState: this.state.stream,

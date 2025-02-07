@@ -244,20 +244,64 @@ When implementing new endpoints:
 
 ## Architecture
 
-The API is built using Next.js API routes, which provide serverless functions that are automatically deployed as edge functions. Each endpoint communicates with the appropriate microservices using internal Docker networking:
+The API uses a hybrid approach combining REST endpoints and WebSocket connections. Each endpoint communicates with the appropriate microservices using internal Docker networking:
 
 - Stream Manager (`http://stream-manager:4200`) - Handles stream operations
 - Event Handler (`http://event-handler:4300`) - Manages event processing
 - Redis (`redis:6379`) - Caching and data storage
 - Prometheus (`prometheus:9090`) - Metrics collection
 
+### WebSocket Integration (`/api/stream/ws`)
+
+The WebSocket proxy server handles real-time communication:
+
+```typescript
+// Connect to stream state updates
+const ws = new WebSocket(`ws://${window.location.host}/api/stream/ws?target=state`);
+
+// Connect to preview updates
+const ws = new WebSocket(`ws://${window.location.host}/api/stream/ws?target=preview`);
+```
+
+#### Event Types
+
+Stream State Events:
+```typescript
+interface StreamStateEvent {
+  type: 'stateUpdate';
+  payload: {
+    stream: {
+      isLive: boolean;
+      isPaused: boolean;
+      fps: number;
+      targetFPS: number;
+      frameCount: number;
+      droppedFrames: number;
+      averageRenderTime: number;
+    }
+  }
+}
+```
+
+Preview Events:
+```typescript
+interface PreviewEvent {
+  type: 'config' | 'frame' | 'streamState';
+  data: any;
+  timestamp?: number;
+}
+```
+
 ### API Structure
 ```
 /api
   /stream
+    /ws                    # WebSocket endpoint for real-time updates
+      ?target=state       # Stream state updates
+      ?target=preview    # Preview frame updates
     /frame
       /config
-    /status
+    /status               # Initial state and polling fallback
     /playback
     /layers
       /[id]/visibility
@@ -267,6 +311,124 @@ The API is built using Next.js API routes, which provide serverless functions th
   /services
     /status
     /metrics
+```
+
+## Implementation Plan
+
+### Phase 1: Core WebSocket Infrastructure ✅
+- [x] WebSocket proxy server setup
+- [x] Connection handling and error management
+- [x] Message forwarding between client and services
+- [x] Automatic reconnection with backoff
+
+### Phase 2: Stream State Integration (In Progress)
+- [x] Real-time stream state updates
+- [x] Preview frame delivery
+- [ ] Layer state synchronization
+- [ ] Performance metrics streaming
+
+### Phase 3: Enhanced Features (Planned)
+- [ ] Real-time layer transformations
+- [ ] Chat integration
+- [ ] Stream health monitoring
+- [ ] Alert notifications
+- [ ] Recording status updates
+
+### Phase 4: Production Hardening (Planned)
+- [ ] Load testing and optimization
+- [ ] Connection pooling
+- [ ] Rate limiting
+- [ ] Circuit breakers
+- [ ] Failover handling
+
+## Development Guidelines
+
+When implementing WebSocket features:
+1. Use the proxy server for all real-time communication
+2. Implement proper connection lifecycle management
+3. Handle reconnection scenarios gracefully
+4. Add appropriate error handling and logging
+5. Consider message queuing for reliability
+6. Implement proper cleanup on disconnection
+7. Add monitoring for connection health
+
+## Next Steps
+
+1. **Layer State Sync**
+   - Add layer state subscription support
+   - Implement real-time layer updates
+   - Handle concurrent modifications
+
+2. **Stream Health**
+   - Add metrics WebSocket channel
+   - Implement health check events
+   - Add alert notifications
+
+3. **Chat Integration**
+   - Add chat message WebSocket support
+   - Implement user presence tracking
+   - Add moderation capabilities
+
+4. **Recording Integration**
+   - Add recording status channel
+   - Implement progress updates
+   - Add completion notifications
+
+5. **Performance Optimization**
+   - Implement connection pooling
+   - Add message batching
+   - Optimize frame delivery
+
+6. **Security Enhancements**
+   - Add WebSocket authentication
+   - Implement rate limiting
+   - Add connection validation
+
+## Usage Examples
+
+### WebSocket Connection
+```typescript
+// Connect to stream state
+const ws = new WebSocket(`ws://${window.location.host}/api/stream/ws?target=state`);
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  if (message.type === 'stateUpdate') {
+    // Handle stream state update
+    const { isLive, fps, averageRenderTime } = message.payload.stream;
+    updateStreamStatus(isLive, fps, averageRenderTime);
+  }
+};
+
+// Handle reconnection
+ws.onclose = () => {
+  setTimeout(() => {
+    // Implement exponential backoff
+    reconnectWebSocket();
+  }, backoffDelay);
+};
+```
+
+### Hybrid REST/WebSocket Pattern
+```typescript
+// Initial state via REST
+const initialState = await fetch('/api/stream/status').then(r => r.json());
+
+// Real-time updates via WebSocket
+const ws = new WebSocket(`ws://${window.location.host}/api/stream/ws?target=state`);
+ws.onmessage = (event) => {
+  const update = JSON.parse(event.data);
+  // Merge updates with initial state
+  mergeStreamState(update);
+};
+
+// Fallback to polling if WebSocket fails
+ws.onerror = () => {
+  setInterval(async () => {
+    const update = await fetch('/api/stream/status').then(r => r.json());
+    mergeStreamState(update);
+  }, 1000);
+};
 ```
 
 ## TODO: Remaining Implementation Items
@@ -343,4 +505,115 @@ The API is built using Next.js API routes, which provide serverless functions th
   - Recovery points
   - Configuration presets
 
-Note: This TODO list represents functionality that would make the streaming frontend API complete and production-ready. Implementation priority should be based on immediate project needs and user requirements. 
+Note: This TODO list represents functionality that would make the streaming frontend API complete and production-ready. Implementation priority should be based on immediate project needs and user requirements.
+
+## Implementation Status
+
+### ✅ Completed (MVP)
+- Basic WebSocket proxy setup
+- Stream state updates
+- Preview frame handling
+- Connection management
+- Error handling basics
+
+### 🚧 In Progress
+- Layer state synchronization
+- Event type standardization
+- Preview optimization
+
+### 📋 MVP Focus
+
+1. **Core WebSocket Features**
+   ```typescript
+   // Standardized event handling
+   interface WebSocketEvent<T> {
+     type: string;
+     payload: T;
+     timestamp: number;
+   }
+
+   // Event subscriptions
+   type Subscription = 'state' | 'preview' | 'layers';
+   ```
+
+2. **Layer State Updates**
+   ```typescript
+   // Layer visibility events
+   interface LayerEvent {
+     type: 'layerUpdate';
+     payload: {
+       id: string;
+       visible: boolean;
+     };
+   }
+   ```
+
+3. **Preview Frame Handling**
+   ```typescript
+   // Optimized preview delivery
+   interface PreviewFrame {
+     type: 'preview';
+     payload: {
+       data: string;
+       quality: 'low' | 'medium' | 'high';
+     };
+   }
+   ```
+
+## Immediate Tasks
+
+1. **Event Standardization**
+   - Define core event types
+   - Add validation
+   - Implement error handling
+
+2. **Layer Updates**
+   - Add visibility sync
+   - Handle state changes
+   - Basic error recovery
+
+3. **Preview Optimization**
+   - Quality settings
+   - Frame rate control
+   - Basic compression
+
+4. **Connection Management**
+   - Reconnection handling
+   - State recovery
+   - Error reporting
+
+## Usage Example (Current MVP)
+
+```typescript
+// Basic WebSocket setup
+const ws = new WebSocket(`ws://${window.location.host}/api/stream/ws?target=state`);
+
+// Handle stream state
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  switch (message.type) {
+    case 'stateUpdate':
+      updateStreamState(message.payload);
+      break;
+    case 'layerUpdate':
+      updateLayerState(message.payload);
+      break;
+    case 'error':
+      handleError(message.payload);
+      break;
+  }
+};
+
+// Basic error handling
+ws.onerror = () => {
+  console.error('WebSocket error, falling back to polling');
+  startPolling();
+};
+
+// Reconnection
+ws.onclose = () => {
+  setTimeout(reconnect, 1000);
+};
+```
+
+// ... rest of existing documentation ... 
