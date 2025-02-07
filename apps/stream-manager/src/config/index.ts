@@ -14,7 +14,9 @@ const ConfigSchema = z.object({
   STREAM_BITRATE: z.string().default('4000k'),
   ENABLE_HARDWARE_ACCELERATION: z.boolean().default(true),
   METRICS_INTERVAL: z.number().default(5000),
-  STREAM_URL: z.string().default('rtmp://localhost/live/stream')
+  STREAM_URL: z.string().default('rtmp://localhost/live/stream'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  LOG_PRETTY_PRINT: z.boolean().default(false)
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -35,7 +37,9 @@ export async function loadConfig(): Promise<Config> {
     STREAM_BITRATE: process.env.STREAM_BITRATE,
     ENABLE_HARDWARE_ACCELERATION: process.env.ENABLE_HARDWARE_ACCELERATION === 'true',
     METRICS_INTERVAL: process.env.METRICS_INTERVAL ? parseInt(process.env.METRICS_INTERVAL, 10) : undefined,
-    STREAM_URL: process.env.STREAM_URL
+    STREAM_URL: process.env.STREAM_URL,
+    LOG_LEVEL: process.env.LOG_LEVEL as LogLevel | undefined,
+    LOG_PRETTY_PRINT: process.env.LOG_PRETTY_PRINT === 'true'
   };
 
   config = ConfigSchema.parse(envConfig);

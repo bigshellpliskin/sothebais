@@ -18,12 +18,7 @@ class Logger {
     // Create a basic logger until properly initialized
     this.logger = pino({
       level: 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true
-        }
-      }
+      // Remove transport configuration to write directly to stdout
     });
   }
 
@@ -40,15 +35,14 @@ class Logger {
     }
 
     this.logger = pino({
-      level: config.LOG_LEVEL,
-      transport: config.LOG_PRETTY_PRINT ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname'
-        }
-      } : undefined
+      level: config.LOG_LEVEL || 'info',
+      // Remove transport configuration to write directly to stdout
+      formatters: {
+        level: (label) => {
+          return { level: label };
+        },
+      },
+      timestamp: () => `,"time":"${new Date().toISOString()}"`,
     });
 
     this.initialized = true;

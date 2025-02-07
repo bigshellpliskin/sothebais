@@ -1,67 +1,34 @@
-# Stream Manager Networking Investigation
+# Stream Manager WebSocket Architecture
 
-## Current State
-- Health check endpoints are now accessible from inside container
-- Container shows correct port bindings in netstat output
-- Application ports (4200, 4201, 4290, 4291) are properly exposed
-- Traefik routing is working as expected
+## Overview
 
-## Environment Setup
-- Ports are correctly configured in docker-compose.yml:
-  ```yaml
-  ports:
-    - "4200:4200" # Main API
-    - "4201:4201" # WebSocket
-    - "4290:4290" # Metrics
-    - "4291:4291" # Health
-  ```
-- Environment variables are correctly set inside container:
-  ```
-  METRICS_PORT=4290
-  HEALTH_PORT=4291
-  PORT=4200
-  WS_PORT=4201
-  ```
-
-## New Requirements
-
-### Demo Stream Card
-- Endpoint for stream state: `/api/stream/state`
-  - Returns current stream status
-  - Includes error states
-  - Provides performance metrics
-- WebSocket events for real-time updates
-  - Stream state changes
-  - Error notifications
-  - Performance metrics
-
-### UI Enhancements
-- New API endpoints needed:
-  - `/api/stream/control` - Stream control operations
-  - `/api/layers` - Layer management
-  - `/api/resources` - Resource monitoring
-  - `/api/analytics` - Stream analytics
-- WebSocket channels:
-  - `stream-state` - Stream status updates
-  - `layer-updates` - Layer changes
-  - `metrics` - Performance metrics
-  - `chat` - Chat messages and events
+The Stream Manager service implements a WebSocket-based real-time communication system for delivering stream state updates and preview frames to connected clients. The architecture follows a proxy pattern where all external WebSocket connections are routed through Traefik to the admin app, which then forwards them to the Stream Manager service.
 
 ## Network Architecture
 
 ### API Layer
 - REST endpoints for control and configuration
 - WebSocket for real-time updates
-- GraphQL consideration for complex queries
 - Rate limiting implementation
 - Authentication and authorization
 
 ### WebSocket Channels
-- Dedicated channels by functionality
-- Binary protocol for performance
-- Heartbeat mechanism
-- Automatic reconnection
-- State synchronization
+- State updates channel (`/api/stream/ws?target=state`)
+  - Stream status updates
+  - Performance metrics
+  - Error notifications
+- Preview channel (`/api/stream/ws?target=preview`)
+  - Frame updates
+  - Quality control
+  - Performance data
+- Layer updates channel (planned)
+  - Layer visibility changes
+  - Content updates
+  - Transform updates
+- Chat channel (planned)
+  - Chat messages
+  - User presence
+  - Moderation events
 
 ### Metrics Collection
 - Prometheus integration
@@ -70,144 +37,252 @@
 - Resource usage tracking
 - Error rate monitoring
 
-### Health Checks
-- Enhanced health check system
-- Component-level health status
-- Dependency checks
-- Performance indicators
-- Error state reporting
+## Architecture Components
+
+### 1. Frontend Clients
+- React components connect via WebSocket to `/api/stream/ws`
+- Two main client types:
+  - State subscribers (stream control state)
+  - Preview subscribers (frame updates)
+
+### 2. Admin App WebSocket Proxy
+- Located at `/api/stream/ws/route.ts`
+- Acts as a reverse proxy for WebSocket connections
+- Handles WebSocket upgrade protocol
+- Forwards connections to `stream-manager:4201`
+
+### 3. Stream Manager WebSocket Service
+- Singleton WebSocket server instance
+- Handles all WebSocket connections
+- Manages state broadcasting
+- Located at `apps/stream-manager/src/server/websocket.ts`
+
+## Connection Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Traefik
+    participant Admin
+    participant StreamManager
+    
+    Client->>Traefik: WS Connect /api/stream/ws
+    Traefik->>Admin: Forward to Admin App
+    Admin->>StreamManager: Proxy to stream-manager:4201
+    StreamManager->>Client: Welcome Message
+    StreamManager->>Client: Initial State
+```
+
+## Message Types
+
+### 1. State Updates
+```typescript
+interface StateUpdate {
+  type: 'stateUpdate';
+  payload: {
+    stream: {
+      isLive: boolean;
+      isPaused: boolean;
+      fps: number;
+      targetFPS: number;
+      frameCount: number;
+      droppedFrames: number;
+      averageRenderTime: number;
+      startTime?: number;
+      error?: string;
+    }
+  }
+}
+```
+
+### 2. Welcome Message
+```typescript
+interface WelcomeMessage {
+  type: 'welcome';
+  message: string;
+  timestamp: number;
+}
+```
+
+## Implementation Details
+
+### 1. WebSocket Service (`websocket.ts`)
+```typescript
+class WebSocketService {
+  private wss: WebSocketServer | null = null;
+  
+  initialize() {
+    this.wss = new WebSocketServer({ port: 4201 });
+    // Handle connections, errors, etc.
+  }
+  
+  broadcastStateUpdate(state: any) {
+    // Broadcast state updates to all connected clients
+  }
+}
+```
+
+### 2. State Management Integration
+```typescript
+class StateManagerImpl {
+  async updateStreamState(update: Partial<StreamState>) {
+    // Update state
+    this.state.stream = { ...this.state.stream, ...update };
+    
+    // Persist to Redis
+    await redisService.saveStreamState(this.state.stream);
+    
+    // Broadcast via WebSocket
+    webSocketService.broadcastStateUpdate(this.state.stream);
+  }
+}
+```
+
+### 3. Frontend Integration
+```typescript
+function useStreamState() {
+  useEffect(() => {
+    const ws = new WebSocket(`${protocol}//${host}/api/stream/ws`);
+    
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'stateUpdate') {
+        // Update local state
+      }
+    };
+  }, []);
+}
+```
+
+## Error Handling
+
+1. **Connection Errors**
+   - Automatic reconnection with exponential backoff
+   - Error logging and monitoring
+   - Fallback to polling if WebSocket fails
+
+2. **State Sync**
+   - Redis persistence for recovery
+   - Initial state sent on connection
+   - State version tracking
+
+3. **Network Issues**
+   - Heartbeat/ping mechanism
+   - Connection timeout handling
+   - Automatic cleanup of stale connections
 
 ## Security Considerations
 
-### API Security
-- JWT authentication
-- Role-based access control
-- Rate limiting
-- Input validation
-- CORS configuration
+1. **Transport Security**
+   - All WebSocket connections are proxied through Traefik
+   - TLS termination at Traefik
+   - No direct external access to WebSocket server
 
-### WebSocket Security
-- Connection authentication
-- Message validation
-- Rate limiting per channel
-- Payload size limits
-- Error handling
+2. **Message Validation**
+   - Type checking on messages
+   - Payload validation
+   - Rate limiting
 
-### Metrics Security
-- Access control
-- Data anonymization
-- Rate limiting
-- Filtered sensitive data
-- Secure transport
+## Monitoring
 
-## Performance Optimization
+1. **Metrics**
+   - Connected clients count
+   - Message throughput
+   - Error rates
+   - Latency measurements
 
-### Network Efficiency
-- WebSocket message batching
-- Binary protocols where applicable
-- Compression for large payloads
-- Connection pooling
-- Keep-alive optimization
+2. **Logging**
+   - Connection events
+   - State updates
+   - Error conditions
+   - Performance metrics
 
-### Caching Strategy
-- Redis caching layer
-- In-memory caching
-- Cache invalidation
-- Distributed caching
-- Cache warming
+## Best Practices
 
-### Load Balancing
-- Layer 7 load balancing
-- WebSocket sticky sessions
-- Health-based routing
-- Circuit breaking
-- Rate limiting
+1. **Connection Management**
+   - Single WebSocket server instance
+   - Proper cleanup on shutdown
+   - Resource limit enforcement
 
-## Monitoring and Alerting
+2. **State Management**
+   - Atomic state updates
+   - Persistent storage in Redis
+   - Broadcast on changes
 
-### Metrics Collection
-- Request rates
-- Error rates
-- Response times
-- Resource usage
-- WebSocket connections
+3. **Error Recovery**
+   - Automatic reconnection
+   - State rehydration
+   - Graceful degradation
 
-### Performance Monitoring
-- Real-time metrics
-- Historical data
-- Trend analysis
-- Anomaly detection
-- Alert thresholds
+## Configuration
 
-### Error Tracking
-- Error aggregation
-- Root cause analysis
-- Error patterns
-- Recovery tracking
-- Alert correlation
+The WebSocket service is configured through environment variables:
 
-## Implementation Plan
+```env
+PORT=4200              # Main HTTP port
+WS_PORT=4201          # WebSocket port
+METRICS_PORT=4290     # Metrics port
+HEALTH_PORT=4291      # Health check port
+```
 
-### Phase 1: Core Infrastructure
-- [x] Basic HTTP endpoints
-- [x] WebSocket setup
-- [x] Health checks
-- [x] Metrics endpoints
+## Development Guidelines
 
-### Phase 2: Enhanced Features
-- [ ] Stream state management
-- [ ] Layer control API
-- [ ] Resource monitoring
-- [ ] Analytics collection
+1. **Adding New Message Types**
+   ```typescript
+   interface NewMessageType {
+     type: 'newType';
+     payload: {
+       // Type-specific data
+     }
+   }
+   ```
 
-### Phase 3: UI Integration
-- [ ] Real-time updates
-- [ ] Control interface
-- [ ] Monitoring dashboard
-- [ ] Analytics visualization
+2. **Handling New Message Types**
+   ```typescript
+   ws.on('message', (data) => {
+     switch (data.type) {
+       case 'newType':
+         // Handle new message type
+         break;
+     }
+   });
+   ```
 
-### Phase 4: Optimization
-- [ ] Performance tuning
-- [ ] Security hardening
-- [ ] Monitoring enhancement
-- [ ] Error handling improvement
+3. **Testing WebSocket Connections**
+   - Use the `TestWebSocket` component
+   - Monitor logs for connection issues
+   - Verify message flow
 
-## Next Steps
+## Deployment Notes
 
-1. Implement stream state endpoint
-2. Set up WebSocket channels for UI
-3. Add metrics for new features
-4. Enhance error handling
-5. Implement security measures
-6. Deploy monitoring system
+1. **Docker Configuration**
+   - WebSocket port exposed internally only
+   - Traefik handles external routing
+   - Health checks include WebSocket endpoint
 
-## Related Services
-- Traefik is handling routing (configured via labels)
-- Redis dependency
-- Event handler dependency
+2. **Scaling Considerations**
+   - Single instance per deployment
+   - Redis for state persistence
+   - Load balancing through Traefik
 
-## Questions to Answer
-1. Why aren't ports showing up in network tools?
-2. Is the application actually binding to ports but not visible to tools?
-3. Could there be a conflict with Traefik routing?
-4. Is there a permission issue with the node user?
+3. **Monitoring Setup**
+   - Prometheus metrics
+   - Grafana dashboards
+   - Log aggregation
 
-## Traefik Analysis
-- Current Traefik configuration:
-  - Main API (4200): Routed through three paths
-    1. Development: PathPrefix(`/`)
-    2. Production: Host(`${DOMAIN}`) && PathPrefix(`/stream`)
-    3. Both use loadbalancer.server.port=4200
-  - WebSocket (4201): Routed through PathPrefix(`/ws`)
-  - Health (4291) and Metrics (4290): No Traefik routing rules
+## Troubleshooting
 
-- Findings:
-  1. No direct conflict in Traefik routing rules
-  2. Health and metrics ports are not managed by Traefik
-  3. Traefik only handles HTTP routing, not port binding
-  4. Direct port access should still work regardless of Traefik
+1. **Connection Issues**
+   - Check Traefik logs
+   - Verify WebSocket service initialization
+   - Check network connectivity
 
-- Implications:
-  1. Traefik is not likely the cause of port binding issues
-  2. Health checks failing is a separate issue from Traefik routing
-  3. The fact that netstat/lsof can't see the ports suggests the issue is at the application/container level, not the routing level 
+2. **State Sync Problems**
+   - Verify Redis connection
+   - Check state update logs
+   - Monitor broadcast events
+
+3. **Performance Issues**
+   - Monitor message queue size
+   - Check client connection count
+   - Review resource usage 

@@ -6,6 +6,7 @@ import { config, loadConfig } from './config/index.js';
 import { setupStreamServer } from './server/api/stream.js';
 import { Registry, collectDefaultMetrics } from 'prom-client';
 import { redisService } from './state/persistence.js';
+import { webSocketService } from './server/websocket.js';
 
 // Load configuration first
 const loadedConfig = await loadConfig();
@@ -86,19 +87,10 @@ async function startServer() {
       });
     });
 
-    // Create WebSocket server
-    const wsServer = new WebSocketServer({ server: httpServer });
-    
-    wsServer.on('connection', (ws: WebSocket) => {
-      logger.info('WebSocket client connected');
-      
-      ws.on('message', (message: string) => {
-        logger.debug('Received WebSocket message', { message });
-      });
-      
-      ws.on('close', () => {
-        logger.info('WebSocket client disconnected');
-      });
+    // Initialize WebSocket service
+    webSocketService.initialize();
+    logger.info('WebSocket service initialized', {
+      port: 4201
     });
 
     // Log endpoints configuration
@@ -106,7 +98,7 @@ async function startServer() {
       endpoints: {
         http: { port: loadedConfig.PORT, protocol: 'http' },
         metrics: { port: loadedConfig.METRICS_PORT, protocol: 'http' },
-        ws: { port: loadedConfig.WS_PORT, protocol: 'ws' }
+        ws: { port: 4201, protocol: 'ws' }
       },
       status: 'ready'
     });

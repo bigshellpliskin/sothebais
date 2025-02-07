@@ -2,6 +2,57 @@
 
 This directory contains the HTTP server components that provide the REST API, WebSocket communication, monitoring capabilities, and default configuration for the streaming platform.
 
+## Architecture Overview
+
+```mermaid
+graph TD
+    subgraph Server ["Stream Server Components"]
+        StreamControl[Stream Control]
+        LayerManager[Layer Manager]
+        AssetHandler[Asset Handler]
+        Monitoring[Monitoring]
+        
+        subgraph API ["API Layer"]
+            HTTP[HTTP API]
+            WS[WebSocket Server]
+            Middleware[API Middleware]
+        end
+    end
+
+    subgraph State ["State Management"]
+        StateManager[State Manager]
+        Redis[(Redis Store)]
+    end
+
+    HTTP -->|Update| StreamControl
+    HTTP -->|Manage| LayerManager
+    HTTP -->|Handle| AssetHandler
+    
+    WS -->|Stream| StreamControl
+    WS -->|Monitor| Monitoring
+    
+    StreamControl -->|Update| StateManager
+    LayerManager -->|Manage| StateManager
+    AssetHandler -->|Track| StateManager
+    Monitoring -->|Read| StateManager
+    
+    StateManager -->|Persist| Redis
+```
+
+## Project Structure
+
+```
+src/server/
+├── README.md           # Server documentation
+├── api/               # REST API endpoints
+│   ├── stream/        # Stream control endpoints
+│   ├── layers/        # Layer management
+│   └── assets/        # Asset handling
+├── websocket.ts       # WebSocket server
+├── monitoring/        # Health & metrics
+└── stream-server.ts   # Stream control
+```
+
 ## Current Implementation Status
 
 ### ✅ Completed (MVP)
@@ -10,16 +61,12 @@ This directory contains the HTTP server components that provide the REST API, We
 - Initial WebSocket server implementation
 - Basic layer management
 - Stream state monitoring
+- Asset upload handling
+- Health check endpoints
 
 ### 🚧 In Progress
-- WebSocket event standardization
-- Layer state synchronization
-- Preview frame optimization
-
-### 📋 MVP Roadmap
 1. **WebSocket Event Standardization**
    ```typescript
-   // Standardize event types
    type StreamEvent = 
      | { type: 'stateUpdate'; payload: StreamState }
      | { type: 'layerUpdate'; payload: LayerState }
@@ -28,7 +75,6 @@ This directory contains the HTTP server components that provide the REST API, We
 
 2. **Layer State Events**
    ```typescript
-   // Layer state update format
    interface LayerStateEvent {
      type: 'layerUpdate';
      payload: {
@@ -41,7 +87,6 @@ This directory contains the HTTP server components that provide the REST API, We
 
 3. **Preview Frame Delivery**
    ```typescript
-   // Optimize frame delivery
    interface PreviewEvent {
      type: 'preview';
      payload: {
@@ -52,75 +97,49 @@ This directory contains the HTTP server components that provide the REST API, We
    }
    ```
 
-## Components
+## API Endpoints
 
-### API (`/api`)
-Contains all REST API endpoints organized by domain:
-- Stream control endpoints
-- Layer management
-- Asset handling
-- Configuration management
+### 1. Stream Control
+- `GET /stream/status` - Get current stream state
+- `POST /stream/{start|stop|pause}` - Control stream
+- `POST /stream/reset` - Reset stream state
 
-### WebSocket Server (`websocket.ts`)
-Currently implements:
-- Basic connection handling
-- Event forwarding
-- Error reporting
+### 2. Layer Management
+- `GET /stream/layers` - Get layer states
+- `POST /stream/layers` - Create new layer
+- `PUT /stream/layers/:id` - Update layer
+- `DELETE /stream/layers/:id` - Delete layer
+- `PATCH /stream/layers/:id/visibility` - Toggle layer visibility
 
-Next steps:
-1. Standardize event types
-2. Add layer state events
-3. Optimize preview frames
+### 3. Asset Management
+- `POST /stream/assets/upload` - Upload new asset
+- `GET /stream/assets/:id` - Get asset info
+- `DELETE /stream/assets/:id` - Delete asset
 
-### Monitoring (`/monitoring`)
-MVP focus:
-- Stream health (FPS, latency)
-- Basic error tracking
-- Connection status
+### 4. Monitoring
+- `GET /metrics` - Prometheus metrics
+- `GET /health` - Health check endpoint
 
-### Stream Server (`stream-server.ts`)
-Currently implements:
-- Stream control endpoints
-- Basic layer management
-- State monitoring
+## WebSocket Events
 
-Next steps:
-1. Add layer state sync
-2. Improve error handling
-3. Add basic metrics
+### 1. Stream Events
+- `frame` - New frame available
+- `quality` - Quality setting update
+- `streamState` - Stream state updates
 
-#### API Endpoints
+### 2. Layer Events
+- `layerUpdate` - Layer state changes
+- `layerVisibility` - Layer visibility updates
 
-1. **Stream Control**
-   - `POST /stream/control` - Start/stop stream
-   - `GET /stream/status` - Get stream status
-   - `POST /stream/reset` - Reset stream state
+### 3. System Events
+- `ping/pong` - Connection health check
+- `error` - Error notifications
+- `status` - System status updates
 
-2. **Layer Management**
-   - `POST /stream/layers` - Create new layer
-   - `PUT /stream/layers/:id` - Update layer
-   - `DELETE /stream/layers/:id` - Delete layer
-   - `PATCH /stream/layers/:id/visibility` - Toggle layer visibility
+## Default Configuration
 
-3. **Asset Management**
-   - `POST /stream/assets/upload` - Upload new asset
-   - `GET /stream/assets/:id` - Get asset info
-   - `DELETE /stream/assets/:id` - Delete asset
-
-4. **Metrics**
-   - `GET /metrics` - Prometheus metrics
-   - `GET /health` - Health check endpoint
-
-### Default Layers (`default-layers.ts`)
-
-Configuration and initialization of default stream layers:
-- Defines standard layer templates
-- Provides asset configurations
-- Sets up initial stream state
-- Manages default styling and positioning
-
+### Layer Templates
 ```typescript
-// Example: Default layer configuration
 const defaultLayers = {
   host: {
     character: {
@@ -147,61 +166,57 @@ const defaultLayers = {
 
 ## Server Features
 
-1. **Real-time Communication**
-   - WebSocket-based updates
-   - Bi-directional messaging
-   - Connection management
-   - Client state tracking
+### 1. Real-time Communication
+- WebSocket-based updates
+- Bi-directional messaging
+- Connection management
+- Client state tracking
 
-2. **Request Validation**
-   - Input sanitization
-   - Schema validation
-   - Type checking
-   - Error formatting
+### 2. Request Validation
+- Input sanitization
+- Schema validation
+- Type checking
+- Error formatting
 
-3. **Error Handling**
-   - Structured error responses
-   - Error logging
-   - Recovery mechanisms
-   - Client-friendly messages
+### 3. Error Handling
+- Structured error responses
+- Error logging
+- Recovery mechanisms
+- Client-friendly messages
 
-4. **Asset Management**
-   - File upload handling
-   - Asset validation
-   - Storage management
-   - URL generation
+### 4. Asset Management
+- File upload handling
+- Asset validation
+- Storage management
+- URL generation
 
-5. **Security**
-   - Request rate limiting
-   - Input validation
-   - Error sanitization
-   - CORS configuration
+### 5. Security
+- Request rate limiting
+- Input validation
+- Error sanitization
+- CORS configuration
 
-## Metrics
+## Metrics & Monitoring
 
-The server exposes monitoring and metrics through multiple channels:
+### 1. WebSocket Metrics
+- Connected clients
+- Message throughput
+- Connection status
+- Event broadcasting
 
-- **WebSocket Metrics**:
-  - Connected clients
-  - Message throughput
-  - Connection status
-  - Event broadcasting
+### 2. HTTP Metrics
+- Request counts
+- Response times
+- Error rates
+- Status codes
 
-- **HTTP Metrics**:
-  - Request counts
-  - Response times
-  - Error rates
-  - Status codes
-
-- **Resource Metrics**:
-  - Asset count
-  - Storage usage
-  - Memory usage
-  - CPU usage
+### 3. Resource Metrics
+- Asset count
+- Storage usage
+- Memory usage
+- CPU usage
 
 ## Configuration
-
-Server configuration via environment variables:
 
 ```typescript
 interface ServerConfig {
@@ -214,36 +229,10 @@ interface ServerConfig {
     windowMs: number;
     max: number;
   };
-  CORS: {
-    origin: string[];
-    methods: string[];
-  };
 }
 ```
 
-## Immediate Tasks
-
-1. **Event Standardization**
-   - Define core event types
-   - Implement validation
-   - Add type checking
-
-2. **Layer State**
-   - Add real-time updates
-   - Handle visibility changes
-   - Basic content updates
-
-3. **Preview Optimization**
-   - Implement quality levels
-   - Add frame dropping
-   - Basic compression
-
-4. **Error Handling**
-   - Standardize error formats
-   - Add reconnection logic
-   - Basic logging
-
-## Usage Example (Current MVP)
+## Usage Example
 
 ```typescript
 import express from 'express';
@@ -270,7 +259,7 @@ async function main() {
 main().catch(console.error);
 ```
 
-## Error Handling Example
+## Error Handling
 
 ```typescript
 // Error handling middleware
@@ -287,4 +276,72 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
-``` 
+```
+
+## Security Considerations
+
+### 1. API Security
+- [ ] Authentication implementation
+- [ ] Authorization rules
+- [ ] Rate limiting configuration
+- [ ] Input validation
+
+### 2. WebSocket Security
+- [ ] Connection validation
+- [ ] Message validation
+- [ ] Rate limiting
+- [ ] Client authentication
+
+### 3. Asset Security
+- [ ] Upload validation
+- [ ] Size limits
+- [ ] Type checking
+- [ ] Access control
+
+## Performance Optimization
+
+### 1. Request Handling
+- [ ] Request pooling
+- [ ] Response caching
+- [ ] Connection keep-alive
+- [ ] Load balancing
+
+### 2. WebSocket Performance
+- [ ] Message compression
+- [ ] Binary protocols
+- [ ] Connection pooling
+- [ ] Load balancing
+
+### 3. Asset Handling
+- [ ] Asset caching
+- [ ] Compression
+- [ ] CDN integration
+- [ ] Progressive loading
+
+## Debugging Guide
+
+### 1. HTTP Issues
+1. Check request/response payloads
+2. Verify headers
+3. Monitor response codes
+4. Check rate limits
+
+### 2. WebSocket Issues
+1. Monitor connection state
+2. Check message flow
+3. Verify client state
+4. Track frame delivery
+
+### 3. Asset Issues
+1. Check upload process
+2. Verify storage paths
+3. Monitor file sizes
+4. Validate access URLs
+
+## Common Issues
+- Connection timeouts
+- Rate limit exceeded
+- Invalid request format
+- Asset upload failures
+- WebSocket disconnections
+- Authorization failures 

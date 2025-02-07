@@ -9,7 +9,7 @@ export function TestWebSocket() {
   useEffect(() => {
     // Use wss:// for https:// pages, ws:// for http:// pages
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/api/stream/ws`;
+    const url = `${protocol}//${window.location.host}/ws`;
     console.log('Connecting to:', url);
 
     const ws = new WebSocket(url);

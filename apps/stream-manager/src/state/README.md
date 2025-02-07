@@ -22,6 +22,13 @@ graph TD
             PreviewWS[Preview WebSocket]
             StateMiddleware[State Middleware]
         end
+
+        subgraph Server ["Stream Server"]
+            StreamControl[Stream Control]
+            LayerManager[Layer Manager]
+            AssetHandler[Asset Handler]
+            Monitoring[Monitoring]
+        end
     end
 
     UI -->|HTTP API Calls| HTTP
@@ -33,32 +40,50 @@ graph TD
     PreviewWS -->|Read Only| StateManager
     StateManager -->|Persist| Redis
     StateManager -->|Update| RuntimeState
+
+    StreamControl -->|Update| StateManager
+    LayerManager -->|Manage| StateManager
+    Monitoring -->|Read| StateManager
 ```
 
 ## Project Structure
 
 ```
-src/state/
-├── README.md           # Documentation
-├── persistence.ts      # Redis integration & type validation
-└── store/
-    ├── state-manager.types.ts  # Type definitions
-    ├── state-manager.ts        # Core state management
-    └── __tests__/             # Unit tests
+src/
+├── state/
+│   ├── README.md           # State system documentation
+│   ├── persistence.ts      # Redis integration & validation
+│   └── store/
+│       ├── state-manager.types.ts  # Type definitions
+│       ├── state-manager.ts        # Core state management
+│       └── __tests__/             # Unit tests
+└── server/
+    ├── README.md           # Server documentation
+    ├── api/               # REST API endpoints
+    ├── websocket.ts      # WebSocket server
+    ├── monitoring/       # Health & metrics
+    └── stream-server.ts  # Stream control
 ```
 
 ## Core Components
 
 ### 1. State Manager (`state-manager.ts`)
 - Singleton instance for centralized state management
-- Handles state updates with immediate Redis persistence
-- Implements event system for state change notifications
-- Provides type-safe state access and updates
-- Manages preview client connections
+- Implements debounced state persistence with Redis
+- Event system for state change notifications
+- Type-safe state access and updates
+- Preview client state management
+- Automatic state saving with debounce
 
 ### 2. Type System (`state-manager.types.ts`)
 ```typescript
 // Core state interfaces
+export interface AppState {
+  stream: StreamState;
+  layers: LayerState;
+  previewClients: Record<string, PreviewClientState>;
+}
+
 export interface StreamState {
   isLive: boolean;
   isPaused: boolean;
@@ -77,14 +102,19 @@ export interface PreviewClientState {
   lastPing: number;
   connected: boolean;
 }
+
+export type StateUpdateEvent = {
+  type: 'stream' | 'layers' | 'previewClient';
+  payload: Partial<StreamState> | Partial<LayerState> | PreviewClientState;
+};
 ```
 
 ### 3. Persistence Layer (`persistence.ts`)
 - Redis integration with connection management
-- Type validation for stored state
-- Error handling and recovery
-- Automatic reconnection
+- Type guards for runtime validation
+- Automatic reconnection handling
 - Data integrity checks
+- Configurable Redis connection options
 
 ## State Management Flow
 
@@ -93,26 +123,23 @@ export interface PreviewClientState {
 // In state-manager.ts
 public async loadState(): Promise<void> {
   const streamState = await redisService.getStreamState();
-  if (streamState) {
-    this.state.stream = streamState;
-  } else {
-    // Initialize with defaults
-    this.state.stream = { ...DEFAULT_STREAM_STATE };
-    await redisService.saveStreamState(this.state.stream);
-  }
+  const layerState = await redisService.getLayerState();
+  
+  this.state.stream = streamState ?? { ...DEFAULT_STREAM_STATE };
+  this.state.layers = layerState ?? { ...DEFAULT_LAYER_STATE };
 }
 ```
 
 ### 2. State Updates
 ```typescript
-// Example state update with validation
+// Example state update with debounced persistence
 public async updateStreamState(update: Partial<StreamState>): Promise<void> {
   this.state.stream = {
     ...this.state.stream,
     ...update
   };
-  await redisService.saveStreamState(this.state.stream);
-  this.notifyListeners({ type: 'stream', payload: this.state.stream });
+  await this.scheduleSave();
+  this.notifyListeners({ type: 'stream', payload: update });
 }
 ```
 
@@ -129,270 +156,116 @@ private notifyListeners(event: StateUpdateEvent): void {
 }
 ```
 
-## Type Safety & Validation
-
-### 1. Type Guards
-```typescript
-// In persistence.ts
-function isStreamState(obj: unknown): obj is StreamState {
-  if (!obj || typeof obj !== 'object') return false;
-  const state = obj as Partial<StreamState>;
-  return (
-    typeof state.isLive === 'boolean' &&
-    typeof state.isPaused === 'boolean' &&
-    typeof state.fps === 'number' &&
-    // ... other validations
-  );
-}
-```
-
-### 2. Error Handling
-```typescript
-try {
-  const parsed = JSON.parse(state);
-  if (!isStreamState(parsed)) {
-    logger.error('Invalid stream state format');
-    return null;
-  }
-  return parsed;
-} catch (error) {
-  logger.error('Failed to parse state', { error });
-  return null;
-}
-```
-
-## Implementation Status
-
-### ✅ Completed
-1. Core State Management
-   - [x] Singleton state manager
-   - [x] Type-safe state updates
-   - [x] Event system
-   - [x] Redis persistence
-   - [x] Error handling
-   - [x] Preview client management
-
-2. Type System
-   - [x] Stream state types
-   - [x] Layer state types
-   - [x] Preview client types
-   - [x] Type guards and validation
-
-3. Persistence
-   - [x] Redis integration
-   - [x] Connection management
-   - [x] Data validation
-   - [x] Error recovery
-
-4. Testing
-   - [x] Unit tests for state manager
-   - [x] Mock Redis service
-   - [x] Event system tests
-   - [x] State update tests
-
-### 🎯 Future Improvements
-1. Performance
-   - [ ] State change batching
-   - [ ] Redis connection pooling
-   - [ ] Optimistic updates
-
-2. Monitoring
-   - [ ] Prometheus metrics
-   - [ ] State change analytics
-   - [ ] Performance tracking
-
-3. Advanced Features
-   - [ ] State versioning
-   - [ ] Multi-node synchronization
-   - [ ] Conflict resolution
-
-## Best Practices
-
-### 1. State Updates
-- Use type-safe update methods
-- Validate state before persistence
-- Handle errors appropriately
-- Notify listeners of changes
-
-### 2. Error Handling
-- Log errors with context
-- Provide fallback values
-- Maintain data integrity
-- Implement recovery strategies
-
-### 3. Performance
-- Use type guards for validation
-- Implement connection pooling
-- Handle reconnection gracefully
-- Monitor state size
-
-## Configuration
-
-```typescript
-interface Config {
-  REDIS_URL: string;
-  REDIS_PASSWORD: string;
-  WS_PORT: number;
-  METRICS_PORT: number;
-}
-```
-
 ## API Integration
 
 ### HTTP Endpoints
 - `GET /stream/status` - Get current stream state
 - `POST /stream/{start|stop|pause}` - Control stream
 - `GET /stream/layers` - Get layer states
-- `POST /stream/layers/:id/visibility` - Update layer
+- `POST /stream/layers/:id/visibility` - Update layer visibility
+- `POST /stream/layers` - Create new layer
+- `PUT /stream/layers/:id` - Update layer
+- `DELETE /stream/layers/:id` - Delete layer
+- `POST /stream/assets/upload` - Upload new asset
+- `GET /stream/assets/:id` - Get asset info
+- `DELETE /stream/assets/:id` - Delete asset
 
 ### WebSocket Events
 - `frame` - New frame available
 - `quality` - Quality setting update
 - `ping/pong` - Connection health check
 - `streamState` - Stream state updates
-
-## Components
-
-### 1. State Manager Service
-- Central state management
-- Handles state loading/persistence
-- Manages runtime state
-- Provides type-safe state access
-
-### 2. State Middleware
-- Ensures state is loaded for API requests
-- Handles state loading errors
-- Provides consistent error responses
-- Manages state validation
-
-### 3. Frontend State Hook
-```typescript
-const { streamState, error, isLoading } = useStreamState({
-  pollInterval: 1000,
-  maxRetries: 3
-});
-```
-
-## Error Handling
-
-### 1. State Loading Errors
-```typescript
-try {
-  await stateManager.loadState();
-} catch (error) {
-  logger.error('State loading failed', { error });
-  // Handle error appropriately
-}
-```
-
-### 2. State Update Errors
-```typescript
-try {
-  await stateManager.updateStreamState(newState);
-} catch (error) {
-  logger.error('State update failed', { error });
-  // Rollback if necessary
-}
-```
-
-### 3. Redis Connection Errors
-- Automatic reconnection handling
-- Error logging and monitoring
-- Fallback to runtime state
-- Recovery mechanisms
-
-## Best Practices
-
-### 1. State Updates
-- Always use type-safe state updates
-- Validate state before updates
-- Use atomic operations when possible
-- Handle race conditions
-
-### 2. Error Handling
-- Log all state errors
-- Provide clear error messages
-- Include error context
-- Implement recovery strategies
-
-### 3. Performance
-- Use debounced state updates
-- Implement state caching
-- Optimize polling intervals
-- Batch state changes
+- `layerUpdate` - Layer state changes
+- `preview` - Preview frame updates
 
 ## Implementation Status
 
 ### ✅ Completed
 1. Core State Management
-   - [x] State Manager implementation
-   - [x] Redis integration
-   - [x] State middleware
-   - [x] Error handling
+   - [x] Singleton state manager with debounced persistence
+   - [x] Type-safe state updates
+   - [x] Event system with typed events
+   - [x] Redis persistence with reconnection
+   - [x] Error handling and logging
+   - [x] Preview client management
 
-2. Frontend Integration
-   - [x] useStreamState hook
-   - [x] State polling
-   - [x] Error handling
-   - [x] Loading states
+2. Type System
+   - [x] AppState with stream, layers, and preview clients
+   - [x] Type guards for runtime validation
+   - [x] Event type system
+   - [x] Preview client types
+
+3. Persistence
+   - [x] Redis integration with connection management
+   - [x] Debounced state saving
+   - [x] Type validation
+   - [x] Error recovery
+   - [x] Configurable Redis options
+
+4. Server Integration
+   - [x] Basic HTTP server setup
+   - [x] REST endpoints for stream control
+   - [x] Initial WebSocket server
+   - [x] Basic layer management
+   - [x] Stream state monitoring
 
 ### 🚧 In Progress
-1. State Optimization
-   - [ ] State caching
-   - [ ] Batch updates
-   - [ ] Performance monitoring
+1. WebSocket Features
+   - [ ] Event standardization
+   - [ ] Layer state synchronization
+   - [ ] Preview frame optimization
+   - [ ] Connection management
 
-2. Error Recovery
-   - [ ] Automatic retries
-   - [ ] State rollback
-   - [ ] Connection recovery
+2. Performance
+   - [ ] Redis connection pooling
+   - [ ] Optimistic updates
+   - [ ] State change batching
+   - [ ] Performance metrics
 
-## Debugging
+3. Monitoring
+   - [ ] Prometheus metrics
+   - [ ] State change analytics
+   - [ ] Redis performance tracking
+   - [ ] Client connection metrics
 
-### Common Issues
-1. State Loading Failures
-   - Check Redis connection
-   - Verify state schema
-   - Check middleware logs
-   - Validate state data
+### 📋 Future Improvements
+1. Advanced Features
+   - [ ] State versioning
+   - [ ] Multi-node synchronization
+   - [ ] Conflict resolution
+   - [ ] State snapshots
 
-2. State Update Errors
-   - Check update payload
-   - Verify state consistency
-   - Check for race conditions
-   - Monitor update timing
-
-3. Performance Issues
-   - Monitor update frequency
-   - Check Redis performance
-   - Verify polling intervals
-   - Monitor state size
+2. Asset Management
+   - [ ] Asset validation
+   - [ ] Storage management
+   - [ ] URL generation
+   - [ ] Cleanup routines
 
 ## Configuration
 
+### State Configuration
 ```typescript
 interface StateConfig {
   REDIS_URL: string;
-  REDIS_PREFIX: string;
-  STATE_UPDATE_DEBOUNCE: number;
-  MAX_RETRIES: number;
-  POLL_INTERVAL: number;
+  REDIS_PASSWORD: string;
+  SAVE_DEBOUNCE_MS?: number;
 }
 ```
 
-## Monitoring
-
-1. Metrics to Track
-   - State load time
-   - Update frequency
-   - Error rates
-   - Redis latency
-
-2. Logging
-   - State changes
-   - Error events
-   - Performance issues
-   - Recovery attempts
+### Server Configuration
+```typescript
+interface ServerConfig {
+  PORT: number;
+  WS_PORT: number;
+  HOST: string;
+  ASSET_STORAGE_PATH: string;
+  MAX_UPLOAD_SIZE: number;
+  RATE_LIMIT: {
+    windowMs: number;
+    max: number;
+  };
+}
+```
 
 ## Port Configuration
 
@@ -408,115 +281,94 @@ WS_PORT=4201       # WebSocket server port
 METRICS_PORT=9090  # Metrics server port
 ```
 
-## Communication Protocols
-
-### HTTP API (Admin Operations)
-- Used for all admin operations
-- Endpoints:
-  - `POST /stream/{start|stop|pause}` - Stream control
-  - `GET /stream/status` - Stream status
-  - `GET /stream/layers` - Layer states
-  - `POST /stream/layers/:id/visibility` - Layer updates
-  - `POST /stream/chat` - Chat messages
-- Integrated with StateManager for consistent state updates
-
-### WebSocket (Preview Server)
-- Dedicated to preview/streaming functionality
-- Handles:
-  - Frame buffer updates
-  - Quality settings (high/medium/low)
-  - Preview client management
-  - Health monitoring
-- Uses StateManager for client state tracking
-
-## State Flow
+## Communication Flow
 
 ### 1. Admin Operations Flow
 1. Admin UI makes HTTP request
-2. HTTP API processes request
+2. State middleware validates request
 3. StateManager updates state
-4. State is persisted to Redis if needed
-5. Response sent back to Admin UI
-6. Admin UI polls for updates (1s interval)
+4. Debounced persistence to Redis
+5. Event emission to listeners
+6. Response sent to Admin UI
 
 ### 2. Preview Flow
 1. Preview client connects via WebSocket
-2. Receives initial configuration
-3. Starts receiving frame updates
-4. Can update quality settings
-5. Real-time frame streaming
+2. Client state tracked in StateManager
+3. Frame updates streamed
+4. Quality settings managed
+5. Health monitoring via ping/pong
 
-## Testing & Documentation
+### 3. Layer Management Flow
+1. Layer update request received
+2. State validation performed
+3. Layer state updated
+4. Events emitted to clients
+5. State persisted to Redis
 
-### 1. Integration Tests
-- [ ] Integration tests for HTTP API
-- [ ] E2E tests for Preview WebSocket
+## Security Considerations
 
-### 2. API Documentation
-- [ ] API documentation updates
-
-### 3. Performance Testing
-- [ ] Performance testing
-
-## Monitoring & Metrics
-
-### 1. Prometheus Metrics
-- [ ] Add Prometheus metrics
-
-### 2. Grafana Dashboards
-- [ ] Grafana dashboards
-
-### 3. Alert Configurations
-- [ ] Alert configurations
-
-### 4. Performance Monitoring
-- [ ] Performance monitoring
-
-## Security Enhancements
-
-### 1. API Authentication
-- [ ] API authentication
+### 1. API Security
+- [ ] Authentication
+- [ ] Authorization
+- [ ] Rate limiting
+- [ ] Input validation
 
 ### 2. WebSocket Security
-- [ ] WebSocket security
-
-### 3. Rate Limiting
+- [ ] Connection validation
+- [ ] Message validation
 - [ ] Rate limiting
+- [ ] Client authentication
 
-### 4. Input Validation
-- [ ] Input validation
+### 3. Asset Security
+- [ ] Upload validation
+- [ ] Size limits
+- [ ] Type checking
+- [ ] Access control
 
 ## Performance Optimization
 
-### 1. Frame Buffer Optimization
-- [ ] Frame buffer optimization
+### 1. State Updates
+- [ ] Update batching
+- [ ] Optimistic updates
+- [ ] Change detection
+- [ ] Cache management
 
-### 2. WebSocket Message Compression
-- [ ] WebSocket message compression
+### 2. WebSocket Performance
+- [ ] Message compression
+- [ ] Binary protocols
+- [ ] Connection pooling
+- [ ] Load balancing
 
-### 3. Redis Connection Pooling
-- [ ] Redis connection pooling
-
-### 4. State Update Batching
-- [ ] State update batching
+### 3. Asset Handling
+- [ ] Asset caching
+- [ ] Compression
+- [ ] CDN integration
+- [ ] Progressive loading
 
 ## Debugging Notes
 
 ### HTTP API Debugging
-1. Use browser dev tools Network tab
-2. Check response status codes
-3. Verify request/response payloads
-4. Monitor polling performance
+1. Check request/response payloads
+2. Monitor state updates
+3. Verify Redis persistence
+4. Check error responses
 
 ### WebSocket Debugging
-1. Check PreviewServer logs
-2. Monitor frame delivery rate
-3. Check client connection status
-4. Verify quality adaptation
+1. Monitor connection state
+2. Check frame delivery
+3. Verify client state
+4. Monitor quality adaptation
+
+### Asset Debugging
+1. Check upload process
+2. Verify storage paths
+3. Monitor file sizes
+4. Check access URLs
 
 ## Common Issues
-- HTTP polling delays
-- WebSocket connection drops
-- State synchronization lag
 - Redis connection issues
-- Frame buffer performance 
+- State synchronization delays
+- WebSocket disconnections
+- Type validation errors
+- Asset upload failures
+- Layer state inconsistencies 
