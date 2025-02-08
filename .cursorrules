@@ -2,7 +2,7 @@
 
 Docker
 - Use `docker compose` to control the services
-- Name of docker compose file: `compose.yml`
+- Name of docker compose file: `compose.yaml`
 
 File & Folder Names
 - Next.js routes in kebab-case (e.g. `app/dashboard/page.tsx`).
@@ -17,6 +17,6 @@ Misc
 - Use `tsx` scripts for migrations.
 
 IMPORTANT
-- Always add a one-sentence summary of changes to `.cursor-updates` file in markdown format at the end of every agent interaction.
+- Always add a one-sentence summary of technical changes to `.cursor-updates` file in markdown format at the end of every agent interaction.
 - If you forget, the user can type the command "finish" and you will run the build and update `.cursor-updates` file.
 

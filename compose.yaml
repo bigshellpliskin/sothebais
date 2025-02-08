@@ -2,36 +2,27 @@
 
 services:
   traefik:
-    image: traefik:v3.3
+    image: traefik:v2.10
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.metrics.address=:3100"  # Dedicated metrics entrypoint
-      # Certificate Resolver
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      # Metrics
-      - "--metrics.prometheus=true"
-      - "--metrics.prometheus.addEntryPointsLabels=true"
-      - "--metrics.prometheus.addServicesLabels=true"
-      # Health Check
+      # - "--entrypoints.metrics.address=:3100"  # Commented out metrics for now
+      # Enable WebSocket support globally
       - "--ping=true"
-      # Enable WebSocket support
       - "--accesslog=true"
       - "--accesslog.fields.headers.names.X-Forwarded-For=keep"
       - "--accesslog.fields.headers.names.X-Forwarded-Proto=keep"
       - "--accesslog.fields.headers.names.X-Forwarded-Host=keep"
       - "--accesslog.fields.headers.names.Upgrade=keep"
       - "--accesslog.fields.headers.names.Connection=keep"
+      # Debug logging
+      - "--log.level=DEBUG"
     ports:
-      - "80:80"     # HTTP
+      - "80:80"     # HTTP/WebSocket
       - "443:443"   # HTTPS
-      - "3100:3100" # Metrics
+      - "8080:8080" # Traefik Dashboard
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./data/traefik/letsencrypt:/letsencrypt"
@@ -41,14 +32,10 @@ services:
       - "ACME_EMAIL=${ACME_EMAIL}"
     labels:
       - "traefik.enable=true"
-      # Expose Traefik's own metrics
-      - "traefik.http.routers.traefik-metrics.rule=PathPrefix(`/metrics`)"
-      - "traefik.http.routers.traefik-metrics.service=prometheus@internal"
-      - "traefik.http.routers.traefik-metrics.entrypoints=metrics"
       # Health check endpoint
       - "traefik.http.routers.traefik-health.rule=PathPrefix(`/ping`)"
       - "traefik.http.routers.traefik-health.service=ping@internal"
-      - "traefik.http.routers.traefik-health.entrypoints=metrics"
+      - "traefik.http.routers.traefik-health.entrypoints=web"
     healthcheck:
       test: 
         - "CMD"
@@ -59,7 +46,7 @@ services:
       timeout: 5s
       retries: 3
 
-  # Admin Frontend Service
+   #Admin Frontend Service - Commented out for now
   admin-frontend:
     build:
       context: ./apps/admin
@@ -76,6 +63,7 @@ services:
       - HEALTH_PORT=3091
       - PROMETHEUS_URL=http://prometheus:9090
       - STREAM_MANAGER_URL=http://stream-manager:4200  # URL for stream manager service
+      - NEXT_PUBLIC_WS_URL=ws://${DOMAIN}/ws  # Use non-TLS WebSocket URL
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./.env:/app/.env:ro
@@ -83,29 +71,80 @@ services:
       - ./apps/admin/public:/app/public:ro
       - ./apps/admin/.next:/app/.next
       - ./apps/admin/node_modules:/app/node_modules
-    ports:
-      - "3000:3000" # Main App
-      - "3090:3090" # Metrics
-      - "3091:3091" # Health
     networks:
       - auction_net
+    ports:
+      - "3000:3000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`${ADMIN_SUBDOMAIN}`)"
+      # HTTP routing
+      - "traefik.http.routers.admin.rule=Host(`${DOMAIN}`) && PathPrefix(`/`)"
       - "traefik.http.services.admin.loadbalancer.server.port=3000"
-      - "traefik.http.routers.admin.entrypoints=websecure"
-      - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
-      # Add metrics endpoint
-      - "traefik.http.routers.admin-metrics.rule=PathPrefix(`/metrics/admin`)"
-      - "traefik.http.routers.admin-metrics.service=admin-metrics"
-      - "traefik.http.services.admin-metrics.loadbalancer.server.port=3090"
-      - "traefik.http.routers.admin-metrics.entrypoints=metrics"
+      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.routers.admin.priority=1"  # Lowest priority (catch-all)
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "3000"]
       interval: 30s
       timeout: 10s
       retries: 3
+    depends_on:
+      - stream-manager
+
+
+  # Stream Processing Service
+  stream-manager:
+    build:
+      context: ./apps/stream-manager
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - PORT=4200
+      - WS_PORT=4201
+      - LOG_LEVEL=debug
+      - LOG_PRETTY_PRINT=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./apps/stream-manager/src:/app/src:ro
+      - ./apps/stream-manager/package.json:/app/package.json:ro
+      - ./data/stream-manager:/app/storage:rw
+    networks:
+      - auction_net
+    labels:
+      - "traefik.enable=true"
+      # HTTP API
+      - "traefik.http.routers.stream-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.stream-api.entrypoints=web"
+      - "traefik.http.services.stream-api.loadbalancer.server.port=4200"
+      
+      # WebSocket Configuration
+      - "traefik.http.routers.stream-ws.rule=PathPrefix(`/ws`)"
+      - "traefik.http.routers.stream-ws.entrypoints=web"
+      - "traefik.http.routers.stream-ws.service=stream-ws"
+      - "traefik.http.services.stream-ws.loadbalancer.server.port=4201"
+      
+      # WebSocket Middleware
+      - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Connection=Upgrade"
+      - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Upgrade=websocket"
+      - "traefik.http.middlewares.ws-headers.headers.customresponseheaders.Connection=Upgrade"
+      - "traefik.http.middlewares.ws-headers.headers.customresponseheaders.Upgrade=websocket"
+      - "traefik.http.middlewares.ws-headers.headers.allowedHeaders=Sec-WebSocket-Extensions,Sec-WebSocket-Key,Sec-WebSocket-Version"
+      - "traefik.http.routers.stream-ws.middlewares=ws-headers"
+      
+      # Priority
+      - "traefik.http.routers.stream-ws.priority=200"
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4200/stream/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
       start_period: 30s
+    depends_on:
+      - redis
+      - traefik
+
 
   # Redis for Caching and Message Queue
   redis:
@@ -121,8 +160,8 @@ services:
       --tcp-keepalive 300
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     networks:
       - auction_net
     restart: unless-stopped
@@ -132,185 +171,119 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Exporter for Prometheus
-  redis-exporter:
-    image: oliver006/redis_exporter:v1.55.0
-    environment:
-      - REDIS_ADDR=redis://redis:6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
-    ports:
-      - "9121:9121"
-    networks:
-      - auction_net
-    depends_on:
-      - redis
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.redis-metrics.rule=PathPrefix(`/metrics/redis`)"
-      - "traefik.http.routers.redis-metrics.service=redis-metrics"
-      - "traefik.http.services.redis-metrics.loadbalancer.server.port=9121"
-      - "traefik.http.routers.redis-metrics.entrypoints=metrics"
+  # Redis Exporter - Commented out for now
+  # redis-exporter:
+  #   image: oliver006/redis_exporter:v1.55.0
+  #   environment:
+  #     - REDIS_ADDR=redis://redis:6379
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+  #   ports:
+  #     - "9121:9121"
+  #   networks:
+  #     - auction_net
+  #   depends_on:
+  #     - redis
+  #   restart: unless-stopped
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.redis-metrics.rule=PathPrefix(`/metrics/redis`)"
+  #     - "traefik.http.routers.redis-metrics.service=redis-metrics"
+  #     - "traefik.http.services.redis-metrics.loadbalancer.server.port=9121"
+  #     - "traefik.http.routers.redis-metrics.entrypoints=metrics"
 
-  # Prometheus for Metrics
-  prometheus:
-    # Using LTS version (2.53.x branch) for extended support and stability
-    # See: https://prometheus.io/blog/2024/02/20/prometheus-releases-lts/
-    # Benefits:
-    # - Extended support period (1 year)
-    # - Stability focused
-    # - Security updates
-    # - Backported critical fixes
-    image: prom/prometheus:v2.53.3
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-      - '--web.external-url=/prometheus'
-      - '--web.route-prefix=/prometheus'
-    volumes:
-      - ./monitoring/prometheus:/etc/prometheus:ro    # Config files
-      - prometheus_data:/prometheus                   # Actual data
-    ports:
-      - "9090:9090"
-    networks:
-      - auction_net
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/prometheus`)"
-      - "traefik.http.routers.prometheus.entrypoints=websecure"
-      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
-      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
-      - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
-      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:9090/prometheus/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # Prometheus - Commented out for now
+  # prometheus:
+  #   # Using LTS version (2.53.x branch) for extended support and stability
+  #   # See: https://prometheus.io/blog/2024/02/20/prometheus-releases-lts/
+  #   # Benefits:
+  #   # - Extended support period (1 year)
+  #   # - Stability focused
+  #   # - Security updates
+  #   # - Backported critical fixes
+  #   image: prom/prometheus:v2.53.3
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #     - '--web.console.templates=/usr/share/prometheus/consoles'
+  #     - '--web.enable-lifecycle'
+  #     - '--web.external-url=/prometheus'
+  #     - '--web.route-prefix=/prometheus'
+  #   volumes:
+  #     - ./monitoring/prometheus:/etc/prometheus:ro    # Config files
+  #     - prometheus_data:/prometheus                   # Actual data
+  #   ports:
+  #     - "9090:9090"
+  #   networks:
+  #     - auction_net
+  #   restart: unless-stopped
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.prometheus.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/prometheus`)"
+  #     - "traefik.http.routers.prometheus.entrypoints=websecure"
+  #     - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+  #     - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+  #     - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
+  #     - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--spider", "http://localhost:9090/prometheus/-/healthy"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
   
-  # Event Orchestration Service
-  event-handler:
-    build:
-      context: ./apps/event-handler
-      dockerfile: Dockerfile
-      target: ${NODE_ENV:-development}
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - PORT=4300
-      - EVENT_STREAM_PORT=4301
-      - METRICS_PORT=4390
-      - HEALTH_PORT=4391
-      - FRONTEND_URL=http://localhost:3000
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./apps/event-handler/src:/app/src:ro
-      - ./apps/event-handler/package.json:/app/package.json:ro
-      - ./data/event-handler:/app/storage:rw
-    # In development, expose ports directly
-    ports:
-      - "4300:4300" # Main API
-      - "4301:4301" # Event Stream
-      - "4390:4390" # Metrics
-      - "4391:4391" # Health
-    networks:
-      - auction_net
-    labels:
-      - "traefik.enable=true"
-      # Main API endpoints including logs (only active in production)
-      - "traefik.http.routers.event-handler.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/events`)"
-      - "traefik.http.routers.event-handler.entrypoints=websecure"
-      - "traefik.http.routers.event-handler.tls.certresolver=letsencrypt"
-      - "traefik.http.services.event-handler.loadbalancer.server.port=4300"
-      # Metrics endpoint
-      - "traefik.http.routers.event-handler-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/events`)"
-      - "traefik.http.routers.event-handler-metrics.entrypoints=websecure"
-      - "traefik.http.services.event-handler-metrics.loadbalancer.server.port=4390"
-      # Health check endpoint
-      - "traefik.http.routers.event-handler-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/events`)"
-      - "traefik.http.routers.event-handler-health.entrypoints=websecure"
-      - "traefik.http.services.event-handler-health.loadbalancer.server.port=4391"
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-0.5}
-          memory: ${RESOURCES_MEMORY:-512M}
-    command: npm run dev
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Stream Processing Service
-  stream-manager:
-    build:
-      context: ./apps/stream-manager
-      dockerfile: Dockerfile
-      target: ${NODE_ENV:-development}
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-      - PORT=4200
-      - WS_PORT=4201
-      - METRICS_PORT=4290
-      - HEALTH_PORT=4291
-      - LOG_LEVEL=debug
-      - LOG_PRETTY_PRINT=false
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./apps/stream-manager/src:/app/src:ro
-      - ./apps/stream-manager/package.json:/app/package.json:ro
-      - ./data/stream-manager:/app/storage:rw
-    ports:
-      - "4200:4200" # Main API
-      - "4201:4201" # WebSocket
-      - "4290:4290" # Metrics
-      - "4291:4291" # Health
-    networks:
-      - auction_net
-    labels:
-      - "traefik.enable=true"
-      # HTTP API
-      - "traefik.http.routers.stream-manager.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/stream`)"
-      - "traefik.http.routers.stream-manager.entrypoints=websecure"
-      - "traefik.http.routers.stream-manager.tls.certresolver=letsencrypt"
-      - "traefik.http.services.stream-manager.loadbalancer.server.port=4200"
-      # WebSocket
-      - "traefik.http.routers.stream-manager-ws.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/ws`)"
-      - "traefik.http.routers.stream-manager-ws.entrypoints=websecure"
-      - "traefik.http.routers.stream-manager-ws.tls.certresolver=letsencrypt"
-      - "traefik.http.services.stream-manager-ws.loadbalancer.server.port=4201"
-      # Enable WebSocket for the service
-      - "traefik.http.middlewares.stream-manager-ws.headers.customrequestheaders.Connection=Upgrade"
-      - "traefik.http.middlewares.stream-manager-ws.headers.customrequestheaders.Upgrade=websocket"
-      - "traefik.http.routers.stream-manager-ws.middlewares=stream-manager-ws"
-      # Metrics endpoint
-      - "traefik.http.routers.stream-manager-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/stream`)"
-      - "traefik.http.routers.stream-manager-metrics.entrypoints=websecure"
-      - "traefik.http.services.stream-manager-metrics.loadbalancer.server.port=4290"
-      # Health check endpoint
-      - "traefik.http.routers.stream-manager-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/stream`)"
-      - "traefik.http.routers.stream-manager-health.entrypoints=websecure"
-      - "traefik.http.services.stream-manager-health.loadbalancer.server.port=4291"
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-0.5}
-          memory: ${RESOURCES_MEMORY:-512M}
-    command: npm run dev
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4291/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    depends_on:
-      - redis
-      - traefik
+  # Event Handler - Commented out for now
+  # event-handler:
+  #   build:
+  #     context: ./apps/event-handler
+  #     dockerfile: Dockerfile
+  #     target: ${NODE_ENV:-development}
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+  #     - PORT=4300
+  #     - EVENT_STREAM_PORT=4301
+  #     - METRICS_PORT=4390
+  #     - HEALTH_PORT=4391
+  #     - FRONTEND_URL=http://localhost:3000
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - ./apps/event-handler/src:/app/src:ro
+  #     - ./apps/event-handler/package.json:/app/package.json:ro
+  #     - ./data/event-handler:/app/storage:rw
+  #   # In development, expose ports directly
+  #   ports:
+  #     - "4300:4300" # Main API
+  #     - "4301:4301" # Event Stream
+  #     - "4390:4390" # Metrics
+  #     - "4391:4391" # Health
+  #   networks:
+  #     - auction_net
+  #   labels:
+  #     - "traefik.enable=true"
+  #     # Main API endpoints including logs (only active in production)
+  #     - "traefik.http.routers.event-handler.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/events`)"
+  #     - "traefik.http.routers.event-handler.entrypoints=websecure"
+  #     - "traefik.http.routers.event-handler.tls.certresolver=letsencrypt"
+  #     - "traefik.http.services.event-handler.loadbalancer.server.port=4300"
+  #     # Metrics endpoint
+  #     - "traefik.http.routers.event-handler-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/events`)"
+  #     - "traefik.http.routers.event-handler-metrics.entrypoints=websecure"
+  #     - "traefik.http.services.event-handler-metrics.loadbalancer.server.port=4390"
+  #     # Health check endpoint
+  #     - "traefik.http.routers.event-handler-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/events`)"
+  #     - "traefik.http.routers.event-handler-health.entrypoints=websecure"
+  #     - "traefik.http.services.event-handler-health.loadbalancer.server.port=4391"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: ${RESOURCES_CPU:-0.5}
+  #         memory: ${RESOURCES_MEMORY:-512M}
+  #   command: npm run dev
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
 x-volumes:
   dev.volumes.auction-manager: &dev-volumes
@@ -377,8 +350,6 @@ x-commands:
 
 volumes:
   redis_data:
-  prometheus_data:
-  grafana_data:
   stream_storage:
 
 networks:

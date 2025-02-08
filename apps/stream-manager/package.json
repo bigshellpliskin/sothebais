@@ -13,6 +13,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:ws": "tsx src/scripts/test-websocket.ts",
     "clean": "del-cli dist",
     "prebuild": "npm run clean"
   },

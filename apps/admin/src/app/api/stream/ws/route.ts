@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // Forward to stream manager's WebSocket port
-    const response = await fetch('http://stream-manager:4201', {
+    const response = await fetch('http://stream-manager:4201/ws', {
       method: 'GET',
       headers: {
         'Upgrade': 'websocket',

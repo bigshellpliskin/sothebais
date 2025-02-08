@@ -1,1 +1,7 @@
 # .cursor-updates
+
+- Analyzed WebSocket/HTTP endpoint configuration, confirmed proper separation of concerns with WS on 4201 and HTTP on 4200.
+- Updated Traefik configuration for admin frontend to fix route conflicts and infinite loading issues with proper priorities and middleware.
+- Updated Traefik admin frontend routing to use specific Host rule with domain and proper path handling.
+- Changed admin frontend container configuration from `expose` to `ports` to enable direct localhost access.
+- Enhanced security by updating Clerk middleware to require authentication for all routes except sign-in pages.
