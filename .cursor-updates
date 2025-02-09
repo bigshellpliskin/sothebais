@@ -5,3 +5,6 @@
 - Updated Traefik admin frontend routing to use specific Host rule with domain and proper path handling.
 - Changed admin frontend container configuration from `expose` to `ports` to enable direct localhost access.
 - Enhanced security by updating Clerk middleware to require authentication for all routes except sign-in pages.
+- Moved Redis functionality from persistence.ts to redis-service.ts and removed the old file for cleaner Redis access boundaries.
+- Updated state system documentation to reflect removal of debounced persistence in favor of immediate Redis saves, added real-time WebSocket broadcasting, and enhanced type validation with comprehensive logging.
+- Reorganized project structure: moved types to dedicated types/ directory, consolidated state management files, and added utils/ for shared utilities like logging.

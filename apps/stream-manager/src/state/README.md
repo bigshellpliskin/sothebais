@@ -50,32 +50,42 @@ graph TD
 
 ```
 src/
-├── state/
-│   ├── README.md           # State system documentation
-│   ├── persistence.ts      # Redis integration & validation
-│   └── store/
-│       ├── state-manager.types.ts  # Type definitions
-│       ├── state-manager.ts        # Core state management
-│       └── __tests__/             # Unit tests
+├── state/                  # State Management System
+│   ├── README.md          # State system documentation
+│   ├── state-manager.ts   # Core state management
+│   ├── redis-service.ts   # Redis integration & persistence
+│   └── __tests__/        # Unit tests
+├── types/                 # Type Definitions
+│   ├── state-manager.types.ts  # State types
+│   ├── layers.ts              # Layer types
+│   └── stream.ts             # Stream types
+├── utils/
+│   └── logger.ts        # Logging utilities
 └── server/
-    ├── README.md           # Server documentation
-    ├── api/               # REST API endpoints
-    ├── websocket.ts      # WebSocket server
-    ├── monitoring/       # Health & metrics
-    └── stream-server.ts  # Stream control
+    ├── api/            # REST API endpoints
+    ├── websocket.ts    # WebSocket server
+    └── monitoring/     # Health & metrics
+
 ```
 
 ## Core Components
 
 ### 1. State Manager (`state-manager.ts`)
 - Singleton instance for centralized state management
-- Implements debounced state persistence with Redis
-- Event system for state change notifications
+- Immediate state persistence with Redis
+- Event system with WebSocket broadcasting
 - Type-safe state access and updates
 - Preview client state management
-- Automatic state saving with debounce
+- Comprehensive logging
 
-### 2. Type System (`state-manager.types.ts`)
+### 2. Redis Service (`redis-service.ts`)
+- Redis connection management
+- Type-safe persistence operations
+- Connection state monitoring
+- Error handling and recovery
+- Configurable client options
+
+### 3. Type System (in `types/`)
 ```typescript
 // Core state interfaces
 export interface AppState {
@@ -108,13 +118,6 @@ export type StateUpdateEvent = {
   payload: Partial<StreamState> | Partial<LayerState> | PreviewClientState;
 };
 ```
-
-### 3. Persistence Layer (`persistence.ts`)
-- Redis integration with connection management
-- Type guards for runtime validation
-- Automatic reconnection handling
-- Data integrity checks
-- Configurable Redis connection options
 
 ## State Management Flow
 
@@ -182,51 +185,54 @@ private notifyListeners(event: StateUpdateEvent): void {
 
 ### ✅ Completed
 1. Core State Management
-   - [x] Singleton state manager with debounced persistence
-   - [x] Type-safe state updates
-   - [x] Event system with typed events
-   - [x] Redis persistence with reconnection
-   - [x] Error handling and logging
+   - [x] Singleton state manager with immediate Redis persistence
+   - [x] Type-safe state updates with validation
+   - [x] Event system with typed events and WebSocket broadcasting
+   - [x] Redis persistence with reconnection and error handling
+   - [x] Comprehensive logging system
    - [x] Preview client management
+   - [x] Real-time state synchronization
 
 2. Type System
    - [x] AppState with stream, layers, and preview clients
    - [x] Type guards for runtime validation
-   - [x] Event type system
+   - [x] Event type system with payload validation
    - [x] Preview client types
+   - [x] Strict type checking for state updates
 
 3. Persistence
-   - [x] Redis integration with connection management
-   - [x] Debounced state saving
-   - [x] Type validation
-   - [x] Error recovery
+   - [x] Redis integration with robust connection management
+   - [x] Immediate state saving (removed debouncing)
+   - [x] Type validation with guards
+   - [x] Error recovery and logging
    - [x] Configurable Redis options
+   - [x] Connection state monitoring
 
 4. Server Integration
-   - [x] Basic HTTP server setup
-   - [x] REST endpoints for stream control
-   - [x] Initial WebSocket server
-   - [x] Basic layer management
+   - [x] HTTP server with state endpoints
+   - [x] WebSocket integration for real-time updates
+   - [x] Layer management with validation
    - [x] Stream state monitoring
+   - [x] State change broadcasting
 
 ### 🚧 In Progress
 1. WebSocket Features
    - [ ] Event standardization
-   - [ ] Layer state synchronization
+   - [x] Layer state synchronization
    - [ ] Preview frame optimization
-   - [ ] Connection management
+   - [x] Connection management with health checks
 
 2. Performance
-   - [ ] Redis connection pooling
-   - [ ] Optimistic updates
+   - [x] Direct Redis persistence
+   - [x] Real-time state updates
    - [ ] State change batching
-   - [ ] Performance metrics
+   - [x] Performance logging
 
 3. Monitoring
+   - [x] Comprehensive logging
    - [ ] Prometheus metrics
-   - [ ] State change analytics
-   - [ ] Redis performance tracking
-   - [ ] Client connection metrics
+   - [x] State change tracking
+   - [x] Redis connection monitoring
 
 ### 📋 Future Improvements
 1. Advanced Features
@@ -371,4 +377,38 @@ METRICS_PORT=9090  # Metrics server port
 - WebSocket disconnections
 - Type validation errors
 - Asset upload failures
-- Layer state inconsistencies 
+- Layer state inconsistencies
+
+## State Update Flow
+
+### 1. Stream State Updates
+```typescript
+// Immediate persistence with validation and broadcasting
+public async updateStreamState(update: Partial<StreamState>): Promise<void> {
+  // Validate and update in-memory state
+  this.state.stream = { ...this.state.stream, ...update };
+  
+  // Persist to Redis immediately
+  await redisService.saveStreamState(this.state.stream);
+  
+  // Broadcast via WebSocket
+  webSocketService.broadcastStateUpdate(this.state.stream);
+  
+  // Notify listeners
+  this.notifyListeners({ type: 'stream', payload: this.state.stream });
+}
+```
+
+### 2. Type Validation
+```typescript
+function isStreamState(obj: unknown): obj is StreamState {
+  if (!obj || typeof obj !== 'object') return false;
+  const state = obj as Partial<StreamState>;
+  return (
+    typeof state.isLive === 'boolean' &&
+    typeof state.isPaused === 'boolean' &&
+    typeof state.fps === 'number' &&
+    // ... other validations
+  );
+}
+``` 

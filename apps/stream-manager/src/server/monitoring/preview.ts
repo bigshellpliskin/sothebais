@@ -3,8 +3,8 @@ import { EventEmitter } from 'events';
 import { Renderer } from '../../rendering/renderer.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
-import { stateManager } from '../../state/store/state-manager.js';
-import type { PreviewClientState } from '../../state/store/state-manager.types.js';
+import { stateManager } from '../../state/state-manager.js';
+import type { PreviewClientState } from '../../types/state-manager.types.js';
 
 interface PreviewMessage {
   type: 'config' | 'frame' | 'quality' | 'ping' | 'pong';

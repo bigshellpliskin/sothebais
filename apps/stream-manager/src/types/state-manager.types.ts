@@ -6,8 +6,8 @@
  * of how the state management system works.
  */
 
-import type { LayerState } from '../../types/layers.js';
-import type { StreamState } from '../../types/stream.js';
+import type { LayerState } from './layers.js';
+import type { StreamState } from './stream.js';
 
 /**
  * Represents the state of a preview client connection

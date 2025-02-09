@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, jest, afterEach } from '@jest/globals';
 import { StateManagerImpl } from '../state-manager.js';
-import { redisService } from '../../persistence.js';
-import type { PreviewClientState, StateEventListener } from '../state-manager.types.js';
-import type { StreamState } from '../../../types/stream.js';
-import type { LayerState, Layer, Transform, OverlayContent } from '../../../types/layers.js';
+import { redisService } from '../persistence.js';
+import type { PreviewClientState, StateEventListener } from '../../types/state-manager.types.js';
+import type { StreamState } from '../../types/stream.js';
+import type { LayerState, Layer, Transform, OverlayContent } from '../../types/layers.js';
 
 // Create properly typed mock functions
 const mockGetLayerState = jest.fn<() => Promise<LayerState | null>>();

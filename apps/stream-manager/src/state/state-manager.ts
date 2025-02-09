@@ -4,12 +4,12 @@ import type {
   StateEventListener,
   StateUpdateEvent,
   AppState
-} from './state-manager.types.js';
-import type { LayerState } from '../../types/layers.js';
-import type { StreamState } from '../../types/stream.js';
-import { redisService } from '../persistence.js';
-import { logger } from '../../utils/logger.js';
-import { webSocketService } from '../../server/websocket.js';
+} from '../types/state-manager.types.js';
+import type { LayerState } from '../types/layers.js';
+import type { StreamState } from '../types/stream.js';
+import { redisService } from './redis-service.js';
+import { logger } from '../utils/logger.js';
+import { webSocketService } from '../server/websocket.js';
 
 const DEFAULT_STREAM_STATE: StreamState = {
   isLive: false,

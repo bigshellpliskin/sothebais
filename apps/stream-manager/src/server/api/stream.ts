@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { PreviewServer } from '../monitoring/preview.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
-import { stateManager } from '../../state/store/state-manager.js';
+import { stateManager } from '../../state/state-manager.js';
 import type { LayerState } from '../../types/layers.js';
 
 // ESM replacement for __dirname
