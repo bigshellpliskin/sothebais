@@ -1,19 +1,23 @@
 import { describe, it, expect, beforeEach, jest, afterEach } from '@jest/globals';
 import { StateManagerImpl } from '../state-manager.js';
-import { redisService } from '../persistence.js';
+import { redisService } from '../redis-service.js';
 import type { PreviewClientState, StateEventListener } from '../../types/state-manager.types.js';
 import type { StreamState } from '../../types/stream.js';
 import type { LayerState, Layer, Transform, OverlayContent } from '../../types/layers.js';
 
 // Create properly typed mock functions
 const mockGetLayerState = jest.fn<() => Promise<LayerState | null>>();
+const mockGetStreamState = jest.fn<() => Promise<StreamState | null>>();
 const mockSaveLayerState = jest.fn<(state: LayerState) => Promise<void>>();
+const mockSaveStreamState = jest.fn<(state: StreamState) => Promise<void>>();
 
 // Mock Redis service
-jest.mock('../../persistence.js', () => ({
+jest.mock('../redis-service.js', () => ({
   redisService: {
     getLayerState: () => mockGetLayerState(),
-    saveLayerState: (state: LayerState) => mockSaveLayerState(state)
+    getStreamState: () => mockGetStreamState(),
+    saveLayerState: (state: LayerState) => mockSaveLayerState(state),
+    saveStreamState: (state: StreamState) => mockSaveStreamState(state)
   }
 }));
 
@@ -53,7 +57,9 @@ describe('StateManager', () => {
     
     // Clear all mocks
     mockGetLayerState.mockClear();
+    mockGetStreamState.mockClear();
     mockSaveLayerState.mockClear();
+    mockSaveStreamState.mockClear();
   });
 
   afterEach(() => {

@@ -45,3 +45,5 @@ nginx/ssl/*.pem
 apps/.DS_Store
 apps/stream-manager/.DS_Store
 apps/stream-manager/src/.DS_Store
+
+.cursor-updates

@@ -300,11 +300,12 @@ sequenceDiagram
    - Effect system
 
 3. **Streaming Output**
-   - FFmpeg integration
-   - RTMP server
-   - Quality management
-   - Performance monitoring
-   - Error recovery
+   - FFmpeg integration with process management
+   - RTMP server with Node-Media-Server
+   - Basic configuration management
+   - Event system setup
+   - Basic authentication
+   - Resource cleanup
 
 4. **API Layer**
    - REST endpoints
@@ -314,13 +315,20 @@ sequenceDiagram
    - Preview delivery
 
 ### 🚧 In Progress
-1. **Performance Optimization**
+1. **Streaming Features**
+   - Stream key validation
+   - Connection tracking
+   - Quality management
+   - Advanced security
+   - Performance optimization
+
+2. **Performance Optimization**
    - Worker pool scaling
    - Memory management
    - Frame caching
    - Asset preloading
 
-2. **Monitoring**
+3. **Monitoring**
    - Prometheus metrics
    - Resource tracking
    - Error reporting
@@ -332,6 +340,21 @@ sequenceDiagram
    - Advanced effects
    - Audio support
    - Recording system
+   - Multiple quality variants
+   - Adaptive bitrate
+   - Thumbnail generation
+
+2. **Security Enhancements**
+   - Advanced authentication
+   - Authorization system
+   - Rate limiting
+   - IP filtering
+
+3. **Performance Features**
+   - Hardware acceleration
+   - Pipeline optimization
+   - Memory optimization
+   - Network optimization
 
 ## Core Components
 

@@ -4,7 +4,7 @@ import type {
   StateEventListener,
   StateUpdateEvent,
   AppState
-} from '../types/state-manager.types.js';
+} from '../types/state-manager.js';
 import type { LayerState } from '../types/layers.js';
 import type { StreamState } from '../types/stream.js';
 import { redisService } from './redis-service.js';
