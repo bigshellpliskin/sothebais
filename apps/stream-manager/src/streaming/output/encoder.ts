@@ -34,6 +34,19 @@ export interface StreamConfig {
   codec: 'h264' | 'vp8' | 'vp9';
   preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium';
   streamUrl: string;
+  hwaccel?: {
+    enabled: boolean;
+    device?: 'nvidia' | 'qsv' | 'amf' | 'videotoolbox';
+    decode?: boolean;
+    scaling?: boolean;
+  };
+  pipeline?: {
+    maxLatency: number;
+    dropThreshold: number;
+    zeroCopy: boolean;
+    threads?: number;
+    cpuFlags?: string[];
+  };
 }
 
 export class StreamEncoder extends EventEmitter {
@@ -46,11 +59,27 @@ export class StreamEncoder extends EventEmitter {
   private currentFPS: number = 0;
   private restartAttempts: number = 0;
   private readonly MAX_RESTART_ATTEMPTS = 3;
+  private frameLatency: number = 0;
+  private droppedFrames: number = 0;
+  private readonly cpuCores: number;
 
   private constructor(config: StreamConfig) {
     super();
-    this.config = config;
+    this.cpuCores = 2; // Number of cores available in our VPS
+    this.config = {
+      ...config,
+      hwaccel: config.hwaccel || { enabled: false },
+      pipeline: {
+        maxLatency: 1000,
+        dropThreshold: 500,
+        zeroCopy: true,
+        threads: this.cpuCores,
+        cpuFlags: ['sse4_2', 'avx', 'avx2'], // AMD EPYC supports these
+        ...config.pipeline
+      }
+    };
     this.startMetricsCollection();
+    this.detectHardwareAcceleration();
   }
 
   public static initialize(config: StreamConfig): StreamEncoder {
@@ -74,58 +103,159 @@ export class StreamEncoder extends EventEmitter {
     }, 1000);
   }
 
+  private async detectHardwareAcceleration(): Promise<void> {
+    if (!this.config.hwaccel?.enabled) return;
+
+    try {
+      // Check for NVIDIA GPU
+      const hasNvidia = await this.checkFFmpegDevice('-hwaccel cuda -hwaccel_device 0');
+      if (hasNvidia) {
+        this.config.hwaccel.device = 'nvidia';
+        logger.info('NVIDIA GPU detected for hardware acceleration');
+        return;
+      }
+
+      // Check for Intel QuickSync
+      const hasQSV = await this.checkFFmpegDevice('-hwaccel qsv -hwaccel_device /dev/dri/renderD128');
+      if (hasQSV) {
+        this.config.hwaccel.device = 'qsv';
+        logger.info('Intel QuickSync detected for hardware acceleration');
+        return;
+      }
+
+      // Check for AMD AMF
+      const hasAMF = await this.checkFFmpegDevice('-hwaccel amf');
+      if (hasAMF) {
+        this.config.hwaccel.device = 'amf';
+        logger.info('AMD AMF detected for hardware acceleration');
+        return;
+      }
+
+      // Check for macOS VideoToolbox
+      const hasVideoToolbox = await this.checkFFmpegDevice('-hwaccel videotoolbox');
+      if (hasVideoToolbox) {
+        this.config.hwaccel.device = 'videotoolbox';
+        logger.info('VideoToolbox detected for hardware acceleration');
+        return;
+      }
+
+      logger.warn('No hardware acceleration available, falling back to software encoding');
+      this.config.hwaccel.enabled = false;
+    } catch (error) {
+      logger.error('Error detecting hardware acceleration', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      } as LogContext);
+      this.config.hwaccel.enabled = false;
+    }
+  }
+
+  private async checkFFmpegDevice(args: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const ffmpeg = spawn('ffmpeg', [...args.split(' '), '-f', 'lavfi', '-i', 'testsrc=duration=1:size=64x64:rate=1', '-f', 'null', '-']);
+      let error = '';
+
+      ffmpeg.stderr?.on('data', (data) => {
+        error += data.toString();
+      });
+
+      ffmpeg.on('close', (code) => {
+        resolve(code === 0 && !error.includes('error') && !error.includes('Error'));
+      });
+
+      // Ensure process exits
+      setTimeout(() => {
+        ffmpeg.kill();
+        resolve(false);
+      }, 1000);
+    });
+  }
+
   private buildFFmpegArgs(): string[] {
-    const args = [
-      // Input options
+    const args: string[] = [];
+
+    // Input options with optimized threading
+    args.push(
+      '-threads', this.config.pipeline?.threads?.toString() || '2',
+      '-thread_type', 'frame',
       '-f', 'rawvideo',
       '-pix_fmt', 'rgba',
       '-s', `${this.config.width}x${this.config.height}`,
       '-r', this.config.fps.toString(),
-      '-i', 'pipe:0',
+      '-i', 'pipe:0'
+    );
 
-      // Output options
+    // Zero-copy pipeline if enabled
+    if (this.config.pipeline?.zeroCopy) {
+      args.push('-copy_pipeline', '1');
+    }
+
+    // Output options optimized for AMD EPYC
+    args.push(
       '-c:v', this.getCodec(),
       '-preset', this.config.preset,
       '-b:v', `${this.config.bitrate}k`,
       '-maxrate', `${this.config.bitrate * 1.5}k`,
       '-bufsize', `${this.config.bitrate * 2}k`,
-      '-g', (this.config.fps * 2).toString(), // GOP size
+      '-g', (this.config.fps * 2).toString(),
       '-keyint_min', this.config.fps.toString(),
-      '-sc_threshold', '0', // Disable scene change detection
-      '-tune', 'zerolatency',
-      '-f', 'flv'
-    ];
+      '-sc_threshold', '0',
+      '-tune', 'zerolatency'
+    );
 
-    // Add codec-specific options
+    // CPU-specific optimizations
     switch (this.config.codec) {
       case 'h264':
         args.push(
           '-profile:v', 'high',
-          '-level', '4.1',
-          '-x264-params', 'nal-hrd=cbr:force-cfr=1'
+          '-level', '5.1',
+          '-x264-params',
+          `nal-hrd=cbr:force-cfr=1:threads=${this.config.pipeline?.threads}:lookahead_threads=1:sliced_threads=1:sync-lookahead=0:rc-lookahead=10:aq-mode=2:direct=auto:me=hex:subme=6:trellis=1:deblock=1,1:psy-rd=0.8,0.8:aq-strength=0.9:ref=1`
         );
         break;
       case 'vp8':
-        args.push(
-          '-quality', 'realtime',
-          '-cpu-used', '4',
-          '-deadline', 'realtime'
-        );
-        break;
       case 'vp9':
         args.push(
           '-quality', 'realtime',
           '-cpu-used', '4',
           '-deadline', 'realtime',
-          '-tile-columns', '4'
+          '-tile-columns', '1',
+          '-frame-parallel', '1',
+          '-threads', this.config.pipeline?.threads?.toString() || '2',
+          '-lag-in-frames', '0',
+          '-error-resilient', '1'
         );
         break;
     }
 
-    // Add output URL
-    args.push(this.config.streamUrl);
-
+    args.push('-f', 'flv', this.config.streamUrl);
     return args;
+  }
+
+  private getHwAccelCodec(): string {
+    if (!this.config.hwaccel?.enabled || !this.config.hwaccel.device) {
+      return this.getCodec();
+    }
+
+    switch (this.config.codec) {
+      case 'h264':
+        switch (this.config.hwaccel.device) {
+          case 'nvidia':
+            return 'h264_nvenc';
+          case 'qsv':
+            return 'h264_qsv';
+          case 'amf':
+            return 'h264_amf';
+          case 'videotoolbox':
+            return 'h264_videotoolbox';
+          default:
+            return 'libx264';
+        }
+      case 'vp8':
+      case 'vp9':
+        return this.getCodec(); // No hardware acceleration for VP8/VP9
+      default:
+        return 'libx264';
+    }
   }
 
   private getCodec(): string {
@@ -214,23 +344,44 @@ export class StreamEncoder extends EventEmitter {
     }
 
     const startTime = Date.now();
+    const currentLatency = startTime - this.lastFrameTime;
+
+    // Drop frames if we're exceeding latency threshold
+    if (this.config.pipeline?.dropThreshold && currentLatency > this.config.pipeline.dropThreshold) {
+      this.droppedFrames++;
+      logger.debug('Dropping frame due to high latency', {
+        latency: currentLatency,
+        threshold: this.config.pipeline.dropThreshold,
+        droppedFrames: this.droppedFrames
+      } as LogContext);
+      return;
+    }
 
     try {
-      this.ffmpeg.stdin.write(buffer);
+      // Use zero-copy write if enabled by sharing the underlying ArrayBuffer
+      if (this.config.pipeline?.zeroCopy) {
+        const view = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.length);
+        this.ffmpeg.stdin.write(view);
+      } else {
+        this.ffmpeg.stdin.write(buffer);
+      }
       
-      // Update FPS calculation
+      // Update metrics
       const now = Date.now();
       if (now - this.lastFrameTime >= 1000) {
         this.currentFPS = this.frameCount;
         this.frameCount = 0;
         this.lastFrameTime = now;
+        this.frameLatency = now - startTime;
       }
       this.frameCount++;
 
       encodingTimeGauge.set(Date.now() - startTime);
     } catch (error) {
       logger.error('Failed to send frame to FFmpeg', {
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        latency: currentLatency,
+        droppedFrames: this.droppedFrames
       } as LogContext);
       this.handleError(error as Error);
     }

@@ -26,6 +26,18 @@ const errorsCounter = new Counter({
   registers: [register]
 });
 
+// Add type definition for session
+interface NodeMediaSession {
+  reject: () => void;
+  id: string;
+  [key: string]: any;
+}
+
+// Extend NodeMediaServer type with correct session handling
+interface NodeMediaServerExtended extends Omit<NodeMediaServer, 'getSession'> {
+  getSession(id: string): unknown;
+}
+
 export interface RTMPConfig {
   port: number;
   chunk_size: number;
@@ -36,10 +48,11 @@ export interface RTMPConfig {
 
 export class RTMPServer extends EventEmitter {
   private static instance: RTMPServer | null = null;
-  private server: NodeMediaServer;
+  private server: NodeMediaServerExtended;
   private config: RTMPConfig;
   private activeStreams: Map<string, any> = new Map();
   private events: RTMPEvents;
+  private allowedStreamKeys: Set<string> = new Set();
 
   private constructor(config: RTMPConfig) {
     super();
@@ -96,16 +109,52 @@ export class RTMPServer extends EventEmitter {
       connectionsGauge.dec();
     });
 
-    this.server.on('prePublish', (id, StreamPath, args) => {
-      logger.debug('RTMP pre-publish', { id, StreamPath, args });
+    this.server.on('prePublish', async (id, StreamPath, args) => {
+      // Extract stream key from path (e.g., /live/stream-key)
+      const streamKey = StreamPath.split('/').pop();
+      
+      if (!streamKey || !this.validateStreamKey(streamKey)) {
+        logger.warn('Invalid stream key, rejecting stream', {
+          id,
+          streamPath: StreamPath
+        });
+        
+        // Get session and safely type cast
+        const rawSession = this.server.getSession(id);
+        if (
+          rawSession && 
+          typeof rawSession === 'object' && 
+          'reject' in rawSession && 
+          typeof (rawSession as NodeMediaSession).reject === 'function'
+        ) {
+          const session = rawSession as NodeMediaSession;
+          session.reject();
+        } else {
+          logger.warn('Could not reject invalid stream - session invalid', { id });
+        }
+        return;
+      }
+
+      logger.info('Stream key validated, allowing stream', {
+        id,
+        streamPath: StreamPath
+      });
     });
 
     this.server.on('postPublish', (id, StreamPath, args) => {
       logger.info('RTMP stream published', { id, StreamPath, args });
+      const streamKey = StreamPath.split('/').pop();
+      if (streamKey) {
+        this.activeStreams.set(streamKey, { id, startedAt: new Date() });
+      }
     });
 
     this.server.on('donePublish', (id, StreamPath, args) => {
       logger.info('RTMP stream unpublished', { id, StreamPath, args });
+      const streamKey = StreamPath.split('/').pop();
+      if (streamKey) {
+        this.activeStreams.delete(streamKey);
+      }
     });
 
     this.server.on('error', (err) => {
@@ -135,13 +184,31 @@ export class RTMPServer extends EventEmitter {
     logger.info('RTMP server stopped');
   }
 
-  public getActiveStreams(): Map<string, any> {
+  public getActiveStreams(): Map<string, { id: string; startedAt: Date }> {
     return this.activeStreams;
   }
 
-  public validateStreamKey(streamKey: string): boolean {
-    // TODO: Implement stream key validation logic
-    return true;
+  /**
+   * Add a valid stream key
+   */
+  public addStreamKey(key: string): void {
+    this.allowedStreamKeys.add(key);
+    logger.info('Added stream key', { key });
+  }
+
+  /**
+   * Remove a stream key
+   */
+  public removeStreamKey(key: string): void {
+    this.allowedStreamKeys.delete(key);
+    logger.info('Removed stream key', { key });
+  }
+
+  /**
+   * Validate a stream key
+   */
+  public validateStreamKey(key: string): boolean {
+    return this.allowedStreamKeys.has(key);
   }
 
   public getMetrics(): {

@@ -1,10 +1,10 @@
 import sharp from 'sharp';
-import { RTMPServer } from '../streaming/rtmp/server.js';
-import { StreamEncoder } from '../streaming/output/encoder.js';
-import { StreamMuxer } from '../streaming/output/muxer.js';
-import { FramePipeline } from '../streaming/output/pipeline.js';
-import { loadConfig } from '../config/index.js';
-import { logger } from '../utils/logger.js';
+import { RTMPServer } from '../../streaming/rtmp/server.js';
+import { StreamEncoder } from '../../streaming/output/encoder.js';
+import { StreamMuxer } from '../../streaming/output/muxer.js';
+import { FramePipeline } from '../../streaming/output/pipeline.js';
+import { loadConfig } from '../../config/index.js';
+import { logger } from '../../utils/logger.js';
 
 async function generateTestImage(width: number, height: number): Promise<Buffer> {
   // Create a test pattern with text

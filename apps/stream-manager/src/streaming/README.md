@@ -117,16 +117,16 @@ streaming/
    - [x] Resource cleanup
 
 2. **Sharp to FFmpeg**
-   - [ ] Buffer conversion
-   - [ ] Format matching
-   - [ ] Pipeline optimization
-   - [ ] Memory efficiency
+   - [x] Buffer conversion
+   - [x] Format matching
+   - [x] Pipeline optimization
+   - [x] Memory efficiency
 
 3. **Performance**
-   - [ ] Hardware acceleration
-   - [ ] Pipeline optimization
-   - [ ] Memory management
-   - [ ] Error recovery
+   - [~] Hardware acceleration
+   - [~] Pipeline optimization
+   - [x] Memory management
+   - [x] Error recovery
 
 ### Phase 3: Stream Output 🚧
 1. **RTMP Server**
@@ -312,6 +312,67 @@ The streaming components expose the following Prometheus metrics:
    - Quality adaptation
    - Resource management
 
+## CPU Optimization
+
+The streaming service is optimized for our specific hardware configuration:
+
+### Hardware Configuration
+- **CPU**: AMD EPYC 9354P 32-Core Processor
+- **Allocated Cores**: 2 cores
+- **Available Instructions**: SSE4.2, AVX, AVX2
+- **Environment**: VPS/Cloud Environment
+
+### Encoding Optimizations
+1. **Thread Management**
+   - Dedicated thread allocation (2 cores)
+   - Frame-based threading for parallel processing
+   - Optimized thread distribution between encoding and lookahead
+
+2. **x264 Parameters**
+   ```
+   threads=2
+   lookahead_threads=1
+   sliced_threads=1
+   sync-lookahead=0
+   rc-lookahead=10
+   aq-mode=2
+   direct=auto
+   me=hex
+   subme=6
+   trellis=1
+   deblock=1,1
+   psy-rd=0.8,0.8
+   aq-strength=0.9
+   ref=1
+   ```
+
+3. **Pipeline Optimizations**
+   - Zero-copy buffer handling
+   - Adaptive frame dropping (>500ms latency)
+   - Maximum latency threshold: 1000ms
+   - CPU instruction set utilization (SSE4.2, AVX, AVX2)
+
+4. **Quality/Performance Balance**
+   - High profile, Level 5.1
+   - CBR (Constant Bitrate) encoding
+   - Psychovisual optimizations
+   - Adaptive quantization for visual quality
+   - Minimal reference frames for low latency
+
+### Monitoring
+- Frame encoding time
+- Current FPS
+- Bitrate stability
+- Frame drop rate
+- Pipeline latency
+
+### VP8/VP9 Specific Settings
+- Single tile column (optimized for 2 cores)
+- Frame-parallel encoding enabled
+- Real-time deadline
+- CPU usage level 4
+- Error resilience enabled
+
 ## Development
 
 ### Prerequisites
@@ -349,4 +410,81 @@ The streaming components expose the following Prometheus metrics:
    - Detailed metrics
    - Performance profiling
    - Error tracking
-   - Health checks 
+   - Health checks
+
+## Overview
+The Stream Manager handles RTMP streaming with a simplified but secure stream key validation system.
+
+## Components
+
+### RTMP Server
+- Built on `node-media-server`
+- Handles incoming RTMP streams
+- Validates stream keys before accepting streams
+- Tracks active streams and connections
+
+### Stream Key Management (MVP Implementation)
+- Simple in-memory stream key validation
+- Basic operations:
+  - Add/remove stream keys
+  - Validate incoming stream keys
+  - Track active streams
+- No persistence (keys are reset on server restart)
+- No expiration or IP restrictions (planned for future)
+
+## Usage
+
+### Managing Stream Keys
+```typescript
+const rtmpServer = RTMPServer.getInstance();
+
+// Add a stream key
+rtmpServer.addStreamKey('stream-key-123');
+
+// Remove a stream key
+rtmpServer.removeStreamKey('stream-key-123');
+
+// Check active streams
+const activeStreams = rtmpServer.getActiveStreams();
+```
+
+### Starting the Server
+```typescript
+const config = {
+  port: 1935,
+  chunk_size: 60000,
+  gop_cache: true,
+  ping: 60,
+  ping_timeout: 30
+};
+
+const server = RTMPServer.initialize(config);
+server.start();
+```
+
+## Future Enhancements
+- Redis-based key storage
+- Key expiration
+- IP restrictions
+- User management integration
+- Analytics and usage tracking
+
+## Security Considerations
+While the current implementation is simplified, it still provides:
+- Stream key validation
+- Protection against unauthorized streaming
+- Active stream monitoring
+- Logging of all streaming activities
+
+## Metrics
+The server tracks:
+- Active connections
+- Bandwidth usage
+- Error counts
+
+## Logging
+All streaming events are logged through the central logging system, including:
+- Connection attempts
+- Stream starts/stops
+- Validation failures
+- Error conditions 
