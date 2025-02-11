@@ -1,4 +1,4 @@
-# docker-compose.yaml
+# compose.yaml
 
 services:
   traefik:
@@ -133,7 +133,7 @@ services:
       
       # Priority
       - "traefik.http.routers.stream-ws.priority=200"
-    command: npm run dev
+    command: npm run test:stream
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4200/stream/status"]
       interval: 10s
@@ -143,7 +143,6 @@ services:
     depends_on:
       - redis
       - traefik
-
 
   # Redis for Caching and Message Queue
   redis:

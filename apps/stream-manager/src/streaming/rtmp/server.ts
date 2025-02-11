@@ -1,8 +1,7 @@
-import { NodeMediaServer } from 'node-media-server';
+import NodeMediaServer from 'node-media-server';
 import { EventEmitter } from 'events';
 import { Registry, Gauge, Counter } from 'prom-client';
 import { logger } from '../../utils/logger.js';
-import { getConfig } from '../../config/index.js';
 import { RTMPEvents } from './events.js';
 
 // Create a Registry for metrics
@@ -10,26 +9,20 @@ const register = new Registry();
 
 // Define metrics
 const connectionsGauge = new Gauge({
-  name: 'rtmp_connections_total',
-  help: 'Total number of RTMP connections',
-  registers: [register]
-});
-
-const activeStreamsGauge = new Gauge({
-  name: 'rtmp_active_streams',
-  help: 'Number of active streams',
+  name: 'rtmp_connections',
+  help: 'Number of active RTMP connections',
   registers: [register]
 });
 
 const bandwidthGauge = new Gauge({
   name: 'rtmp_bandwidth_bytes',
-  help: 'Bandwidth usage in bytes',
+  help: 'RTMP bandwidth usage in bytes',
   registers: [register]
 });
 
 const errorsCounter = new Counter({
-  name: 'rtmp_errors_total',
-  help: 'Total number of RTMP errors',
+  name: 'rtmp_errors',
+  help: 'Number of RTMP server errors',
   registers: [register]
 });
 
@@ -56,19 +49,20 @@ export class RTMPServer extends EventEmitter {
     // Configure Node-Media-Server
     this.server = new NodeMediaServer({
       rtmp: {
-        port: this.config.port,
-        chunk_size: this.config.chunk_size,
-        gop_cache: this.config.gop_cache,
-        ping: this.config.ping,
-        ping_timeout: this.config.ping_timeout
+        port: config.port,
+        chunk_size: config.chunk_size,
+        gop_cache: config.gop_cache,
+        ping: config.ping,
+        ping_timeout: config.ping_timeout
       },
-      logType: 3 // Use custom logging
+      logType: 3 // Log to callback only
     });
 
     // Setup event handlers
     this.setupEventHandlers();
+    this.startMetricsCollection();
 
-    logger.info('RTMP Server initialized', {
+    logger.info('RTMP server initialized', {
       config: this.config
     });
   }
@@ -82,51 +76,63 @@ export class RTMPServer extends EventEmitter {
 
   public static getInstance(): RTMPServer {
     if (!RTMPServer.instance) {
-      throw new Error('RTMP Server not initialized');
+      throw new Error('RTMP server not initialized');
     }
     return RTMPServer.instance;
   }
 
   private setupEventHandlers(): void {
-    // Client connection events
-    this.server.on('preConnect', this.events.handlePreConnect.bind(this.events));
-    this.server.on('postConnect', this.events.handlePostConnect.bind(this.events));
-    this.server.on('doneConnect', this.events.handleDoneConnect.bind(this.events));
+    this.server.on('preConnect', (id, args) => {
+      logger.debug('RTMP pre-connect', { id, args });
+    });
 
-    // Stream events
-    this.server.on('prePublish', this.events.handlePrePublish.bind(this.events));
-    this.server.on('postPublish', this.events.handlePostPublish.bind(this.events));
-    this.server.on('donePublish', this.events.handleDonePublish.bind(this.events));
+    this.server.on('postConnect', (id, args) => {
+      logger.info('RTMP client connected', { id, args });
+      connectionsGauge.inc();
+    });
 
-    // Error events
-    this.server.on('error', this.events.handleError.bind(this.events));
+    this.server.on('doneConnect', (id, args) => {
+      logger.info('RTMP client disconnected', { id, args });
+      connectionsGauge.dec();
+    });
+
+    this.server.on('prePublish', (id, StreamPath, args) => {
+      logger.debug('RTMP pre-publish', { id, StreamPath, args });
+    });
+
+    this.server.on('postPublish', (id, StreamPath, args) => {
+      logger.info('RTMP stream published', { id, StreamPath, args });
+    });
+
+    this.server.on('donePublish', (id, StreamPath, args) => {
+      logger.info('RTMP stream unpublished', { id, StreamPath, args });
+    });
+
+    this.server.on('error', (err) => {
+      logger.error('RTMP server error', { error: err });
+      errorsCounter.inc();
+      this.emit('error', err);
+    });
   }
 
-  public async start(): Promise<void> {
-    try {
-      this.server.run();
-      logger.info('RTMP Server started', {
-        port: this.config.port
-      });
-    } catch (error) {
-      logger.error('Failed to start RTMP Server', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      throw error;
-    }
+  private startMetricsCollection(): void {
+    setInterval(() => {
+      // Update bandwidth metrics
+      bandwidthGauge.set(0); // TODO: Implement bandwidth tracking
+    }, 1000);
   }
 
-  public async stop(): Promise<void> {
-    try {
-      this.server.stop();
-      this.activeStreams.clear();
-      logger.info('RTMP Server stopped');
-    } catch (error) {
-      logger.error('Failed to stop RTMP Server', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      throw error;
-    }
+  public start(): void {
+    this.server.run();
+    logger.info('RTMP server started', {
+      port: this.config.port
+    });
+  }
+
+  public stop(): void {
+    this.server.stop();
+    this.activeStreams.clear();
+    logger.info('RTMP server stopped');
   }
 
   public getActiveStreams(): Map<string, any> {
@@ -138,10 +144,15 @@ export class RTMPServer extends EventEmitter {
     return true;
   }
 
-  public updateMetrics(): void {
-    connectionsGauge.set(this.server.getConnections());
-    activeStreamsGauge.set(this.activeStreams.size);
-    // TODO: Implement bandwidth tracking
-    bandwidthGauge.set(0);
+  public getMetrics(): {
+    connections: number;
+    bandwidth: number;
+    errors: number;
+  } {
+    return {
+      connections: 0, // TODO: Implement connection counting
+      bandwidth: 0, // TODO: Implement bandwidth tracking
+      errors: 0 // TODO: Implement error counting
+    };
   }
 }

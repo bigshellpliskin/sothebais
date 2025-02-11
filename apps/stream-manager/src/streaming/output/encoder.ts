@@ -1,9 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process';
-import { logger } from '../utils/logger.js';
-import type { LogContext } from '../utils/logger.js';
+import { logger } from '../../utils/logger.js';
+import type { LogContext } from '../../utils/logger.js';
 import { Registry, Gauge } from 'prom-client';
 import { EventEmitter } from 'events';
-import { getConfig } from '../config/index.js';
 
 // Create a Registry for metrics
 const register = new Registry();

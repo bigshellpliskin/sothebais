@@ -22,5 +22,14 @@
 - Updated implementation status to show completed Sharp integration phase and current progress on FFmpeg and RTMP components
 - Added detailed configuration structure for all components including pipeline, encoder, muxer, and RTMP server
 - Updated integration example with complete pipeline setup including Sharp frame processing
+
+
+## 2025-02-10
+- Consolidated streaming configuration into main config file, removing duplicate config and standardizing environment variables for all streaming components.
+- Removed streaming-specific logger in favor of using the main application logger with streaming-specific logging methods.
 - Created comprehensive README.md for the core system, documenting the architecture, components (Composition Engine, Layout Manager, Viewport Manager, Asset Manager), integration patterns, and performance considerations.
 - Enhanced core system documentation with improved architecture diagrams showing detailed component relationships, data flow, and component responsibilities.
+- Removed outdated config/validation.ts as validation is now handled directly by Zod schema in config/index.ts.
+- February 10, 2025: Reorganized testing structure to follow Jest conventions with separate unit, integration and e2e test directories.
+- February 10, 2025: Moved development tools to src/tools/debug directory and converted test scripts into proper integration tests.
+- February 10, 2025: Fixed streaming and WebSocket integration tests to match actual implementation types and methods, added timeouts and proper cleanup.
