@@ -5,7 +5,7 @@ import { StreamEncoder } from './output/encoder.js';
 import { StreamMuxer } from './output/muxer.js';
 import { RTMPServer } from './rtmp/server.js';
 import { StateManagerImpl } from '../state/state-manager.js';
-import type { Config } from '../config/index.js';
+import type { Config } from '../types/config.js';
 
 export class StreamManager extends EventEmitter {
     private static instance: StreamManager | null = null;

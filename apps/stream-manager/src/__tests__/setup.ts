@@ -1,65 +1,96 @@
+import '@testing-library/jest-dom';
 import { jest } from '@jest/globals';
-import sharp from 'sharp';
+import type sharp from 'sharp';
 
 // Extend timeout for all tests
 jest.setTimeout(30000);
 
 // Mock Redis
-jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
+jest.mock('../state/redis-service', () => ({
+  redisService: {
+    initialize: jest.fn(),
+    disconnect: jest.fn(),
     get: jest.fn(),
     set: jest.fn(),
     del: jest.fn(),
-    connect: jest.fn(),
-    disconnect: jest.fn(),
-  }));
-});
+    exists: jest.fn(),
+    publish: jest.fn(),
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn()
+  }
+}));
 
 // Mock WebSocket
-jest.mock('ws', () => {
-  return jest.fn().mockImplementation(() => ({
+jest.mock('ws', () => ({
+  WebSocket: jest.fn().mockImplementation(() => ({
     on: jest.fn(),
     send: jest.fn(),
-    close: jest.fn(),
-    terminate: jest.fn(),
-  }));
-});
+    close: jest.fn()
+  })),
+  Server: jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    close: jest.fn()
+  }))
+}));
+
+// Mock RTMP Server
+jest.mock('node-media-server', () => 
+  jest.fn().mockImplementation(() => ({
+    run: jest.fn(),
+    on: jest.fn(),
+    stop: jest.fn()
+  }))
+);
+
+// Mock Sharp for image processing
+const mockToBuffer = jest.fn<() => Promise<Buffer>>();
+mockToBuffer.mockResolvedValue(Buffer.from('mock-image'));
+
+const mockMetadata = jest.fn<() => Promise<sharp.Metadata>>();
+mockMetadata.mockResolvedValue({ width: 1920, height: 1080 } as sharp.Metadata);
+
+const mockSharpInstance = {
+  resize: jest.fn().mockReturnThis(),
+  composite: jest.fn().mockReturnThis(),
+  toBuffer: mockToBuffer,
+  metadata: mockMetadata,
+  extract: jest.fn().mockReturnThis(),
+  extend: jest.fn().mockReturnThis(),
+  flatten: jest.fn().mockReturnThis(),
+  raw: jest.fn().mockReturnThis()
+};
+
+jest.mock('sharp', () => jest.fn(() => mockSharpInstance));
 
 // Mock FFmpeg
-jest.mock('fluent-ffmpeg', () => {
-  return jest.fn().mockImplementation(() => ({
+jest.mock('fluent-ffmpeg', () => ({
+  __esModule: true,
+  default: jest.fn().mockReturnValue({
     input: jest.fn().mockReturnThis(),
+    inputFormat: jest.fn().mockReturnThis(),
+    outputFormat: jest.fn().mockReturnThis(),
     output: jest.fn().mockReturnThis(),
     on: jest.fn().mockReturnThis(),
-    run: jest.fn(),
-  }));
-});
+    run: jest.fn()
+  })
+}));
 
-// Mock Sharp
-type SharpMock = jest.Mocked<typeof sharp>;
-jest.mock('sharp', () => {
-  const sharpFn = jest.fn(() => ({
-    resize: jest.fn().mockReturnThis(),
-    composite: jest.fn().mockReturnThis(),
-    toBuffer: jest.fn().mockImplementation(() => Promise.resolve(Buffer.alloc(4))),
-    metadata: jest.fn().mockImplementation(() => Promise.resolve({ width: 1920, height: 1080 })),
-    extract: jest.fn().mockReturnThis(),
-    extend: jest.fn().mockReturnThis(),
-    flatten: jest.fn().mockReturnThis(),
-    raw: jest.fn().mockReturnThis(),
-  }));
+// Mock logger
+jest.mock('../utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
+  }
+}));
 
-  Object.assign(sharpFn, {
-    strategy: jest.fn(),
-    cache: jest.fn(),
-    concurrency: jest.fn(),
-    counters: jest.fn(),
-    simd: jest.fn(),
-    format: jest.fn(),
-  });
-
-  return sharpFn;
-}) as unknown as SharpMock;
+// Mock performance hooks
+jest.mock('perf_hooks', () => ({
+  performance: {
+    now: jest.fn(() => Date.now())
+  }
+}));
 
 // Common test utilities
 export const mockLayer = {
@@ -81,4 +112,23 @@ export const mockLayer = {
     width: 512,
     height: 512,
   },
-}; 
+};
+
+// Global test setup
+beforeAll(() => {
+  // Setup any global test environment
+});
+
+afterAll(() => {
+  // Cleanup any global test environment
+});
+
+beforeEach(() => {
+  // Clear all mocks before each test
+  jest.clearAllMocks();
+});
+
+// Add custom matchers if needed
+expect.extend({
+  // Add custom matchers here
+}); 

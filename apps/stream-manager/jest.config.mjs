@@ -1,52 +1,36 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
+/** @type {import('@jest/types').Config.InitialOptions} */
 export default {
-  preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  testMatch: ['**/__tests__/**/*.test.[jt]s?(x)', '**/?(*.)+(spec|test).[tj]s?(x)'],
+  testPathIgnorePatterns: ['/node_modules/', 'setup.[jt]s'],
   transform: {
-    '^.+\\.tsx?$': [
+    '^.+\\.(ts|tsx|js|jsx)$': [
       'ts-jest',
       {
         useESM: true,
-        tsconfig: {
-          // Base options
-          esModuleInterop: true,
-          skipLibCheck: true,
-          target: "ES2022",
-          allowJs: true,
-          resolveJsonModule: true,
-          moduleDetection: "force",
-          isolatedModules: true,
-          verbatimModuleSyntax: false,  // Disabled for test compatibility
-          
-          // Module settings
-          module: "NodeNext",
-          moduleResolution: "NodeNext",
-          
-          // Test specific settings
-          noEmit: true,
-          
-          // Paths
-          paths: {
-            "@/*": ["./src/*"]
-          }
-        }
+        tsconfig: 'tsconfig.json'
       }
     ]
   },
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@/(.*)$': '<rootDir>/src/$1',
-    '^../pipeline/sharp-renderer.js$': '<rootDir>/src/workers/__mocks__/sharp-renderer.ts'
+    '^@/(.*)$': '<rootDir>/src/$1'
   },
-  testMatch: [
-    '**/src/**/__tests__/**/*.+(ts|tsx|js)',
-    '**/src/**/?(*.)+(spec|test).+(ts|tsx|js)',
-  ],
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  extensionsToTreatAsEsm: ['.ts'],
-  moduleDirectories: ['node_modules', 'src'],
-  transformIgnorePatterns: [],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
-  testTimeout: 10000  // Increase timeout for async operations
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  verbose: true,
+  projects: [
+    {
+      displayName: 'unit',
+      testMatch: ['<rootDir>/src/__tests__/unit/**/*.test.ts']
+    },
+    {
+      displayName: 'integration',
+      testMatch: ['<rootDir>/src/__tests__/integration/**/*.test.ts']
+    },
+    {
+      displayName: 'e2e',
+      testMatch: ['<rootDir>/src/__tests__/e2e/**/*.test.ts']
+    }
+  ]
 }; 

@@ -1,24 +1,24 @@
 # Stream Manager Implementation
 
-This directory contains the core implementation of the Stream Manager service. This document focuses on the implementation details, component interactions, and current development status.
+This directory contains the core implementation of the Stream Manager service. This document focuses on technical implementation details, component interactions, and development guidelines.
 
 ## Directory Structure
 
 ```
 src/
-├── core/                    # Core domain logic
-│   ├── viewport.ts         # Viewport/canvas management
+├── core/                  # Core domain logic
+│   ├── viewport.ts        # Viewport/canvas management
 │   ├── layout.ts          # Scene/layout management
 │   ├── assets.ts          # Asset management
 │   └── composition.ts     # Composition engine
 │
-├── rendering/              # Rendering pipeline
+├── rendering/             # Rendering pipeline
 │   ├── renderer.ts        # Main renderer
 │   ├── effects.ts         # Visual effects and transitions
 │   ├── frame-buffer.ts    # Memory management
 │   └── encoder.ts         # Stream encoding
 │
-├── workers/                # Worker thread implementations
+├── workers/               # Worker thread implementations
 │   ├── pool/              # Worker pool management
 │   │   ├── manager.ts     # Pool orchestration
 │   │   └── metrics.ts     # Pool performance tracking
@@ -29,40 +29,40 @@ src/
 │       ├── messages.ts    # Worker message types
 │       └── state.ts       # Shared state types
 │
-├── state/                  # State management
+├── state/                 # State management
 │   ├── store/             # State stores
-│   │   ├── config.ts     # Dynamic config store
-│   │   └── sync.ts       # Redis synchronization
+│   │   ├── config.ts      # Dynamic config store
+│   │   └── sync.ts        # Redis synchronization
 │   ├── persistence.ts     # State persistence
 │   └── events.ts          # Event system
 │
-├── streaming/              # Streaming functionality
+├── streaming/             # Streaming functionality
 │   ├── rtmp/              # RTMP handling
-│   │   ├── server.ts     # RTMP server
-│   │   └── events.ts     # RTMP event handlers
+│   │   ├── server.ts      # RTMP server
+│   │   └── events.ts      # RTMP event handlers
 │   ├── output/            # Stream output
-│   │   ├── encoder.ts    # FFmpeg encoding
-│   │   └── muxer.ts      # Stream multiplexing
-│   └── websocket.ts      # WebSocket communication
+│   │   ├── encoder.ts     # FFmpeg encoding
+│   │   └── muxer.ts       # Stream multiplexing
+│   └── websocket.ts       # WebSocket communication
 │
-├── server/                 # HTTP & WebSocket servers
+├── server/                # HTTP & WebSocket servers
 │   ├── api/               # HTTP API endpoints
-│   │   ├── stream.ts     # Stream control
-│   │   ├── layers.ts     # Layer management
-│   │   └── metrics.ts    # Prometheus metrics
+│   │   ├── stream.ts      # Stream control
+│   │   ├── layers.ts      # Layer management
+│   │   └── metrics.ts     # Prometheus metrics
 │   ├── websocket/         # WebSocket handlers
-│   │   ├── stream.ts     # Stream events
-│   │   └── layers.ts     # Layer updates
+│   │   ├── stream.ts      # Stream events
+│   │   └── layers.ts      # Layer updates
 │   └── monitoring/        # Monitoring interfaces
 │       ├── dashboard.ts   # Web dashboard
 │       └── preview.ts     # Stream preview
 │
-├── utils/                  # Utilities
+├── utils/                 # Utilities
 │   ├── logger.ts          # Logging utilities
 │   ├── metrics.ts         # Metrics collection
 │   └── helpers.ts         # Shared helpers
 │
-└── types/                  # TypeScript types
+└── types/                 # TypeScript types
     ├── viewport.ts        # Viewport types
     ├── layout.ts          # Layout types
     ├── worker.ts          # Worker types
@@ -70,410 +70,631 @@ src/
 
 ```
 
-## Component Architecture
-
-The service architecture has been updated to integrate with the admin interface for monitoring and control:
-
-```mermaid
-graph TB
-    subgraph Admin ["Admin Interface"]
-        UI[LiveStream Page]
-        Status[Stream Status]
-        Preview[Stream Viewer]
-        Controls[Playback Controls]
-        Layers[Layer Controls]
-    end
-
-    subgraph Core ["Core Domain"]
-        Layout[Layout Manager]
-        Viewport[Viewport Manager]
-        Assets[Asset Manager]
-        Composition[Composition Engine]
-    end
-
-    subgraph Rendering ["Rendering Pipeline"]
-        Renderer[Main Renderer]
-        Effects[Effects Engine]
-        FrameBuffer[Frame Buffer]
-    end
-
-    subgraph Workers ["Worker System"]
-        WorkerPool[Worker Pool Manager]
-        RenderWorkers[Render Workers]
-        TaskQueue[Task Queue]
-    end
-
-    subgraph State ["State Management"]
-        Store[State Store]
-        Redis[(Redis)]
-        Events[Event System]
-    end
-
-    subgraph Stream ["Stream Output"]
-        RTMP[RTMP Server]
-        Encoder[FFmpeg Encoder]
-        Muxer[Stream Muxer]
-    end
-
-    UI --> Status
-    UI --> Preview
-    UI --> Controls
-    UI --> Layers
-    
-    Status -->|API| Layout
-    Preview -->|WebSocket| FrameBuffer
-    Controls -->|API| Layout
-    Layers -->|API| Layout
-
-    Layout --> Viewport
-    Layout --> Assets
-    Layout --> Composition
-    Composition --> Renderer
-
-    Renderer --> WorkerPool
-    Renderer --> Effects
-    Renderer --> FrameBuffer
-    WorkerPool --> RenderWorkers
-    RenderWorkers --> TaskQueue
-
-    Layout --> Store
-    Store --> Redis
-    Store --> Events
-    Events --> Preview
-
-    FrameBuffer --> Encoder
-    Encoder --> Muxer
-    Muxer --> RTMP
-
-    classDef admin fill:#e1f5fe,stroke:#01579b;
-    classDef core fill:#f3e5f5,stroke:#4a148c;
-    classDef rendering fill:#fff3e0,stroke:#e65100;
-    classDef workers fill:#f1f8e9,stroke:#33691e;
-    classDef state fill:#fce4ec,stroke:#880e4f;
-    classDef stream fill:#ede7f6,stroke:#311b92;
-
-    class UI,Status,Preview,Controls,Layers admin;
-    class Layout,Viewport,Assets,Composition core;
-    class Renderer,Effects,FrameBuffer rendering;
-    class WorkerPool,RenderWorkers,TaskQueue workers;
-    class Store,Redis,Events state;
-    class RTMP,Encoder,Muxer stream;
-```
-
-## Monitoring Interface
-
-The monitoring interface is now implemented in the admin interface (`apps/admin/src/app/livestream/page.tsx`) with the following components:
-
-1. **Stream Status**
-   - Real-time performance metrics
-   - FPS monitoring
-   - Layer count
-   - Render time statistics
-
-2. **Stream Viewer**
-   - Live preview of the stream
-   - Frame-by-frame monitoring
-   - Quality controls
-
-3. **Playback Controls**
-   - Stream start/stop
-   - Pause functionality
-   - Stream state management
-
-4. **Layer Controls**
-   - Layer visibility toggling
-   - Layer ordering
-   - Batch updates
-
-The backend provides these monitoring capabilities through:
-
-1. **Preview Server** (`monitoring/preview.ts`)
-   - WebSocket-based frame distribution
-   - Client connection management
-   - Stream health monitoring
-   - Performance metrics collection
-
-2. **Stream API** (`api/stream.ts`)
-   - Status endpoints
-   - Frame retrieval
-   - Playback control
-   - Layer management
-
-## API Endpoints
-
-The monitoring interface uses the following endpoints:
-
-```typescript
-// Stream Status
-GET /api/stream/status
-{
-  isLive: boolean
-  fps: number
-  targetFPS: number
-  frameCount: number
-  droppedFrames: number
-  averageRenderTime: number
-  connectedClients: number
-}
-
-// Frame Retrieval
-GET /api/stream/frame
-
-// Playback Control
-POST /api/stream/start
-POST /api/stream/stop
-
-// Layer Management
-GET /api/stream/layers
-POST /api/stream/layers/:id/visibility
-```
-
-## Data Flow
-
-1. **Scene Management Flow**
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Layout
-    participant Store
-    participant Renderer
-    participant Workers
-    participant Stream
-
-    Client->>Layout: Update Scene
-    Layout->>Store: Persist Changes
-    Store->>Layout: Confirm Storage
-    Layout->>Renderer: Trigger Render
-    Renderer->>Workers: Distribute Tasks
-    Workers->>Renderer: Return Frames
-    Renderer->>Stream: Send to Output
-    Stream-->>Client: Stream Status
-```
-
-2. **Asset Pipeline Flow**
-```mermaid
-sequenceDiagram
-    participant Asset
-    participant Manager
-    participant Worker
-    participant Renderer
-    participant Buffer
-
-    Asset->>Manager: Load Asset
-    Manager->>Worker: Process Asset
-    Worker->>Manager: Return Processed
-    Manager->>Renderer: Ready for Render
-    Renderer->>Buffer: Add to Frame
-    Buffer->>Renderer: Frame Ready
-```
-
-3. **Worker Distribution Flow**
-```mermaid
-sequenceDiagram
-    participant Pool
-    participant Queue
-    participant Worker
-    participant Metrics
-
-    Pool->>Queue: New Render Task
-    Queue->>Worker: Assign Task
-    Worker->>Metrics: Report Progress
-    Worker->>Pool: Task Complete
-    Pool->>Metrics: Update Stats
-```
-
-## Implementation Status
-
-### ✅ Completed (Core)
-1. **State Management**
-   - Redis-backed persistence
-   - Type-safe state updates
-   - Event system
-   - Preview client tracking
-   - WebSocket synchronization
-
-2. **Rendering Pipeline**
-   - Frame buffer management
-   - Asset composition
-   - Layer management
-   - Real-time preview
-   - Effect system
-
-3. **Streaming Output**
-   - FFmpeg integration with process management
-   - RTMP server with Node-Media-Server
-   - Basic configuration management
-   - Event system setup
-   - Basic authentication
-   - Resource cleanup
-
-4. **API Layer**
-   - REST endpoints
-   - WebSocket server
-   - Layer management
-   - Stream control
-   - Preview delivery
-
-### 🚧 In Progress
-1. **Streaming Features**
-   - Stream key validation
-   - Connection tracking
-   - Quality management
-   - Advanced security
-   - Performance optimization
-
-2. **Performance Optimization**
-   - Worker pool scaling
-   - Memory management
-   - Frame caching
-   - Asset preloading
-
-3. **Monitoring**
-   - Prometheus metrics
-   - Resource tracking
-   - Error reporting
-   - Performance profiling
-
-### 📋 Planned
-1. **Advanced Features**
-   - Scene transitions
-   - Advanced effects
-   - Audio support
-   - Recording system
-   - Multiple quality variants
-   - Adaptive bitrate
-   - Thumbnail generation
-
-2. **Security Enhancements**
-   - Advanced authentication
-   - Authorization system
-   - Rate limiting
-   - IP filtering
-
-3. **Performance Features**
-   - Hardware acceleration
-   - Pipeline optimization
-   - Memory optimization
-   - Network optimization
-
 ## Core Components
 
-### State Management
-The state system provides:
-- Centralized state management
-- Redis persistence
-- Real-time updates
-- Type-safe operations
-- Event broadcasting
+### Viewport Management
+- Handles canvas dimensions and coordinate systems
+- Manages safe areas and grid snapping
+- Provides coordinate transformation utilities
+- Maintains aspect ratio and scaling
 
-### Rendering Pipeline
-The rendering system handles:
-- Frame composition
-- Asset management
-- Layer ordering
+### Layout System
+- Scene-based composition
+- Asset positioning and transformation
+- Z-index ordering
+- Transition management
+
+### Asset Management
+- Asset loading and caching
+- Type-specific asset handling
+- Metadata management
+- Memory-efficient preloading
+
+### Composition Engine
+- High-performance image processing
+- Layer compositing
 - Effect application
-- Memory optimization
+- Cache management
 
-### Streaming Output
-The streaming system manages:
-- FFmpeg encoding
-- RTMP delivery
-- Quality control
-- Error recovery
+## Rendering Pipeline
+
+### Main Renderer
+- Coordinates rendering process
+- Manages frame timing
+- Handles frame buffering
+- Provides performance metrics
+
+### Effects System
+- Scene transitions
+- Asset animations
+- Easing functions
+- Visual effects
+
+### Frame Buffer
+- Memory management
+- Buffer pooling
+- Frame synchronization
+- Performance optimization
+
+### Stream Encoder
+- Video encoding
+- Stream format handling
+- Quality management
 - Performance monitoring
 
-## Usage Example
+## Worker System
+
+### Worker Pool Management
+- Dynamic worker scaling based on load
+- Task distribution and load balancing
+- Worker health monitoring
+- Automatic worker recovery
+- Performance metrics collection
+
+### Render Workers
+- Parallel frame processing
+- Asset rendering isolation
+- Memory-aware processing
+- Error boundary implementation
+
+### Worker Communication
+- Typed message passing
+- Shared state management
+- Task queuing system
+- Result aggregation
+
+## State Management
+
+### Redis Integration
+- State persistence
+- Real-time synchronization
+- Cache invalidation
+- Event propagation
+
+### Event System
+- Type-safe events
+- Event filtering
+- Subscription management
+- Error handling
+
+## API Implementation
+
+The Stream Manager exposes a RESTful API for stream control and monitoring. All endpoints are prefixed with `/stream`.
+
+### Stream Management
+```typescript
+// Get current stream status
+GET /status
+  response: {
+    success: boolean;
+    data: {
+      isLive: boolean;
+      isPaused: boolean;
+      fps: number;
+      frameCount: number;
+      droppedFrames: number;
+      averageRenderTime: number;
+      startTime: number | null;
+    }
+  }
+
+// Start the stream
+POST /start
+  response: {
+    success: boolean;
+    data: StreamState;
+  }
+
+// Stop the stream
+POST /stop
+  response: {
+    success: boolean;
+    data: StreamState;
+  }
+
+// Get stream metrics
+GET /metrics
+  response: {
+    success: boolean;
+    data: {
+      fps: number;
+      bitrate: number;
+      droppedFrames: number;
+      viewerCount: number;
+      cpuUsage: number;
+      memoryUsage: number;
+    }
+  }
+```
+
+### Configuration
+```typescript
+// Get stream configuration
+GET /config
+  response: {
+    success: boolean;
+    data: {
+      STREAM_RESOLUTION: string;
+      TARGET_FPS: number;
+      RENDER_QUALITY: number;
+      MAX_LAYERS: number;
+      STREAM_BITRATE: string;
+      ENABLE_HARDWARE_ACCELERATION: boolean;
+    }
+  }
+
+// Update stream configuration
+PATCH /config
+  body: Partial<StreamConfig>
+  response: {
+    success: boolean;
+    data: StreamConfig;
+  }
+```
+
+### Stream Keys
+```typescript
+// Get all stream keys
+GET /keys
+  response: {
+    success: boolean;
+    data: {
+      keys: Array<{
+        id: string;
+        key: string;
+        createdAt: number;
+        lastUsed: number | null;
+      }>
+    }
+  }
+
+// Create new stream key
+POST /keys
+  response: {
+    success: boolean;
+    data: {
+      id: string;
+      key: string;
+      createdAt: number;
+    }
+  }
+
+// Delete stream key
+DELETE /keys/:id
+  response: {
+    success: boolean;
+  }
+```
+
+### Layer Management
+```typescript
+// Get all layers
+GET /layers
+  response: {
+    success: boolean;
+    data: {
+      layers: Layer[];
+      count: number;
+    }
+  }
+
+// Get specific layer
+GET /layers/:id
+  response: {
+    success: boolean;
+    data: Layer;
+  }
+
+// Update layer visibility
+PATCH /layers/:id
+  body: {
+    visible?: boolean;
+    position?: Position;
+    size?: Size;
+    opacity?: number;
+    zIndex?: number;
+  }
+  response: {
+    success: boolean;
+    data: Layer;
+  }
+```
+
+### WebSocket Events
+```typescript
+interface StreamEvents {
+  // Stream Status
+  'stream:status': {
+    isLive: boolean;
+    viewers: number;
+    health: StreamHealth;
+  }
+  
+  // Performance Metrics
+  'metrics:update': {
+    fps: number;
+    bitrate: number;
+    dropped: number;
+    cpu: number;
+    memory: number;
+  }
+  
+  // Layer Updates
+  'layer:update': {
+    id: string;
+    changes: Partial<Layer>;
+  }
+}
+
+// WebSocket Connection
+ws://host:port/stream/events
+```
+
+The API provides:
+- Core stream control operations (start/stop)
+- Real-time stream metrics and health monitoring
+- Configuration management
+- Stream key management for RTMP ingestion
+- Layer visibility and property control
+- Real-time updates via WebSocket
+
+## Performance Optimization
+
+### Memory Management
+- Buffer pooling and reuse
+- Automatic garbage collection
+- Memory pressure monitoring
+- Resource cleanup
+
+### Caching Strategy
+- Layer composition caching
+- Asset caching
+- Frame caching
+- Cache invalidation
+
+### Error Handling
+- Worker crash recovery
+- Stream error recovery
+- Error isolation
+- Detailed error reporting
+
+## Development Guidelines
+
+### Code Style
+- Use TypeScript strict mode
+- Follow functional programming principles
+- Implement proper error handling
+- Add comprehensive logging
+
+### Testing Strategy
+- Unit tests for core logic
+- Integration tests for pipelines
+- Performance tests
+- Memory leak tests
+
+### Performance Testing & Debugging
+
+#### Performance Monitoring Tools
 
 ```typescript
-import { ViewportManager } from './core/viewport.js';
-import { LayoutManager } from './core/layout.js';
-import { AssetManager } from './core/assets.js';
-import { Renderer } from './rendering/renderer.js';
+// Environment variables for performance monitoring
+NODE_OPTIONS='--inspect --heap-prof --prof' // CPU and memory profiling
+DEBUG='stream:*'                           // Debug logging
+WORKER_DEBUG=true                          // Worker process debugging
+STREAM_PERF_METRICS=true                   // Enable performance metrics collection
+```
 
-// Initialize managers
-const viewport = ViewportManager.getInstance();
-const layout = LayoutManager.getInstance();
-const assets = AssetManager.getInstance();
-const renderer = Renderer.getInstance();
+#### Performance Testing Scripts
 
-// Create a scene
-const scene = layout.createScene('main');
+```bash
+# Full performance test suite
+npm run test:perf
 
-// Add assets to scene
-const asset = assets.createAsset(
-  'image',
-  '/path/to/image.png',
-  { x: 100, y: 100 },
-  {
-    scale: 1,
-    rotation: 0,
-    opacity: 1
+# Individual performance tests
+npm run test:perf:stream    # Test stream processing performance
+npm run test:perf:workers   # Test worker pool performance
+npm run test:perf:memory    # Test memory usage patterns
+npm run test:perf:network   # Test network throughput
+
+# Load testing
+npm run test:load -- --concurrent=10 --duration=300  # 10 concurrent streams for 5 minutes
+
+# Stress testing
+npm run test:stress         # Push system to limits
+```
+
+#### Memory Profiling
+
+```bash
+# Memory leak detection
+npm run test:memory:leaks
+
+# Heap snapshots
+npm run test:memory:heap
+
+# Garbage collection analysis
+npm run test:memory:gc
+
+# Memory usage timeline
+npm run test:memory:timeline
+```
+
+#### Frame Pipeline Analysis
+
+```bash
+# Frame timing analysis
+npm run test:frames:timing
+
+# Frame drop analysis
+npm run test:frames:drops
+
+# Frame buffer usage
+npm run test:frames:buffer
+
+# Visual quality metrics
+npm run test:frames:quality
+```
+
+#### Debug Configurations
+
+```typescript
+// Debug configuration object
+interface DebugConfig {
+  // Logging levels
+  LOG_LEVEL: 'error' | 'warn' | 'info' | 'debug' | 'trace';
+  
+  // Component debugging
+  DEBUG_COMPONENTS: {
+    workers: boolean;      // Debug worker pool
+    renderer: boolean;     // Debug rendering pipeline
+    rtmp: boolean;        // Debug RTMP server
+    websocket: boolean;   // Debug WebSocket connections
+  };
+  
+  // Performance monitoring
+  PERF_MONITORING: {
+    enabled: boolean;
+    sampleRate: number;     // How often to collect metrics
+    retentionPeriod: number; // How long to keep metrics
+  };
+  
+  // Memory monitoring
+  MEMORY_MONITORING: {
+    enabled: boolean;
+    heapDumpOnLeak: boolean;
+    gcTracking: boolean;
+  };
+}
+```
+
+#### Debugging Commands
+
+```bash
+# Start with debugging enabled
+npm run dev:debug
+
+# Debug specific components
+DEBUG_COMPONENTS=workers,renderer npm run dev
+
+# Enable all debugging
+DEBUG=stream:*,worker:*,rtmp:*,ws:* npm run dev
+
+# Profile CPU usage
+npm run dev:profile
+
+# Memory debugging
+npm run dev:memory
+
+# Network debugging
+npm run dev:network
+```
+
+#### Performance Metrics Collection
+
+```typescript
+interface PerformanceMetrics {
+  // Stream metrics
+  stream: {
+    fps: number;
+    bitrate: number;
+    keyframeInterval: number;
+    encoderLatency: number;
+    bufferHealth: number;
+  };
+  
+  // Worker metrics
+  workers: {
+    active: number;
+    queueLength: number;
+    avgProcessingTime: number;
+    taskDistribution: Record<string, number>;
+  };
+  
+  // Memory metrics
+  memory: {
+    heapUsed: number;
+    heapTotal: number;
+    external: number;
+    arrayBuffers: number;
+    gcFrequency: number;
+  };
+  
+  // Frame pipeline metrics
+  frames: {
+    processed: number;
+    dropped: number;
+    avgProcessingTime: number;
+    bufferUtilization: number;
+    compositionTime: number;
+  };
+}
+```
+
+#### Debug Logging
+
+```typescript
+// Structured logging format
+interface DebugLog {
+  timestamp: string;
+  level: string;
+  component: string;
+  event: string;
+  data: Record<string, unknown>;
+  error?: Error;
+  metrics?: Partial<PerformanceMetrics>;
+}
+
+// Example usage
+logger.debug('frame_processed', {
+  frameId: 'frame_123',
+  processingTime: 16.7,
+  workerCount: 4,
+  bufferSize: 1024,
+  metrics: {
+    frames: {
+      processed: 1000,
+      dropped: 0,
+      avgProcessingTime: 16.5
+    }
   }
-);
-
-layout.addAsset(scene.id, asset);
-
-// Start rendering
-renderer.start();
-
-// Handle frame updates
-renderer.on('frame:ready', (frame: Buffer) => {
-  // Handle the rendered frame
 });
 ```
 
-## Development
+#### Performance Optimization Tips
 
-### Prerequisites
-- Node.js 18+
-- Redis
-- FFmpeg
-- Docker
+1. **Worker Pool Optimization**
+   - Monitor worker utilization
+   - Adjust pool size based on CPU cores
+   - Implement work stealing
+   - Track task processing times
 
-### Setup
-1. Install dependencies: `npm install`
-2. Build the project: `npm run build`
-3. Start the service: `npm start`
+2. **Memory Management**
+   - Use buffer pools for frames
+   - Implement proper cleanup
+   - Monitor heap usage
+   - Track GC pauses
 
-### Testing
-- Unit tests: `npm test`
-- Integration tests: `npm run test:integration`
-- Performance tests: `npm run test:perf`
+3. **Frame Pipeline**
+   - Optimize frame buffer size
+   - Monitor frame drops
+   - Track composition time
+   - Analyze bottlenecks
 
-## Configuration
+4. **Network Performance**
+   - Monitor RTMP connection health
+   - Track WebSocket latency
+   - Analyze bandwidth usage
+   - Monitor connection drops
 
-Environment variables:
-- `STREAM_RESOLUTION`: Output resolution (default: "1920x1080")
-- `TARGET_FPS`: Target frame rate (default: 60)
-- `STREAM_BITRATE`: Output bitrate (default: 6000000)
-- `STREAM_CODEC`: Video codec (default: "h264")
-- `FFMPEG_PRESET`: FFmpeg encoding preset (default: "veryfast")
+#### Common Issues & Debugging
 
-## Next Steps
+1. **High Memory Usage**
+   ```bash
+   # Generate heap snapshot
+   npm run debug:heap
+   
+   # Analyze memory leaks
+   npm run debug:leaks
+   ```
 
-1. **Performance Optimization**
-   - Implement worker pool scaling
-   - Optimize memory usage
-   - Add frame caching
-   - Improve asset loading
+2. **Frame Drops**
+   ```bash
+   # Monitor frame pipeline
+   npm run debug:frames
+   
+   # Analyze frame timing
+   npm run debug:timing
+   ```
 
-2. **Monitoring Enhancement**
-   - Add detailed metrics
-   - Implement profiling
-   - Enhance error tracking
-   - Add performance alerts
+3. **Worker Issues**
+   ```bash
+   # Debug worker pool
+   npm run debug:workers
+   
+   # Monitor task distribution
+   npm run debug:tasks
+   ```
 
-3. **Feature Additions**
-   - Scene transitions
-   - Advanced effects
-   - Audio support
-   - Recording system
+4. **Network Issues**
+   ```bash
+   # Debug RTMP connections
+   npm run debug:rtmp
+   
+   # Monitor WebSocket health
+   npm run debug:ws
+   ```
 
-## Contributing
+## Error Handling
 
-When working on this codebase:
-1. Follow TypeScript best practices
-2. Add tests for new features
-3. Update documentation
-4. Follow error handling patterns
-5. Add appropriate logging 
+### Worker Errors
+```typescript
+try {
+  await worker.processFrame(frame);
+} catch (error) {
+  if (error instanceof WorkerCrashError) {
+    await workerPool.replaceWorker(worker.id);
+  }
+  throw new StreamError('Frame processing failed', { cause: error });
+}
+```
+
+### Stream Errors
+```typescript
+class StreamError extends Error {
+  constructor(
+    message: string,
+    public readonly details: {
+      code: StreamErrorCode;
+      recoverable: boolean;
+      retryCount: number;
+    }
+  ) {
+    super(message);
+  }
+}
+```
+
+## Configuration Types
+
+```typescript
+interface StreamConfig {
+  // Stream Settings
+  resolution: {
+    width: number;
+    height: number;
+  };
+  fps: number;
+  bitrate: number;
+  codec: 'h264' | 'vp8' | 'vp9';
+  
+  // Worker Settings
+  workers: {
+    count: number;
+    maxMemory: number;
+    taskTimeout: number;
+  };
+  
+  // Performance Settings
+  performance: {
+    maxLayers: number;
+    bufferSize: number;
+    cacheSize: number;
+  };
+}
+```
+
+## Metrics
+
+### Performance Metrics
+- Frame processing time
+- Worker utilization
+- Memory usage
+- Cache hit rates
+- Error rates
+
+### Stream Health
+- FPS
+- Bitrate
+- Frame drops
+- Encoding quality
+- Client connections

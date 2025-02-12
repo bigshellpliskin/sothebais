@@ -91,6 +91,15 @@ export class Renderer extends EventEmitter {
     this.emit('render:stopped');
   }
 
+  public getRenderStats(): RenderStats {
+    return {
+      fps: this.targetFPS,
+      frameTime: performance.now() - this.lastFrameTime,
+      frameCount: this.frameCount,
+      droppedFrames: this.droppedFrames
+    };
+  }
+
   private async renderFrame(scene: Scene, transition?: Transition): Promise<void> {
     const startTime = performance.now();
 
@@ -119,19 +128,6 @@ export class Renderer extends EventEmitter {
       });
       throw error;
     }
-  }
-
-  public getStats(): RenderStats {
-    const now = performance.now();
-    const elapsedTime = now - this.lastFrameTime;
-    const currentFPS = elapsedTime > 0 ? 1000 / elapsedTime : 0;
-
-    return {
-      fps: currentFPS,
-      frameTime: elapsedTime,
-      frameCount: this.frameCount,
-      droppedFrames: this.droppedFrames
-    };
   }
 
   public setTargetFPS(fps: number): void {

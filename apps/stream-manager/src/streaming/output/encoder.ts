@@ -184,7 +184,7 @@ export class StreamEncoder extends EventEmitter {
       '-tune', 'zerolatency',
       '-b:v', `${this.config.bitrate}k`,
       '-maxrate', `${Math.min(this.config.bitrate * 1.5, 2000000)}k`,
-      '-bufsize', `${Math.min(this.config.bitrate * 2, 4000000)}k`,
+      '-bufsize', `${Math.min(this.config.bitrate * 1.5, 2000000)}k`,
       '-g', '60',
       '-keyint_min', '60',
       '-x264-params', 'asm=avx2:trellis=0',

@@ -124,34 +124,32 @@ export class FramePipeline extends EventEmitter {
   }
 
   private async processSharpFrame(frame: Buffer): Promise<Buffer> {
-    // Get a buffer from the pool
-    const outputBuffer = this.bufferPool.pop();
-    if (!outputBuffer) {
-      throw new Error('No available buffers in pool');
-    }
-
     try {
-      // Process frame with Sharp
-      const image = sharp(frame);
+      const sharpInstance = sharp(frame, {
+        raw: {
+          width: 854,
+          height: 480,
+          channels: 3
+        }
+      });
 
-      // Apply optimizations
-      image.rotate(); // Auto-rotate based on EXIF
-      
+      // Apply processing based on format
       if (this.config.format === 'jpeg') {
-        return await image
-          .jpeg({
-            quality: this.config.quality,
-            force: true
-          })
+        return await sharpInstance
+          .jpeg({ quality: this.config.quality })
           .toBuffer();
       } else {
-        return await image
+        // For raw format, just resize if needed
+        return await sharpInstance
           .raw()
           .toBuffer();
       }
-    } finally {
-      // Return buffer to pool
-      this.bufferPool.push(outputBuffer);
+    } catch (err) {
+      logger.error('Error processing frame with Sharp', {
+        error: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
+      throw err;
     }
   }
 

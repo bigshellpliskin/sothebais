@@ -7,21 +7,38 @@ import { loadConfig } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 
 async function generateTestImage(width: number, height: number): Promise<Buffer> {
-  // Create a test pattern with text
-  const svg = `
-    <svg width="${width}" height="${height}">
+  // Create the complete SVG with background and text
+  const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" 
+         xmlns="http://www.w3.org/2000/svg">
       <rect width="100%" height="100%" fill="#001f3f"/>
-      <text x="50%" y="50%" font-family="Arial" font-size="40" fill="white" text-anchor="middle">
+      <text 
+        x="50%" 
+        y="45%" 
+        font-family="sans-serif"
+        font-size="48" 
+        fill="white" 
+        text-anchor="middle" 
+        alignment-baseline="middle"
+        font-weight="bold">
         Sothebais Test Stream
       </text>
-      <text x="50%" y="60%" font-family="Arial" font-size="30" fill="white" text-anchor="middle">
+      <text 
+        x="50%" 
+        y="55%" 
+        font-family="sans-serif"
+        font-size="36" 
+        fill="white" 
+        text-anchor="middle"
+        alignment-baseline="middle">
         ${new Date().toLocaleTimeString()}
       </text>
-    </svg>
-  `;
-  
+    </svg>`;
+
+  // Single sharp operation to convert SVG to image buffer
   return await sharp(Buffer.from(svg))
     .resize(width, height)
+    .png()
     .toBuffer();
 }
 
@@ -31,6 +48,11 @@ async function main() {
   logger.initialize(config);
   
   const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+
+  logger.info('Starting test stream generator', {
+    resolution: `${width}x${height}`,
+    fps: config.TARGET_FPS
+  });
 
   // Initialize components
   const rtmpServer = await RTMPServer.initialize({
@@ -51,6 +73,8 @@ async function main() {
   const streamKey = 'test';
   const streamUrl = `rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`;
 
+  logger.info('Initialized components', { streamUrl });
+
   // Add stream key to allowed list
   rtmpServer.addStreamKey(streamKey);
 
@@ -58,7 +82,7 @@ async function main() {
     width,
     height,
     fps: config.TARGET_FPS,
-    bitrate: parseInt(config.STREAM_BITRATE.replace('k', '000')),
+    bitrate: 2000, // 2Mbps for testing
     codec: 'h264',
     preset: 'ultrafast',
     outputs: [streamUrl],
@@ -85,14 +109,7 @@ async function main() {
   rtmpServer.start();
   encoder.start();
 
-  logger.logStreamEvent('server_started', { 
-    url: streamUrl,
-    resolution: config.STREAM_RESOLUTION,
-    fps: config.TARGET_FPS,
-    bitrate: config.STREAM_BITRATE
-  });
-
-  logger.logStreamEvent('stream_started');
+  logger.info('Components started successfully');
 
   // Stream loop
   let isRunning = true;
@@ -120,7 +137,10 @@ async function main() {
 
   while (isRunning) {
     try {
+      logger.debug(`Generating frame ${frameCount}`);
       const frame = await generateTestImage(width, height);
+      
+      logger.debug('Processing frame through pipeline');
       const processedFrame = await pipeline.processFrame(frame);
       
       if (!processedFrame) {
@@ -128,16 +148,28 @@ async function main() {
         continue;
       }
 
+      logger.debug('Sending frame to encoder');
       encoder.sendFrame(processedFrame);
+      
+      logger.debug('Sending frame to muxer');
       await muxer.processFrame(processedFrame);
       
-      // Log metrics every 5 seconds (adjust TARGET_FPS * 5)
-      if (frameCount % (config.TARGET_FPS * 5) === 0) {
-        logger.logMetrics({
-          fps: config.TARGET_FPS,
-          encoderMetrics: encoder.getMetrics(),
-          muxerStats: muxer.getOutputStats(),
-          rtmpMetrics: rtmpServer.getMetrics()
+      // Log metrics every second
+      if (frameCount % config.TARGET_FPS === 0) {
+        const metrics = encoder.getMetrics();
+        const muxerStats = muxer.getOutputStats();
+        const rtmpStats = rtmpServer.getMetrics();
+        
+        logger.info('Stream metrics', {
+          frameCount,
+          encoderMetrics: {
+            isStreaming: metrics.isStreaming,
+            fps: metrics.currentFPS,
+            bitrate: metrics.bitrate
+          },
+          muxerStats,
+          rtmpStats,
+          timestamp: new Date().toISOString()
         });
       }
       frameCount++;
@@ -147,10 +179,10 @@ async function main() {
     } catch (err) {
       logger.error('Frame processing error', { 
         error: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
+        stack: err instanceof Error ? err.stack : undefined,
+        frameCount
       });
       
-      // If we get too many errors, exit
       errorCount++;
       if (errorCount > MAX_ERRORS) {
         logger.error('Too many errors, stopping test stream');

@@ -317,8 +317,7 @@ streamRouter.get('/config', (req: Request, res: Response) => {
       RENDER_QUALITY: config.RENDER_QUALITY,
       MAX_LAYERS: config.MAX_LAYERS,
       STREAM_BITRATE: config.STREAM_BITRATE,
-      ENABLE_HARDWARE_ACCELERATION: config.ENABLE_HARDWARE_ACCELERATION,
-      METRICS_INTERVAL: config.METRICS_INTERVAL
+      ENABLE_HARDWARE_ACCELERATION: config.ENABLE_HARDWARE_ACCELERATION
     };
 
     logger.info('Sending config response', { config: publicConfig });

@@ -4,6 +4,67 @@ This directory contains TypeScript type definitions used throughout the Stream M
 
 ## Type Definitions
 
+### Configuration Types (`config.ts`)
+
+Core configuration types using Zod for validation:
+
+```typescript
+export const configSchema = z.object({
+  // Server Configuration
+  PORT: z.number().default(4200),
+  WS_PORT: z.number().default(4201),
+  METRICS_PORT: z.number().default(9090),
+
+  // Core Settings
+  VIEWPORT_WIDTH: z.number().default(1920),
+  VIEWPORT_HEIGHT: z.number().default(1080),
+  ASSET_STORAGE_PATH: z.string().default('./assets'),
+  MAX_LAYERS: z.number().default(10),
+
+  // Stream Settings
+  STREAM_RESOLUTION: z.string().default('1920x1080'),
+  TARGET_FPS: z.number().default(30),
+  STREAM_BITRATE: z.string().default('6000k'),
+  ENABLE_HARDWARE_ACCELERATION: z.boolean().default(false)
+});
+
+// Specific config interfaces
+export interface WorkerPoolConfig {
+  poolSize: number;
+  taskQueueSize: number;
+  taskTimeout?: number;
+}
+
+export interface RenderConfig {
+  quality: 'low' | 'medium' | 'high';
+  frameBuffer: number;
+  dropFrames: boolean;
+  metricsInterval: number;
+}
+```
+
+### Core Service Types (`core.ts`)
+
+Types for core domain services:
+
+```typescript
+export interface CoreService {
+  cleanup(): Promise<void>;
+}
+
+export interface ViewportManager extends CoreService {
+  getWidth(): number;
+  getHeight(): number;
+  resize(width: number, height: number): Promise<void>;
+}
+
+export interface AssetManager extends CoreService {
+  loadAsset(id: string): Promise<Buffer>;
+  storeAsset(id: string, data: Buffer): Promise<void>;
+  deleteAsset(id: string): Promise<void>;
+}
+```
+
 ### Layer Types (`layers.ts`)
 
 Core type definitions for stream layers:
@@ -124,27 +185,60 @@ export interface DrawOptions {
 }
 ```
 
+### Worker Types (`worker.ts`)
+
+Types for worker pool and task management:
+
+```typescript
+export interface WorkerTask {
+  message: RenderWorkerMessage;
+  resolve: (value: RenderWorkerResponse) => void;
+  reject: (reason: any) => void;
+  priority: TaskPriority;
+  addedTime: number;
+}
+
+export interface WorkerState {
+  isProcessing: boolean;
+  processedTasks: number;
+  errors: number;
+  totalProcessingTime: number;
+  startTime: number;
+  config?: WorkerConfig;
+}
+```
+
 ## Type Categories
 
-1. **Layer Types**
+1. **Configuration Types**
+   - Server configuration
+   - Core service settings
+   - Stream settings
+   - Worker pool configuration
+   - Render configuration
+   - Effects configuration
+   - Buffer configuration
+
+2. **Core Service Types**
+   - Base service interface
+   - Viewport management
+   - Asset management
+   - Layout management
+   - Composition engine
+
+3. **Layer Types**
    - Base layer structure
    - Specific layer variants
    - Layer content types
    - Layer transformations
 
-2. **Animation Types**
-   - Animation properties
-   - Transition definitions
-   - Easing functions
-   - Keyframe types
+4. **Worker Types**
+   - Worker pool configuration
+   - Task management
+   - Worker state
+   - Message types
 
-3. **Buffer Types**
-   - Frame buffer structure
-   - Pixel formats
-   - Color spaces
-   - Memory management
-
-4. **Stream Types**
+5. **Stream Types**
    - Stream configuration
    - Event definitions
    - State management
@@ -152,10 +246,39 @@ export interface DrawOptions {
 
 ## Usage Examples
 
+### Configuration Usage
+
+```typescript
+import { loadConfig } from '../config';
+import type { Config } from '../types/config';
+
+// Load and validate configuration
+const config = await loadConfig();
+
+// Initialize services with config
+const viewport = await ViewportManager.initialize(config);
+const assets = await AssetManager.initialize(config);
+```
+
+### Worker Pool Usage
+
+```typescript
+import { WorkerPoolManager } from '../workers/pool/manager';
+import type { WorkerPoolConfig } from '../types/config';
+
+const poolConfig: WorkerPoolConfig = {
+  poolSize: 4,
+  taskQueueSize: 30,
+  taskTimeout: 5000
+};
+
+const pool = await WorkerPoolManager.initialize(poolConfig);
+```
+
 ### Layer Management
 
 ```typescript
-import type { Layer, Transform, Point2D } from '../types/layers';
+import type { Layer, Transform } from '../types/layers';
 
 const layer: Layer = {
   id: 'overlay-1',
@@ -168,14 +291,6 @@ const layer: Layer = {
     scale: { x: 1, y: 1 },
     rotation: 0,
     anchor: { x: 0.5, y: 0.5 }
-  },
-  content: {
-    type: 'text',
-    content: 'Hello World',
-    style: {
-      fontSize: 24,
-      color: '#ffffff'
-    }
   }
 };
 ```
