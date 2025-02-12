@@ -7,29 +7,34 @@ The rendering system is a core component of the Stream Manager service, responsi
 ```mermaid
 graph TD
     subgraph Core ["Core Components"]
-        Composition[Composition Engine]
+        Viewport[Viewport Manager]
         Layout[Layout Manager]
         Assets[Asset Manager]
+        Composition[Composition Engine]
+        
+        Viewport -->|"Coordinates & Grid"| Layout
+        Viewport -->|"Dimensions & Safe Areas"| Composition
+        Layout -->|"Provides Scene"| Composition
+        Assets -->|"Provides Assets"| Composition
     end
 
     subgraph Rendering ["Rendering Pipeline"]
         Renderer[Main Renderer]
         Effects[Effects Engine]
         FrameBuffer[Frame Buffer]
+        
+        Composition -->|"Rendered Frame"| Renderer
+        Renderer -->|"Apply Effects"| Effects
+        Effects -->|"Processed Frame"| FrameBuffer
     end
 
     subgraph Output ["Stream Output"]
         Pipeline[Frame Pipeline]
         Encoder[FFmpeg Encoder]
+        
+        FrameBuffer -->|"Frame Buffer"| Pipeline
+        Pipeline -->|"Encoded Stream"| Encoder
     end
-
-    Composition --> Renderer
-    Layout --> Renderer
-    Assets --> Renderer
-    Renderer --> Effects
-    Effects --> FrameBuffer
-    FrameBuffer --> Pipeline
-    Pipeline --> Encoder
 ```
 
 ## Components
@@ -184,4 +189,4 @@ All errors are logged with context for debugging.
    - Enhanced metrics
    - Performance profiling
    - Memory analysis
-   - Error tracking 
+   - Error tracking

@@ -46,7 +46,6 @@ services:
       timeout: 5s
       retries: 3
 
-   #Admin Frontend Service - Commented out for now
   admin-frontend:
     build:
       context: ./apps/admin
@@ -103,6 +102,18 @@ services:
       - WS_PORT=4201
       - LOG_LEVEL=debug
       - LOG_PRETTY_PRINT=true
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    ports:
+      - "4200:4200"  # HTTP API
+      - "4201:4201"  # WebSocket
+      - "1935:1935"  # RTMP
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./apps/stream-manager/src:/app/src:ro
@@ -133,7 +144,7 @@ services:
       
       # Priority
       - "traefik.http.routers.stream-ws.priority=200"
-    command: npm run test:stream
+    command: npm run debug:stream
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4200/stream/status"]
       interval: 10s

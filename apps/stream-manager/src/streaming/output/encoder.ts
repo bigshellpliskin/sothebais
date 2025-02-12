@@ -33,7 +33,8 @@ export interface StreamConfig {
   bitrate: number;
   codec: 'h264' | 'vp8' | 'vp9';
   preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium';
-  streamUrl: string;
+  streamUrl?: string;
+  outputs: string[];
   hwaccel?: {
     enabled: boolean;
     device?: 'nvidia' | 'qsv' | 'amf' | 'videotoolbox';
@@ -62,6 +63,7 @@ export class StreamEncoder extends EventEmitter {
   private frameLatency: number = 0;
   private droppedFrames: number = 0;
   private readonly cpuCores: number;
+  private lastFPSUpdate: number = 0;
 
   private constructor(config: StreamConfig) {
     super();
@@ -70,8 +72,8 @@ export class StreamEncoder extends EventEmitter {
       ...config,
       hwaccel: config.hwaccel || { enabled: false },
       pipeline: {
-        maxLatency: 1000,
-        dropThreshold: 500,
+        maxLatency: 500,
+        dropThreshold: 250,
         zeroCopy: true,
         threads: this.cpuCores,
         cpuFlags: ['sse4_2', 'avx', 'avx2'], // AMD EPYC supports these
@@ -171,50 +173,71 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private buildFFmpegArgs(): string[] {
-    const args: string[] = [];
-
-    // Input options with optimized threading
-    args.push(
-      '-threads', this.config.pipeline?.threads?.toString() || '2',
-      '-thread_type', 'frame',
+    const ffmpegArgs = [
       '-f', 'rawvideo',
       '-pix_fmt', 'rgba',
       '-s', `${this.config.width}x${this.config.height}`,
       '-r', this.config.fps.toString(),
-      '-i', 'pipe:0'
-    );
+      '-i', 'pipe:0',
+      '-c:v', 'libx264',
+      '-preset', this.config.preset || 'ultrafast',
+      '-tune', 'zerolatency',
+      '-b:v', `${this.config.bitrate}k`,
+      '-maxrate', `${Math.min(this.config.bitrate * 1.5, 2000000)}k`,
+      '-bufsize', `${Math.min(this.config.bitrate * 2, 4000000)}k`,
+      '-g', '60',
+      '-keyint_min', '60',
+      '-x264-params', 'asm=avx2:trellis=0',
+      '-fps_mode', 'cfr',
+      '-f', 'flv',
+      ...this.config.outputs
+    ];
 
     // Zero-copy pipeline if enabled
     if (this.config.pipeline?.zeroCopy) {
-      args.push('-copy_pipeline', '1');
+      ffmpegArgs.push(
+        '-copyts',
+        '-probesize', '16384',
+        '-analyzeduration', '0'
+      );
     }
 
-    // Output options optimized for AMD EPYC
-    args.push(
-      '-c:v', this.getCodec(),
-      '-preset', this.config.preset,
-      '-b:v', `${this.config.bitrate}k`,
-      '-maxrate', `${this.config.bitrate * 1.5}k`,
-      '-bufsize', `${this.config.bitrate * 2}k`,
-      '-g', (this.config.fps * 2).toString(),
-      '-keyint_min', this.config.fps.toString(),
-      '-sc_threshold', '0',
-      '-tune', 'zerolatency'
-    );
-
-    // CPU-specific optimizations
+    // CPU-specific optimizations for AMD EPYC
     switch (this.config.codec) {
       case 'h264':
-        args.push(
-          '-profile:v', 'high',
-          '-level', '5.1',
+        ffmpegArgs.push(
+          '-profile:v', 'baseline',
+          '-level', '4.0',
           '-x264-params',
-          `nal-hrd=cbr:force-cfr=1:threads=${this.config.pipeline?.threads}:lookahead_threads=1:sliced_threads=1:sync-lookahead=0:rc-lookahead=10:aq-mode=2:direct=auto:me=hex:subme=6:trellis=1:deblock=1,1:psy-rd=0.8,0.8:aq-strength=0.9:ref=1`
+          `nal-hrd=cbr:` +
+          `force-cfr=1:` +
+          `threads=${this.config.pipeline?.threads || '2'}:` +
+          `lookahead_threads=1:` +
+          `sliced_threads=1:` +
+          `sync-lookahead=0:` +
+          `rc-lookahead=0:` +
+          `aq-mode=0:` +
+          `direct=auto:` +
+          `me=dia:` +
+          `subme=0:` +
+          `trellis=0:` +
+          `psy-rd=0.0,0.0:` +
+          `aq-strength=0.0:` +
+          `ref=1:` +
+          `intra-refresh=1:` +
+          `fastfirstpass=1:` +
+          `fast_pskip=1:` +
+          `mbtree=0:` +
+          `b_adapt=0:` +
+          `weightb=0:` +
+          `zerolatency=1:` +
+          `non-deterministic=1:` +
+          `asm=avx2`
         );
         break;
       case 'vp8':
       case 'vp9':
-        args.push(
+        ffmpegArgs.push(
           '-quality', 'realtime',
           '-cpu-used', '4',
           '-deadline', 'realtime',
@@ -227,8 +250,7 @@ export class StreamEncoder extends EventEmitter {
         break;
     }
 
-    args.push('-f', 'flv', this.config.streamUrl);
-    return args;
+    return ffmpegArgs;
   }
 
   private getHwAccelCodec(): string {
@@ -344,7 +366,7 @@ export class StreamEncoder extends EventEmitter {
     }
 
     const startTime = Date.now();
-    const currentLatency = startTime - this.lastFrameTime;
+    const currentLatency = this.lastFrameTime ? startTime - this.lastFrameTime : 0;
 
     // Drop frames if we're exceeding latency threshold
     if (this.config.pipeline?.dropThreshold && currentLatency > this.config.pipeline.dropThreshold) {
@@ -368,15 +390,18 @@ export class StreamEncoder extends EventEmitter {
       
       // Update metrics
       const now = Date.now();
-      if (now - this.lastFrameTime >= 1000) {
-        this.currentFPS = this.frameCount;
-        this.frameCount = 0;
-        this.lastFrameTime = now;
-        this.frameLatency = now - startTime;
-      }
+      this.frameLatency = now - startTime;
+      this.lastFrameTime = now;  // Update lastFrameTime for every frame
       this.frameCount++;
 
-      encodingTimeGauge.set(Date.now() - startTime);
+      // Calculate FPS every second
+      if (now - this.lastFPSUpdate >= 1000) {
+        this.currentFPS = this.frameCount;
+        this.frameCount = 0;
+        this.lastFPSUpdate = now;
+      }
+
+      encodingTimeGauge.set(this.frameLatency);
     } catch (error) {
       logger.error('Failed to send frame to FFmpeg', {
         error: error instanceof Error ? error.message : 'Unknown error',

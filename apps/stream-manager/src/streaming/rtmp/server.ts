@@ -8,21 +8,21 @@ import { RTMPEvents } from './events.js';
 const register = new Registry();
 
 // Define metrics
-const connectionsGauge = new Gauge({
-  name: 'rtmp_connections',
-  help: 'Number of active RTMP connections',
+const rtmpConnectionsGauge = new Gauge({
+  name: 'rtmp_connections_total',
+  help: 'Total number of RTMP connections',
   registers: [register]
 });
 
-const bandwidthGauge = new Gauge({
+const rtmpBandwidthGauge = new Gauge({
   name: 'rtmp_bandwidth_bytes',
-  help: 'RTMP bandwidth usage in bytes',
+  help: 'Bandwidth usage in bytes',
   registers: [register]
 });
 
-const errorsCounter = new Counter({
-  name: 'rtmp_errors',
-  help: 'Number of RTMP server errors',
+const rtmpErrorsGauge = new Gauge({
+  name: 'rtmp_errors_total',
+  help: 'Total number of RTMP errors',
   registers: [register]
 });
 
@@ -101,12 +101,12 @@ export class RTMPServer extends EventEmitter {
 
     this.server.on('postConnect', (id, args) => {
       logger.info('RTMP client connected', { id, args });
-      connectionsGauge.inc();
+      rtmpConnectionsGauge.inc();
     });
 
     this.server.on('doneConnect', (id, args) => {
       logger.info('RTMP client disconnected', { id, args });
-      connectionsGauge.dec();
+      rtmpConnectionsGauge.dec();
     });
 
     this.server.on('prePublish', async (id, StreamPath, args) => {
@@ -159,7 +159,7 @@ export class RTMPServer extends EventEmitter {
 
     this.server.on('error', (err) => {
       logger.error('RTMP server error', { error: err });
-      errorsCounter.inc();
+      rtmpErrorsGauge.inc();
       this.emit('error', err);
     });
   }
@@ -167,7 +167,7 @@ export class RTMPServer extends EventEmitter {
   private startMetricsCollection(): void {
     setInterval(() => {
       // Update bandwidth metrics
-      bandwidthGauge.set(0); // TODO: Implement bandwidth tracking
+      rtmpBandwidthGauge.set(0); // TODO: Implement bandwidth tracking
     }, 1000);
   }
 
@@ -216,10 +216,21 @@ export class RTMPServer extends EventEmitter {
     bandwidth: number;
     errors: number;
   } {
-    return {
-      connections: 0, // TODO: Implement connection counting
-      bandwidth: 0, // TODO: Implement bandwidth tracking
-      errors: 0 // TODO: Implement error counting
+    const metrics = {
+      connections: this.activeStreams.size,
+      bandwidth: Array.from(this.activeStreams.values()).reduce((total, stream) => {
+        return total + (stream.bandwidth || 0);
+      }, 0),
+      errors: Array.from(this.activeStreams.values()).reduce((total, stream) => {
+        return total + (stream.errors || 0);
+      }, 0)
     };
+
+    // Update Prometheus metrics
+    rtmpConnectionsGauge.set(metrics.connections);
+    rtmpBandwidthGauge.set(metrics.bandwidth);
+    rtmpErrorsGauge.set(metrics.errors);
+
+    return metrics;
   }
 }

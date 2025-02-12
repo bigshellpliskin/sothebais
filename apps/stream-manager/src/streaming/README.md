@@ -14,33 +14,68 @@ graph TD
 
     subgraph Processing ["Frame Processing"]
         Pipeline[Frame Pipeline]
-        BufferPool[Buffer Pool]
+        
+        subgraph Workers ["Worker Pool"]
+            WorkerPool[Worker Manager]
+            Worker1[Worker 1]
+            Worker2[Worker 2]
+            WorkerN[Worker N]
+            
+            WorkerPool -->|"Distribute Tasks"| Worker1
+            WorkerPool -->|"Distribute Tasks"| Worker2
+            WorkerPool -->|"Distribute Tasks"| WorkerN
+        end
+        
+        Process[Frame Processing]
         Queue[Frame Queue]
+        Pool[Buffer Pool]
+        
+        Pipeline -->|"Raw Frame"| Queue
+        Queue -->|"Queued Frame"| WorkerPool
+        Worker1 & Worker2 & WorkerN -->|"Processed Frame"| Process
+        Pool -->|"Reusable Buffer"| Process
+        Process -->|"Return Buffer"| Pool
     end
 
-    subgraph Streaming ["Output Components"]
-        Encoder[FFmpeg Encoder]
-        Muxer[Stream Muxer]
-        RTMP[RTMP Server]
+    subgraph Output ["Output Components"]
+        subgraph Encoder ["FFmpeg Encoder"]
+            EncodeProcess[FFmpeg Process]
+            HWAccel[Hardware Acceleration]
+            
+            Process -->|"Frame Buffer"| EncodeProcess
+            HWAccel -->|"GPU/Hardware Support"| EncodeProcess
+        end
+
+        subgraph Muxer ["Stream Muxer"]
+            MuxQueue[Muxer Queue]
+            OutputMgr[Output Manager]
+            
+            EncodeProcess -->|"Encoded Frame"| MuxQueue
+            MuxQueue -->|"Queued Frame"| OutputMgr
+        end
+
+        subgraph RTMP ["RTMP Server"]
+            RTMPServer[Node Media Server]
+            StreamKeys[Stream Key Manager]
+            
+            OutputMgr -->|"Stream Data"| RTMPServer
+            StreamKeys -->|"Validate"| RTMPServer
+        end
     end
 
     subgraph Destinations ["Output Destinations"]
         Platforms[Streaming Platforms]
         Preview[Preview Clients]
         Recording[File Recording]
+        
+        RTMPServer -->|"RTMP Stream"| Platforms
+        RTMPServer -->|"Preview Stream"| Preview
+        RTMPServer -->|"Record Stream"| Recording
     end
 
     Composition --> SharpRenderer
     SharpRenderer --> FrameBuffer
     FrameBuffer --> Pipeline
-    Pipeline --> BufferPool
-    Pipeline --> Queue
-    Queue --> Encoder
-    Encoder --> Muxer
-    Muxer --> RTMP
-    RTMP --> Platforms
-    RTMP --> Preview
-    RTMP --> Recording
 ```
 
 ## Directory Structure

@@ -168,4 +168,16 @@ export class FramePipeline extends EventEmitter {
     
     logger.info('Frame pipeline cleaned up');
   }
+
+  public getMetrics(): {
+    queueSize: number;
+    processingTime: number;
+    memoryUsage: number;
+  } {
+    return {
+      queueSize: this.frameQueue.length,
+      processingTime: this.lastProcessingTime,
+      memoryUsage: process.memoryUsage().heapUsed
+    };
+  }
 } 

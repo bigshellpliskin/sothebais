@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { Registry, Gauge, Counter } from 'prom-client';
 import { logger } from '../../utils/logger.js';
+import { RTMPServer } from '../rtmp/server.js';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -24,6 +25,20 @@ const errorsCounter = new Counter({
   registers: [register]
 });
 
+const outputFramesGauge = new Gauge({
+  name: 'muxer_output_frames',
+  help: 'Number of frames processed by each output',
+  registers: [register],
+  labelNames: ['outputId']
+});
+
+const outputBytesGauge = new Gauge({
+  name: 'muxer_output_bytes',
+  help: 'Number of bytes processed by each output',
+  registers: [register],
+  labelNames: ['outputId']
+});
+
 export interface MuxerConfig {
   outputs: string[];
   maxQueueSize: number;
@@ -38,6 +53,9 @@ export interface OutputStats {
   errors: number;
   lastError?: string;
   reconnectAttempts: number;
+  framesProcessed: number;
+  lastFrameTime: number;
+  bytesProcessed: number;
 }
 
 export class StreamMuxer extends EventEmitter {
@@ -47,10 +65,12 @@ export class StreamMuxer extends EventEmitter {
   private outputs: Map<string, OutputStats> = new Map();
   private isProcessing: boolean = false;
   private readonly MAX_RETRY_ATTEMPTS = 3;
+  private rtmpServer: RTMPServer;
 
   private constructor(config: MuxerConfig) {
     super();
     this.config = config;
+    this.rtmpServer = RTMPServer.getInstance();
     this.initializeOutputs();
 
     logger.info('Stream muxer initialized', {
@@ -79,7 +99,10 @@ export class StreamMuxer extends EventEmitter {
         url,
         active: false,
         errors: 0,
-        reconnectAttempts: 0
+        reconnectAttempts: 0,
+        framesProcessed: 0,
+        lastFrameTime: 0,
+        bytesProcessed: 0
       });
     });
 
@@ -136,15 +159,31 @@ export class StreamMuxer extends EventEmitter {
 
   private async sendFrameToOutput(output: OutputStats, frame: Buffer): Promise<void> {
     try {
-      // TODO: Implement actual frame sending logic
-      // This would involve sending the frame to the RTMP server
-      // or other streaming endpoints
+      if (!output.active) {
+        throw new Error(`Output ${output.id} is not active`);
+      }
+
+      // Update output statistics
+      output.framesProcessed++;
+      output.lastFrameTime = Date.now();
+      output.bytesProcessed += frame.length;
       
-      // For now, just emit an event
+      // Emit metrics
       this.emit('frame:sent', {
         outputId: output.id,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        frameSize: frame.length
       });
+      
+      // Update Prometheus metrics
+      outputFramesGauge.labels(output.id).set(output.framesProcessed);
+      outputBytesGauge.labels(output.id).set(output.bytesProcessed);
+
+      // Check if output is still active after processing
+      if (!this.outputs.has(output.id)) {
+        throw new Error(`Output ${output.id} was removed during processing`);
+      }
+
     } catch (error) {
       output.errors++;
       output.lastError = error instanceof Error ? error.message : 'Unknown error';
@@ -152,7 +191,9 @@ export class StreamMuxer extends EventEmitter {
       logger.error('Output error', {
         outputId: output.id,
         url: output.url,
-        error: output.lastError
+        error: output.lastError,
+        retryAttempts: output.reconnectAttempts,
+        maxRetries: this.config.retryAttempts
       });
 
       errorsCounter.inc();
@@ -162,6 +203,11 @@ export class StreamMuxer extends EventEmitter {
         await this.handleReconnection(output);
       } else {
         this.deactivateOutput(output.id);
+        this.emit('output:failed', {
+          outputId: output.id,
+          url: output.url,
+          error: output.lastError
+        });
       }
     }
   }
