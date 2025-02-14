@@ -31,7 +31,7 @@ export interface StreamConfig {
   height: number;
   fps: number;
   bitrate: number;
-  codec: 'h264' | 'vp8' | 'vp9';
+  codec: 'h264' | 'h264rgb' | 'vp8' | 'vp9';
   preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium';
   streamUrl?: string;
   outputs: string[];
@@ -47,6 +47,7 @@ export interface StreamConfig {
     zeroCopy: boolean;
     threads?: number;
     cpuFlags?: string[];
+    inputFormat?: 'rgba' | 'rgb' | 'yuv420p';
   };
 }
 
@@ -54,6 +55,7 @@ export class StreamEncoder extends EventEmitter {
   private static instance: StreamEncoder | null = null;
   private ffmpeg: ChildProcess | null = null;
   private config: StreamConfig;
+  private muxer: any; // Will be set by connectMuxer
   private isStreaming: boolean = false;
   private frameCount: number = 0;
   private lastFrameTime: number = 0;
@@ -173,82 +175,109 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private buildFFmpegArgs(): string[] {
-    const ffmpegArgs = [
-      '-f', 'rawvideo',
-      '-pix_fmt', 'rgba',
-      '-s', `${this.config.width}x${this.config.height}`,
-      '-r', this.config.fps.toString(),
-      '-i', 'pipe:0',
-      '-c:v', 'libx264',
-      '-preset', this.config.preset || 'ultrafast',
-      '-tune', 'zerolatency',
-      '-b:v', `${this.config.bitrate}k`,
-      '-maxrate', `${Math.min(this.config.bitrate * 1.5, 2000000)}k`,
-      '-bufsize', `${Math.min(this.config.bitrate * 1.5, 2000000)}k`,
-      '-g', '60',
-      '-keyint_min', '60',
-      '-x264-params', 'asm=avx2:trellis=0',
-      '-fps_mode', 'cfr',
-      '-f', 'flv',
-      ...this.config.outputs
+    // Global options (affect whole process)
+    const globalArgs: string[] = [
+      '-hide_banner',        // Reduce log noise
+      '-nostats',            // Disable progress stats
+      '-loglevel', 'debug'   // Enable debug logging
     ];
 
-    // Zero-copy pipeline if enabled
-    if (this.config.pipeline?.zeroCopy) {
-      ffmpegArgs.push(
-        '-copyts',
-        '-probesize', '16384',
-        '-analyzeduration', '0'
-      );
-    }
+    // Input options (affect next input)
+    const inputArgs: string[] = [
+      '-f', 'rawvideo',
+      '-pix_fmt', this.config.pipeline?.inputFormat || 'rgba',
+      '-s', `${this.config.width}x${this.config.height}`,
+      '-r', this.config.fps.toString(),
+      '-i', 'pipe:0'        // Read from stdin
+    ];
 
-    // CPU-specific optimizations for AMD EPYC
+    // Audio input (null audio for now, will be replaced with AI speech)
+    const audioArgs = [
+      '-f', 'lavfi',
+      '-i', 'anullsrc=r=44100:cl=stereo',
+      '-c:a', 'aac',
+      '-b:a', '128k'
+    ];
+
+    // Codec options (affect next output)
+    let codecArgs: string[] = [];
     switch (this.config.codec) {
-      case 'h264':
-        ffmpegArgs.push(
-          '-profile:v', 'baseline',
-          '-level', '4.0',
-          '-x264-params',
-          `nal-hrd=cbr:` +
-          `force-cfr=1:` +
-          `threads=${this.config.pipeline?.threads || '2'}:` +
-          `lookahead_threads=1:` +
-          `sliced_threads=1:` +
-          `sync-lookahead=0:` +
-          `rc-lookahead=0:` +
-          `aq-mode=0:` +
-          `direct=auto:` +
-          `me=dia:` +
-          `subme=0:` +
-          `trellis=0:` +
-          `psy-rd=0.0,0.0:` +
-          `aq-strength=0.0:` +
-          `ref=1:` +
-          `intra-refresh=1:` +
-          `fastfirstpass=1:` +
-          `fast_pskip=1:` +
-          `mbtree=0:` +
-          `b_adapt=0:` +
-          `weightb=0:` +
-          `zerolatency=1:` +
-          `non-deterministic=1:` +
-          `asm=avx2`
-        );
+      case 'h264rgb':
+        codecArgs = [
+          '-c:v', 'libx264rgb',     // RGB-specific encoder
+          '-preset', this.config.preset,
+          '-tune', 'zerolatency',   // Minimize latency
+          '-b:v', `${this.config.bitrate}k`,
+          '-x264-params', [         // x264 specific options
+            'nal-hrd=cbr',          // Constant bitrate
+            'force-cfr=1',          // Constant frame rate
+            `threads=${this.config.pipeline?.threads || '2'}`,
+            'rc-lookahead=0',       // Disable lookahead
+            'sync-lookahead=0',     // Disable sync lookahead
+            'bframes=0',            // Disable B-frames
+            'annexb=1',             // Force Annex B NAL format
+            'repeat-headers=1'       // Repeat SPS/PPS headers
+          ].join(':')
+        ];
         break;
+      
+      case 'h264':
+        codecArgs = [
+          '-c:v', 'libx264',
+          '-preset', this.config.preset,
+          '-tune', 'zerolatency',
+          '-b:v', `${this.config.bitrate}k`,
+          '-x264-params', [
+            'nal-hrd=cbr',
+            'force-cfr=1',
+            `threads=${this.config.pipeline?.threads || '2'}`,
+            'annexb=1',             // Force Annex B NAL format
+            'repeat-headers=1'       // Repeat SPS/PPS headers
+          ].join(':')
+        ];
+        break;
+      
       case 'vp8':
       case 'vp9':
-        ffmpegArgs.push(
+        // No changes needed for VP8/VP9
+        codecArgs = [
+          '-c:v', this.getCodec(),
           '-quality', 'realtime',
           '-cpu-used', '4',
-          '-deadline', 'realtime',
-          '-tile-columns', '1',
-          '-frame-parallel', '1',
-          '-threads', this.config.pipeline?.threads?.toString() || '2',
-          '-lag-in-frames', '0',
-          '-error-resilient', '1'
-        );
+          '-b:v', `${this.config.bitrate}k`,
+          '-deadline', 'realtime'
+        ];
         break;
     }
+
+    // Output options (affect next output)
+    const outputArgs = [
+      // RTMP options
+      '-f', 'flv',
+      '-flvflags', '+no_duration_filesize',
+      
+      // Low latency options
+      '-shortest',         // End stream when shortest input ends
+      '-sync', 'ext',      // Use external clock for sync
+      
+      // Output URL
+      this.config.streamUrl || 'rtmp://localhost:1935/live/test'
+    ];
+
+    // Combine all args in correct order
+    const ffmpegArgs = [
+      ...globalArgs,        // Global options first
+      ...inputArgs,         // Then input options
+      ...audioArgs,         // Then audio input
+      ...codecArgs,         // Then codec options
+      ...outputArgs         // Output options last
+    ];
+
+    logger.debug('FFmpeg encoder command', {
+      command: 'ffmpeg ' + ffmpegArgs.join(' '),
+      codec: this.config.codec,
+      inputFormat: this.config.pipeline?.inputFormat
+    });
 
     return ffmpegArgs;
   }
@@ -293,6 +322,11 @@ export class StreamEncoder extends EventEmitter {
     }
   }
 
+  public connectMuxer(muxer: any): void {
+    // No longer needed, but keep for compatibility
+    logger.info('Muxer connection no longer needed - encoder outputs directly to RTMP');
+  }
+
   /**
    * Start the FFmpeg process and begin streaming
    */
@@ -307,7 +341,12 @@ export class StreamEncoder extends EventEmitter {
       this.ffmpeg = spawn('ffmpeg', args);
 
       this.ffmpeg.stderr?.on('data', (data) => {
-        logger.debug(`FFmpeg: ${data}`);
+        const message = data.toString().trim();
+        if (message) {  // Only log non-empty messages
+          logger.debug(`FFmpeg: ${message}`, {
+            ffmpegOutput: message
+          });
+        }
       });
 
       this.ffmpeg.on('error', (error) => {
@@ -321,14 +360,17 @@ export class StreamEncoder extends EventEmitter {
       this.ffmpeg.on('exit', (code, signal) => {
         logger.info('FFmpeg process exited', {
           code,
-          signal
+          signal,
+          command: 'ffmpeg ' + args.join(' ')
         } as LogContext);
         this.handleExit(code, signal);
       });
 
       this.isStreaming = true;
       this.restartAttempts = 0;
-      logger.info('Stream encoder started');
+      logger.info('Stream encoder started', {
+        streamUrl: this.config.streamUrl || 'rtmp://localhost:1935/live/test'
+      });
 
     } catch (error) {
       logger.error('Failed to start FFmpeg process', {

@@ -2,23 +2,22 @@ import { EventEmitter } from 'events';
 import { logger } from '../utils/logger.js';
 import { FramePipeline } from './output/pipeline.js';
 import { StreamEncoder } from './output/encoder.js';
-import { StreamMuxer } from './output/muxer.js';
 import { RTMPServer } from './rtmp/server.js';
-import { StateManagerImpl } from './state-manager.js';
+import { stateManager } from '../state/state-manager.js';
+import type { StateManagerImpl } from '../state/state-manager.js';
 import type { Config } from '../types/config.js';
 
 export class StreamManager extends EventEmitter {
     private static instance: StreamManager | null = null;
     private pipeline: FramePipeline | null = null;
     private encoder: StreamEncoder | null = null;
-    private muxer: StreamMuxer | null = null;
     private rtmpServer: RTMPServer | null = null;
     private stateManager: StateManagerImpl;
     private isInitialized: boolean = false;
 
     private constructor() {
         super();
-        this.stateManager = StateManagerImpl.getInstance();
+        this.stateManager = stateManager;
     }
 
     public static getInstance(): StreamManager {
@@ -50,14 +49,16 @@ export class StreamManager extends EventEmitter {
             this.rtmpServer.addStreamKey('test-stream');
 
             // Initialize frame pipeline
+            const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
             this.pipeline = await FramePipeline.initialize({
                 maxQueueSize: config.PIPELINE_MAX_QUEUE_SIZE,
                 poolSize: config.PIPELINE_POOL_SIZE,
                 quality: config.PIPELINE_QUALITY,
-                format: config.PIPELINE_FORMAT
+                format: config.PIPELINE_FORMAT,
+                width,
+                height
             });
 
-            const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
             const streamUrl = config.STREAM_URL;
 
             // Initialize encoder
@@ -69,14 +70,6 @@ export class StreamManager extends EventEmitter {
                 codec: 'h264',
                 preset: 'veryfast',
                 outputs: [`rtmp://stream-manager:1935/live/test-stream`]
-            });
-
-            // Initialize muxer
-            this.muxer = await StreamMuxer.initialize({
-                outputs: [`rtmp://stream-manager:1935/live/test-stream`],
-                maxQueueSize: config.MUXER_MAX_QUEUE_SIZE,
-                retryAttempts: config.MUXER_RETRY_ATTEMPTS,
-                retryDelay: config.MUXER_RETRY_DELAY
             });
 
             // Setup event handlers
@@ -93,28 +86,19 @@ export class StreamManager extends EventEmitter {
     }
 
     private setupEventHandlers(): void {
-        if (!this.pipeline || !this.encoder || !this.muxer || !this.rtmpServer) {
+        if (!this.pipeline || !this.encoder || !this.rtmpServer) {
             throw new Error('Components not initialized');
         }
 
-        // Handle pipeline frames
-        this.pipeline.on('frame', async (frame: Buffer) => {
-            if (this.encoder) {
-                this.encoder.sendFrame(frame);
-            }
-        });
-
         // Handle encoder frames
         this.encoder.on('frame', async (frame: Buffer) => {
-            if (this.muxer) {
-                await this.muxer.processFrame(frame);
-            }
+            // Encoder now handles sending frames to RTMP directly
+            logger.debug('Frame processed by encoder');
         });
 
         // Handle errors
         this.pipeline.on('error', this.handleError.bind(this));
         this.encoder.on('error', this.handleError.bind(this));
-        this.muxer.on('error', this.handleError.bind(this));
         this.rtmpServer.on('error', this.handleError.bind(this));
     }
 
@@ -144,9 +128,6 @@ export class StreamManager extends EventEmitter {
             this.encoder?.start();
             logger.info('Encoder started');
 
-            this.muxer?.processFrame(Buffer.from([])); // Start muxer with empty frame
-            logger.info('Muxer started');
-
             // Update state
             await this.stateManager.updateStreamState({
                 isLive: true,
@@ -175,7 +156,6 @@ export class StreamManager extends EventEmitter {
             // Stop components
             this.encoder?.stop();
             await this.pipeline?.cleanup();
-            await this.muxer?.cleanup();
 
             // Update state
             await this.stateManager.updateStreamState({
@@ -197,13 +177,11 @@ export class StreamManager extends EventEmitter {
     public getMetrics(): {
         pipeline: any;
         encoder: any;
-        muxer: any;
         rtmp: any;
     } {
         return {
             pipeline: this.pipeline?.getMetrics(),
             encoder: this.encoder?.getMetrics(),
-            muxer: this.muxer?.getOutputStats(),
             rtmp: this.rtmpServer?.getMetrics()
         };
     }

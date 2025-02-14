@@ -1,45 +1,62 @@
 import sharp from 'sharp';
 import { RTMPServer } from '../../streaming/rtmp/server.js';
 import { StreamEncoder } from '../../streaming/output/encoder.js';
-import { StreamMuxer } from '../../streaming/output/muxer.js';
 import { FramePipeline } from '../../streaming/output/pipeline.js';
 import { loadConfig } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import type { Config } from '../../types/config.js';
+
+// Get directory name for ES modules
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function generateTestImage(width: number, height: number): Promise<Buffer> {
-  // Create the complete SVG with background and text
-  const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" 
-         xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="#001f3f"/>
-      <text 
-        x="50%" 
-        y="45%" 
-        font-family="sans-serif"
-        font-size="48" 
-        fill="white" 
-        text-anchor="middle" 
-        alignment-baseline="middle"
-        font-weight="bold">
-        Sothebais Test Stream
-      </text>
-      <text 
-        x="50%" 
-        y="55%" 
-        font-family="sans-serif"
-        font-size="36" 
-        fill="white" 
-        text-anchor="middle"
-        alignment-baseline="middle">
-        ${new Date().toLocaleTimeString()}
-      </text>
-    </svg>`;
+  try {
+    // Load background image from assets
+    const bgPath = path.join(__dirname, '../../../assets/bgs/layoutFull-BG.png');
+    logger.debug('Loading background image', {
+      path: bgPath,
+      absolutePath: path.resolve(bgPath),
+      cwd: process.cwd(),
+      __dirname
+    });
+    
+    // Create image processor
+    const image = sharp(bgPath);
+    
+    // Get image metadata
+    const metadata = await image.metadata();
+    logger.debug('Background image metadata', {
+      ...metadata,
+      path: bgPath
+    });
 
-  // Single sharp operation to convert SVG to image buffer
-  return await sharp(Buffer.from(svg))
-    .resize(width, height)
-    .png()
-    .toBuffer();
+    // Process the image - just resize for now, overlays should be handled by composition engine
+    const processedImage = await image
+      .resize(width, height, {
+        fit: 'cover', // Cover entire area
+        position: 'center'
+      })
+      .png()
+      .toBuffer();
+
+    logger.debug('Generated test frame', {
+      size: processedImage.length,
+      timestamp: new Date().toISOString()
+    });
+
+    return processedImage;
+  } catch (error) {
+    logger.error('Error generating test image', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      cwd: process.cwd(),
+      __dirname,
+      resolvedPath: path.resolve(__dirname, '../../../../assets/bgs/layoutFull-BG.png')
+    });
+    throw error;
+  }
 }
 
 async function main() {
@@ -54,38 +71,38 @@ async function main() {
     fps: config.TARGET_FPS
   });
 
-  // Initialize components
+  // Initialize components in production order
   const rtmpServer = await RTMPServer.initialize({
     port: config.RTMP_PORT,
     chunk_size: config.RTMP_CHUNK_SIZE,
-    gop_cache: config.RTMP_GOP_CACHE,
+    gop_cache: true,
     ping: config.RTMP_PING,
     ping_timeout: config.RTMP_PING_TIMEOUT
-  });
-
-  const pipeline = await FramePipeline.initialize({
-    maxQueueSize: 30,
-    poolSize: 4,
-    quality: 85,
-    format: 'raw'
   });
 
   const streamKey = 'test';
   const streamUrl = `rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`;
 
-  logger.info('Initialized components', { streamUrl });
+  // Initialize pipeline first (handles frame processing)
+  const pipeline = await FramePipeline.initialize({
+    maxQueueSize: 30,
+    poolSize: 4,
+    quality: 85,
+    format: 'raw', // Changed to raw for encoder
+    width,
+    height
+  });
 
-  // Add stream key to allowed list
-  rtmpServer.addStreamKey(streamKey);
-
+  // Initialize encoder (processes raw frames)
   const encoder = await StreamEncoder.initialize({
     width,
     height,
     fps: config.TARGET_FPS,
-    bitrate: 2000, // 2Mbps for testing
-    codec: 'h264',
+    bitrate: 2000,
+    codec: 'h264rgb',  // Change to h264rgb for RGB input
     preset: 'ultrafast',
-    outputs: [streamUrl],
+    outputs: [streamUrl], // Direct RTMP output
+    streamUrl, // Primary RTMP output URL
     hwaccel: {
       enabled: false
     },
@@ -94,22 +111,181 @@ async function main() {
       dropThreshold: 500,
       zeroCopy: true,
       threads: 2,
-      cpuFlags: ['sse4_2', 'avx2', 'fma', 'avx512f']
+      cpuFlags: ['sse4_2', 'avx2', 'fma', 'avx512f'],
+      inputFormat: 'rgba'  // Explicitly specify RGBA input format
     }
   });
 
-  const muxer = await StreamMuxer.initialize({
-    outputs: [streamUrl],
-    maxQueueSize: 60,
-    retryAttempts: 3,
-    retryDelay: 1000
+
+
+  logger.info('Initialized components', { 
+    streamUrl,
+    streamKey,
+    rtmpPort: config.RTMP_PORT,
+    rtmpConfig: {
+      chunk_size: config.RTMP_CHUNK_SIZE,
+      gop_cache: true,
+      ping: config.RTMP_PING,
+      ping_timeout: config.RTMP_PING_TIMEOUT
+    },
+    pipelineConfig: {
+      format: 'raw',
+      quality: 85,
+      poolSize: 4
+    },
+    encoderConfig: {
+      codec: 'h264rgb',
+      preset: 'ultrafast',
+      bitrate: 2000,
+      pipeline: {
+        maxLatency: 1000,
+        dropThreshold: 500,
+        threads: 2,
+        inputFormat: 'rgba'
+      }
+    }
   });
 
-  // Start components
-  rtmpServer.start();
-  encoder.start();
+  // Add stream key to allowed list
+  rtmpServer.addStreamKey(streamKey);
 
-  logger.info('Components started successfully');
+  // Track active connections
+  let activeConnections = 0;
+
+  // Track connections by type
+  let publisherConnections = 0;
+  let playerConnections = 0;
+
+  // Track connection details
+  const connections = new Map();
+
+  // Add RTMP server event listeners with more detailed logging
+  rtmpServer.on('client_connected', (client: any) => {
+    connections.set(client.id, {
+      id: client.id,
+      type: 'pending',
+      startTime: Date.now(),
+      args: client.args,
+      streamPath: client.args?.streamPath
+    });
+    
+    logger.info('RTMP client initial connect', {
+      clientId: client.id,
+      args: client.args,
+      streamPath: client.args?.streamPath,
+      activeConnections: connections.size,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  rtmpServer.on('client_disconnected', (client: any) => {
+    const conn = connections.get(client.id);
+    if (conn) {
+      if (conn.type === 'publisher') {
+        publisherConnections = Math.max(0, publisherConnections - 1);
+      } else if (conn.type === 'player') {
+        playerConnections = Math.max(0, playerConnections - 1);
+      }
+      connections.delete(client.id);
+    }
+
+    logger.info('RTMP client disconnected', {
+      clientId: client.id,
+      connectionType: conn?.type || 'unknown',
+      duration: conn ? Date.now() - conn.startTime : 0,
+      remainingPublishers: publisherConnections,
+      remainingPlayers: playerConnections,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  rtmpServer.on('stream_started', (stream: any) => {
+    const conn = connections.get(stream.clientId);
+    if (conn) {
+      conn.type = stream.isPublisher ? 'publisher' : 'player';
+      if (stream.isPublisher) {
+        publisherConnections++;
+        logger.info('RTMP publisher started stream', {
+          clientId: stream.clientId,
+          streamPath: stream.path,
+          publisherConnections,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        playerConnections++;
+        logger.info('RTMP player joined stream', {
+          clientId: stream.clientId,
+          streamPath: stream.path,
+          playerConnections,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+  });
+
+  rtmpServer.on('stream_ended', (stream: any) => {
+    const conn = connections.get(stream.clientId);
+    if (conn) {
+      if (stream.isPublisher) {
+        publisherConnections = Math.max(0, publisherConnections - 1);
+        logger.info('RTMP publisher ended stream', {
+          clientId: stream.clientId,
+          streamPath: stream.path,
+          publisherConnections,
+          duration: Date.now() - conn.startTime,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        playerConnections = Math.max(0, playerConnections - 1);
+        logger.info('RTMP player left stream', {
+          clientId: stream.clientId,
+          streamPath: stream.path,
+          playerConnections,
+          duration: Date.now() - conn.startTime,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+  });
+
+  // Add encoder event listeners with more detailed logging
+  encoder.on('error', (error: Error) => {
+    logger.error('Encoder error', {
+      error: error.message,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+      streamUrl,
+      encoderState: encoder.getMetrics()
+    });
+  });
+
+  encoder.on('start', () => {
+    logger.info('Encoder started', {
+      resolution: `${width}x${height}`,
+      fps: config.TARGET_FPS,
+      timestamp: new Date().toISOString(),
+      streamUrl,
+      encoderState: encoder.getMetrics()
+    });
+  });
+
+  // Start components in correct order
+  logger.info('Starting components...');
+  
+  // 1. Start RTMP server first
+  rtmpServer.start();
+  logger.info('RTMP server started');
+  
+  // 2. Start encoder
+  await encoder.start();
+  logger.info('Encoder started');
+  
+  logger.info('Components started successfully', {
+    streamPath: `/live/${streamKey}`,
+    resolution: `${width}x${height}`,
+    fps: config.TARGET_FPS,
+    rtmpUrl: streamUrl
+  });
 
   // Stream loop
   let isRunning = true;
@@ -123,10 +299,14 @@ async function main() {
   });
 
   async function cleanup() {
-    logger.info('Cleaning up test stream...');
-    encoder.stop();
+    logger.info('Cleaning up test stream...', {
+      activeConnections: connections.size,
+      isRunning: false
+    });
+    
+    // Stop components in reverse order
+    await encoder.stop();
     await pipeline.cleanup();
-    await muxer.cleanup();
     rtmpServer.stop();
     process.exit(0);
   }
@@ -137,9 +317,11 @@ async function main() {
 
   while (isRunning) {
     try {
+      // 1. Generate test frame
       logger.debug(`Generating frame ${frameCount}`);
       const frame = await generateTestImage(width, height);
       
+      // 2. Process through pipeline
       logger.debug('Processing frame through pipeline');
       const processedFrame = await pipeline.processFrame(frame);
       
@@ -148,27 +330,40 @@ async function main() {
         continue;
       }
 
+      // 3. Send to encoder
       logger.debug('Sending frame to encoder');
       encoder.sendFrame(processedFrame);
-      
-      logger.debug('Sending frame to muxer');
-      await muxer.processFrame(processedFrame);
       
       // Log metrics every second
       if (frameCount % config.TARGET_FPS === 0) {
         const metrics = encoder.getMetrics();
-        const muxerStats = muxer.getOutputStats();
         const rtmpStats = rtmpServer.getMetrics();
+        const pipelineMetrics = pipeline.getMetrics();
         
         logger.info('Stream metrics', {
           frameCount,
-          encoderMetrics: {
+          pipeline: {
+            queueSize: pipelineMetrics.queueSize,
+            processingTime: pipelineMetrics.processingTime,
+            memoryUsage: pipelineMetrics.memoryUsage
+          },
+          encoder: {
             isStreaming: metrics.isStreaming,
             fps: metrics.currentFPS,
-            bitrate: metrics.bitrate
+            bitrate: metrics.bitrate,
+            restartAttempts: metrics.restartAttempts
           },
-          muxerStats,
-          rtmpStats,
+          rtmp: {
+            ...rtmpStats,
+            publishers: publisherConnections,
+            players: playerConnections,
+            totalConnections: connections.size,
+            activeConnections: Array.from(connections.values()).map(c => ({
+              id: c.id,
+              type: c.type,
+              duration: Date.now() - c.startTime
+            }))
+          },
           timestamp: new Date().toISOString()
         });
       }

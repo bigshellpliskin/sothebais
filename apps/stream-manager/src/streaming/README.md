@@ -1,6 +1,6 @@
 # Stream Manager Streaming Implementation
 
-This directory contains the core streaming functionality for the Stream Manager service, including RTMP server implementation, FFmpeg encoding, and stream multiplexing.
+This directory contains the core streaming functionality for the Stream Manager service, including RTMP server implementation and FFmpeg encoding with direct RTMP output.
 
 ## Architecture Overview
 
@@ -41,24 +41,18 @@ graph TD
         subgraph Encoder ["FFmpeg Encoder"]
             EncodeProcess[FFmpeg Process]
             HWAccel[Hardware Acceleration]
+            RTMPOutput[RTMP Output]
             
             Process -->|"Frame Buffer"| EncodeProcess
             HWAccel -->|"GPU/Hardware Support"| EncodeProcess
-        end
-
-        subgraph Muxer ["Stream Muxer"]
-            MuxQueue[Muxer Queue]
-            OutputMgr[Output Manager]
-            
-            EncodeProcess -->|"Encoded Frame"| MuxQueue
-            MuxQueue -->|"Queued Frame"| OutputMgr
+            EncodeProcess -->|"Encoded Stream"| RTMPOutput
         end
 
         subgraph RTMP ["RTMP Server"]
             RTMPServer[Node Media Server]
             StreamKeys[Stream Key Manager]
             
-            OutputMgr -->|"Stream Data"| RTMPServer
+            RTMPOutput -->|"RTMP Stream"| RTMPServer
             StreamKeys -->|"Validate"| RTMPServer
         end
     end
@@ -87,153 +81,44 @@ streaming/
 │   └── events.ts         # RTMP event handlers
 ├── output/               # Output handling
 │   ├── pipeline.ts       # Sharp frame pipeline
-│   ├── encoder.ts        # FFmpeg encoding
-│   └── muxer.ts         # Stream multiplexing
+│   └── encoder.ts        # FFmpeg encoding with RTMP output
 └── websocket.ts         # WebSocket communication
 ```
 
-## Components
+## Streaming Components
 
-### 1. Frame Pipeline (`output/pipeline.ts`)
-- Sharp-based frame processing
-- Buffer pool management
-- Frame queue handling
-- Memory optimization
-- Performance metrics
+The streaming system consists of the following components:
 
-### 2. FFmpeg Encoder (`output/encoder.ts`)
-- Frame encoding
-- Quality management
-- Performance monitoring
-- Error recovery
-- Hardware acceleration
+### Frame Pipeline
+- Processes raw frames using Sharp
+- Handles resizing, format conversion
+- Manages memory with buffer pooling
+- Provides quality settings
 
-### 3. Stream Muxer (`output/muxer.ts`)
-- Multiple output support
-- Frame distribution
-- Error handling
-- Reconnection logic
-- Output statistics
+### FFmpeg Encoder
+- Uses FFmpeg for H264/VP8/VP9 encoding
+- Outputs directly to RTMP server
+- Supports hardware acceleration
+- Handles frame rate control
+- Manages audio mixing and muxing
+- Provides direct RTMP output
 
-### 4. RTMP Server (`rtmp/server.ts` & `events.ts`)
-- Node-Media-Server integration
-- Stream key validation
-- Connection management
-- Event handling
-- Metrics collection
+### RTMP Server
+- Manages RTMP connections
+- Handles stream keys and authentication
+- Provides metrics and monitoring
+- Supports multiple clients
 
-## Implementation Status
-
-### Phase 1: Sharp Integration ✅
-1. **Frame Processing**
-   - [x] Sharp buffer handling
-   - [x] Frame rate control
-   - [x] Memory management
-   - [x] Performance metrics
-   - [x] Buffer pooling
-
-2. **Pipeline Setup**
-   - [x] Frame queue implementation
-   - [x] Buffer pooling
-   - [x] Memory optimization
-   - [x] Error handling
-
-3. **Quality Control**
-   - [x] Resolution scaling
-   - [x] Format conversion
-   - [x] Quality presets
-   - [x] Performance tuning
-
-### Phase 2: FFmpeg Integration 🚧
-1. **Encoder Setup**
-   - [x] Process management
-   - [x] Command generation
-   - [x] Error handling
-   - [x] Resource cleanup
-
-2. **Sharp to FFmpeg**
-   - [x] Buffer conversion
-   - [x] Format matching
-   - [x] Pipeline optimization
-   - [x] Memory efficiency
-
-3. **Performance**
-   - [~] Hardware acceleration
-   - [~] Pipeline optimization
-   - [x] Memory management
-   - [x] Error recovery
-
-### Phase 3: Stream Output 🚧
-1. **RTMP Server**
-   - [x] Node-Media-Server setup
-   - [ ] Stream key management
-   - [x] Connection handling
-   - [x] Error recovery
-
-2. **Advanced Features**
-   - [ ] Multiple qualities
-   - [ ] Adaptive bitrate
-   - [ ] Recording support
-   - [ ] Thumbnail generation
-
-## Configuration
+## Example Usage
 
 ```typescript
-interface StreamConfig {
-  // Frame Pipeline Configuration
-  pipeline: {
-    maxQueueSize: number;
-    poolSize: number;
-    quality: number;
-    format: 'raw' | 'jpeg';
-  };
-
-  // Encoder Configuration
-  encoder: {
-    width: number;
-    height: number;
-    fps: number;
-    bitrate: number;
-    codec: 'h264' | 'vp8' | 'vp9';
-    preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium';
-    hwaccel?: string;
-  };
-
-  // Muxer Configuration
-  muxer: {
-    outputs: string[];
-    maxQueueSize: number;
-    retryAttempts: number;
-    retryDelay: number;
-  };
-
-  // RTMP Configuration
-  rtmp: {
-    port: number;
-    chunk_size: number;
-    gop_cache: boolean;
-    ping: number;
-    ping_timeout: number;
-  };
-}
-```
-
-## Integration Example
-
-```typescript
-import { CompositionEngine } from '../core/composition';
-import { FramePipeline } from './output/pipeline';
-import { StreamEncoder } from './output/encoder';
-import { StreamMuxer } from './output/muxer';
-import { RTMPServer } from './rtmp/server';
-
-// Initialize components
-const composition = CompositionEngine.getInstance();
 const pipeline = FramePipeline.initialize({
   maxQueueSize: 30,
   poolSize: 3,
   quality: 80,
-  format: 'jpeg'
+  format: 'raw',
+  width: 1920,
+  height: 1080
 });
 
 const encoder = StreamEncoder.initialize({
@@ -242,14 +127,8 @@ const encoder = StreamEncoder.initialize({
   fps: 60,
   bitrate: 6000000,
   codec: 'h264',
-  preset: 'veryfast'
-});
-
-const muxer = StreamMuxer.initialize({
-  outputs: ['rtmp://streaming.service/live/stream-key'],
-  maxQueueSize: 60,
-  retryAttempts: 3,
-  retryDelay: 1000
+  preset: 'veryfast',
+  streamUrl: 'rtmp://streaming.service/live/stream-key'
 });
 
 const rtmpServer = RTMPServer.initialize({
@@ -265,24 +144,19 @@ composition.on('frame', async (frame: Buffer) => {
   // Process frame with Sharp pipeline
   const processedFrame = await pipeline.processFrame(frame);
   
-  // Encode frame
-  const encodedFrame = await encoder.encodeFrame(processedFrame);
-  
-  // Send to muxer
-  await muxer.processFrame(encodedFrame);
+  // Send to encoder (outputs directly to RTMP)
+  encoder.sendFrame(processedFrame);
 });
 
 // Start components
 pipeline.start();
 encoder.start();
-muxer.start();
 rtmpServer.start();
 
 // Handle errors
 composition.on('error', handleError);
 pipeline.on('error', handleError);
 encoder.on('error', handleError);
-muxer.on('error', handleError);
 rtmpServer.on('error', handleError);
 ```
 
@@ -301,11 +175,7 @@ The streaming components expose the following Prometheus metrics:
 - `encoder_bitrate`: Current bitrate
 - `encoder_queue_size`: Frame queue size
 - `encoder_dropped_frames`: Number of dropped frames
-
-### Muxer Metrics
-- `muxer_active_outputs`: Number of active outputs
-- `muxer_queue_size`: Output queue size
-- `muxer_errors`: Number of muxing errors
+- `encoder_rtmp_latency`: RTMP output latency
 
 ## Error Handling
 
@@ -320,32 +190,26 @@ The streaming components expose the following Prometheus metrics:
 2. Resource exhaustion
 3. Frame dropping
 4. Quality degradation
-
-### Muxer Errors
-1. Output connection failures
-2. Format conversion errors
-3. Queue overflow
-4. Resource limitations
+5. RTMP output failures
 
 ## Performance Considerations
 
-1. **Sharp Processing**
-   - Efficient buffer handling
-   - Memory pooling
-   - Cache management
-   - Pipeline optimization
+1. Frame Pipeline
+   - Buffer pooling for memory efficiency
+   - Quality vs performance tradeoffs
+   - Worker thread utilization
 
-2. **FFmpeg Integration**
-   - Zero-copy pipeline
-   - Hardware acceleration
-   - Format optimization
-   - Memory efficiency
+2. FFmpeg Encoder
+   - Hardware acceleration when available
+   - Preset selection for CPU usage
+   - Frame dropping under load
+   - Direct RTMP output optimization
+   - Audio mixing efficiency
 
-3. **Stream Output**
-   - Connection pooling
-   - Error recovery
-   - Quality adaptation
-   - Resource management
+3. RTMP Server
+   - Connection limits
+   - Bandwidth management
+   - GOP cache settings
 
 ## CPU Optimization
 
@@ -357,7 +221,7 @@ The streaming service is optimized for our specific hardware configuration:
 - **Available Instructions**: SSE4.2, AVX, AVX2
 - **Environment**: VPS/Cloud Environment
 
-### Encoding Optimizations
+### FFmpeg Optimizations
 1. **Thread Management**
    - Dedicated thread allocation (2 cores)
    - Frame-based threading for parallel processing
@@ -386,6 +250,7 @@ The streaming service is optimized for our specific hardware configuration:
    - Adaptive frame dropping (>500ms latency)
    - Maximum latency threshold: 1000ms
    - CPU instruction set utilization (SSE4.2, AVX, AVX2)
+   - Direct RTMP output with minimal buffering
 
 4. **Quality/Performance Balance**
    - High profile, Level 5.1
@@ -400,6 +265,7 @@ The streaming service is optimized for our specific hardware configuration:
 - Bitrate stability
 - Frame drop rate
 - Pipeline latency
+- RTMP output latency
 
 ### VP8/VP9 Specific Settings
 - Single tile column (optimized for 2 cores)
@@ -431,9 +297,9 @@ The streaming service is optimized for our specific hardware configuration:
 ## Next Steps
 
 1. **Core Implementation**
-   - Complete RTMP server
-   - Finalize encoder pipeline
-   - Implement muxer
+   - Enhance RTMP server
+   - Optimize encoder pipeline
+   - Improve error recovery
 
 2. **Advanced Features**
    - Multiple quality variants
@@ -447,29 +313,21 @@ The streaming service is optimized for our specific hardware configuration:
    - Error tracking
    - Health checks
 
-## Overview
-The Stream Manager handles RTMP streaming with a simplified but secure stream key validation system.
+## Stream Key Management
 
-## Components
+The RTMP server includes a secure stream key validation system:
 
-### RTMP Server
-- Built on `node-media-server`
-- Handles incoming RTMP streams
-- Validates stream keys before accepting streams
-- Tracks active streams and connections
-
-### Stream Key Management (MVP Implementation)
+### Features
 - Simple in-memory stream key validation
-- Basic operations:
-  - Add/remove stream keys
-  - Validate incoming stream keys
-  - Track active streams
-- No persistence (keys are reset on server restart)
-- No expiration or IP restrictions (planned for future)
+- Basic operations for key management
+- Active stream tracking
+- Planned future enhancements:
+  - Redis-based persistence
+  - Key expiration
+  - IP restrictions
+  - User management integration
 
-## Usage
-
-### Managing Stream Keys
+### Usage Example
 ```typescript
 const rtmpServer = RTMPServer.getInstance();
 
@@ -483,43 +341,8 @@ rtmpServer.removeStreamKey('stream-key-123');
 const activeStreams = rtmpServer.getActiveStreams();
 ```
 
-### Starting the Server
-```typescript
-const config = {
-  port: 1935,
-  chunk_size: 60000,
-  gop_cache: true,
-  ping: 60,
-  ping_timeout: 30
-};
-
-const server = RTMPServer.initialize(config);
-server.start();
-```
-
-## Future Enhancements
-- Redis-based key storage
-- Key expiration
-- IP restrictions
-- User management integration
-- Analytics and usage tracking
-
-## Security Considerations
-While the current implementation is simplified, it still provides:
-- Stream key validation
+### Security Considerations
+- Stream key validation before accepting streams
 - Protection against unauthorized streaming
 - Active stream monitoring
-- Logging of all streaming activities
-
-## Metrics
-The server tracks:
-- Active connections
-- Bandwidth usage
-- Error counts
-
-## Logging
-All streaming events are logged through the central logging system, including:
-- Connection attempts
-- Stream starts/stops
-- Validation failures
-- Error conditions 
+- Comprehensive logging of streaming activities 

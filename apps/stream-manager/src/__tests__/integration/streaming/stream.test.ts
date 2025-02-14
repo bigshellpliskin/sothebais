@@ -2,13 +2,11 @@ import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals
 import { logger } from '../../../utils/logger.js';
 import { FramePipeline } from '../../../streaming/output/pipeline.js';
 import { StreamEncoder } from '../../../streaming/output/encoder.js';
-import { StreamMuxer } from '../../../streaming/output/muxer.js';
 import { EventEmitter } from 'events';
 
 describe('Streaming Pipeline Integration', () => {
   let pipeline: FramePipeline;
   let encoder: StreamEncoder;
-  let muxer: StreamMuxer;
 
   beforeEach(async () => {
     encoder = await StreamEncoder.initialize({
@@ -18,21 +16,17 @@ describe('Streaming Pipeline Integration', () => {
       bitrate: 4000000, // 4Mbps
       codec: 'h264',
       preset: 'veryfast',
-      streamUrl: 'rtmp://localhost/live/test'
-    });
-
-    muxer = await StreamMuxer.initialize({
-      outputs: ['rtmp://localhost/live/test'],
-      maxQueueSize: 60,
-      retryAttempts: 3,
-      retryDelay: 1000
+      streamUrl: 'rtmp://localhost/live/test',
+      outputs: ['rtmp://localhost/live/test']
     });
 
     pipeline = await FramePipeline.initialize({
       maxQueueSize: 5,
       poolSize: 2,
       quality: 80,
-      format: 'raw'
+      format: 'raw',
+      width: 1920,
+      height: 1080
     });
   });
 
@@ -43,15 +37,11 @@ describe('Streaming Pipeline Integration', () => {
     if (encoder) {
       encoder.stop();
     }
-    if (muxer) {
-      await muxer.cleanup();
-    }
   });
 
   it('should initialize streaming pipeline', async () => {
     expect(pipeline).toBeDefined();
     expect(encoder.getMetrics().isStreaming).toBe(false);
-    expect(Array.from(muxer.getOutputStats().values())[0]).toBeDefined();
   });
 
   it('should process frames through pipeline', async () => {
@@ -62,14 +52,11 @@ describe('Streaming Pipeline Integration', () => {
     for (let i = 0; i < 10; i++) {
       const processedFrame = await pipeline.processFrame(frame);
       encoder.sendFrame(processedFrame);
-      await muxer.processFrame(processedFrame);
     }
 
     const encoderMetrics = encoder.getMetrics();
-    const muxerStats = muxer.getOutputStats();
     
     expect(encoderMetrics.currentFPS).toBeGreaterThan(0);
-    expect(muxerStats.size).toBeGreaterThan(0);
   });
 
   it('should handle pipeline errors gracefully', async () => {
@@ -93,7 +80,6 @@ describe('Streaming Pipeline Integration', () => {
     for (let i = 0; i < 90; i++) { // 30fps * 3 seconds
       const processedFrame = await pipeline.processFrame(frame);
       encoder.sendFrame(processedFrame);
-      await muxer.processFrame(processedFrame);
     }
 
     const duration = Date.now() - startTime;
@@ -109,11 +95,9 @@ describe('Streaming Pipeline Integration', () => {
     const frame = Buffer.alloc(1920 * 1080 * 4);
     const processedFrame = await pipeline.processFrame(frame);
     encoder.sendFrame(processedFrame);
-    await muxer.processFrame(processedFrame);
     
     await pipeline.cleanup();
     encoder.stop();
-    await muxer.cleanup();
     
     expect(encoder.getMetrics().isStreaming).toBe(false);
     

@@ -6,93 +6,93 @@ This directory contains the core implementation of the Stream Manager service. T
 
 ```
 src/
-├── core/                  # Core domain logic
-│   ├── viewport.ts        # Viewport/canvas management
-│   ├── layout.ts          # Scene/layout management
-│   ├── assets.ts          # Asset management
-│   └── composition.ts     # Composition engine
+├── core/                                 # Core domain logic
+│   ├── viewport.ts                       # Viewport/canvas management
+│   ├── layout.ts                         # Scene/layout management
+│   ├── assets.ts                         # Asset management
+│   └── composition.ts                    # Composition engine
+│               
+├── rendering/                            # Rendering pipeline
+│   ├── renderer.ts                       # Main renderer
+│   ├── effects.ts                        # Visual effects and transitions
+│   ├── frame-buffer.ts                   # Memory management
+│   └── encoder.ts                        # Stream encoding
+│               
+├── workers/                              # Worker thread implementations
+│   ├── pool/                             # Worker pool management
+│   │   ├── manager.ts                    # Pool orchestration
+│   │   └── metrics.ts                    # Pool performance tracking
+│   ├── render/                           # Render workers
+│   │   ├── worker.ts                     # Worker implementation
+│   │   └── tasks.ts                      # Task definitions
+│   └── shared/                           # Shared worker code
+│       ├── messages.ts                   # Worker message types
+│       └── state.ts                      # Shared state types
+│             
+├── state/                                # State management
+│   ├── README.md                         # State system documentation
+│   ├── state-manager.ts                  # Core state management
+│   ├── event-emitter.ts                  # Event system implementation
+│   └── redis-service.ts                  # Redis integration & persistence
+│             
+├── streaming/                            # Streaming functionality
+│   ├── rtmp/                             # RTMP handling
+│   │   ├── server.ts                     # RTMP server
+│   │   └── events.ts                     # RTMP event handlers
+│   ├── preview/                          # Preview streaming
+│   │   ├── frame-handler.ts              # Frame processing
+│   │   └── message-batcher.ts            # Message optimization
+│   ├── output/                           # Stream output
+│   │   ├── encoder.ts                    # FFmpeg encoding
+│   │   └── muxer.ts                      # Stream multiplexing
+│   └── websocket.ts                      # WebSocket communication
+│             
+├── tools/                                # Development and testing tools
+│   ├── perf/                             # Performance testing tools
+│   │   ├── load-test.ts                  # WebSocket load testing
+│   │   ├── stream-performance.ts         # Stream performance testing
+│   │   └── stream-test.ts                # Stream component testing
+│   └── debug/                            # Debugging utilities
+│       └── generate-test-stream.ts       # Test stream generation
 │
-├── rendering/             # Rendering pipeline
-│   ├── renderer.ts        # Main renderer
-│   ├── effects.ts         # Visual effects and transitions
-│   ├── frame-buffer.ts    # Memory management
-│   └── encoder.ts         # Stream encoding
+├── types/                                # TypeScript type definitions
+│   ├── README.md                         # Types documentation
+│   ├── state-manager.ts                  # State management types
+│   ├── events.ts                         # Event system types
+│   ├── config.ts                         # Configuration types
+│   ├── core.ts                           # Core component types
+│   ├── stream.ts                         # Stream types
+│   ├── layout.ts                         # Layout types
+│   ├── viewport.ts                       # Viewport types
+│   ├── layers.ts                         # Layer types
+│   ├── canvas.ts                         # Canvas types
+│   ├── worker.ts                         # Worker types
+│   ├── frame-buffer.ts                   # Frame buffer types
+│   ├── animation.ts                      # Animation types
+│   └── global.d.ts                       # Global type declarations
 │
-├── workers/               # Worker thread implementations
-│   ├── pool/              # Worker pool management
-│   │   ├── manager.ts     # Pool orchestration
-│   │   └── metrics.ts     # Pool performance tracking
-│   ├── render/            # Render workers
-│   │   ├── worker.ts      # Worker implementation
-│   │   └── tasks.ts       # Task definitions
-│   └── shared/            # Shared worker code
-│       ├── messages.ts    # Worker message types
-│       └── state.ts       # Shared state types
-│
-├── state/                 # State management
-│   ├── README.md         # State system documentation
-│   ├── state-manager.ts  # Core state management
-│   ├── event-emitter.ts  # Event system implementation
-│   └── redis-service.ts  # Redis integration & persistence
-│
-├── streaming/             # Streaming functionality
-│   ├── rtmp/             # RTMP handling
-│   │   ├── server.ts     # RTMP server
-│   │   └── events.ts     # RTMP event handlers
-│   ├── preview/          # Preview streaming
-│   │   ├── frame-handler.ts  # Frame processing
-│   │   └── message-batcher.ts # Message optimization
-│   ├── output/           # Stream output
-│   │   ├── encoder.ts    # FFmpeg encoding
-│   │   └── muxer.ts      # Stream multiplexing
-│   └── websocket.ts      # WebSocket communication
-│
-├── tools/                # Development and testing tools
-│   ├── perf/            # Performance testing tools
-│   │   ├── load-test.ts  # WebSocket load testing
-│   │   ├── stream-performance.ts # Stream performance testing
-│   │   └── stream-test.ts # Stream component testing
-│   └── debug/           # Debugging utilities
-│       └── generate-test-stream.ts # Test stream generation
-│
-├── types/               # TypeScript type definitions
-│   ├── README.md       # Types documentation
-│   ├── state-manager.ts # State management types
-│   ├── events.ts       # Event system types
-│   ├── config.ts       # Configuration types
-│   ├── core.ts         # Core component types
-│   ├── stream.ts       # Stream types
-│   ├── layout.ts       # Layout types
-│   ├── viewport.ts     # Viewport types
-│   ├── layers.ts       # Layer types
-│   ├── canvas.ts       # Canvas types
-│   ├── worker.ts       # Worker types
-│   ├── frame-buffer.ts # Frame buffer types
-│   ├── animation.ts    # Animation types
-│   └── global.d.ts     # Global type declarations
-│
-├── server/                # HTTP & WebSocket servers
-│   ├── api/               # HTTP API endpoints
-│   │   ├── stream.ts      # Stream control
-│   │   ├── layers.ts      # Layer management
-│   │   └── metrics.ts     # Prometheus metrics
-│   ├── websocket/         # WebSocket handlers
-│   │   ├── stream.ts      # Stream events
-│   │   └── layers.ts      # Layer updates
-│   └── monitoring/        # Monitoring interfaces
-│       ├── dashboard.ts   # Web dashboard
-│       └── preview.ts     # Stream preview
-│
-├── utils/                 # Utilities
-│   ├── logger.ts          # Logging utilities
-│   ├── metrics.ts         # Metrics collection
-│   └── helpers.ts         # Shared helpers
-│
-└── types/                 # TypeScript types
-    ├── viewport.ts        # Viewport types
-    ├── layout.ts          # Layout types
-    ├── worker.ts          # Worker types
-    └── stream.ts          # Stream types
+├── server/                               # HTTP & WebSocket servers
+│   ├── api/                              # HTTP API endpoints
+│   │   ├── stream.ts                     # Stream control
+│   │   ├── layers.ts                     # Layer management
+│   │   └── metrics.ts                    # Prometheus metrics
+│   ├── websocket/                        # WebSocket handlers
+│   │   ├── stream.ts                     # Stream events
+│   │   └── layers.ts                     # Layer updates
+│   └── monitoring/                       # Monitoring interfaces
+│       ├── dashboard.ts                  # Web dashboard
+│       └── preview.ts                    # Stream preview
+│               
+├── utils/                                # Utilities
+│   ├── logger.ts                         # Logging utilities
+│   ├── metrics.ts                        # Metrics collection
+│   └── helpers.ts                        # Shared helpers
+│               
+└── types/                                # TypeScript types
+    ├── viewport.ts                       # Viewport types
+    ├── layout.ts                         # Layout types
+    ├── worker.ts                         # Worker types
+    └── stream.ts                         # Stream types
 
 ```
 
@@ -333,7 +333,7 @@ Key metrics collected:
    
    # Check RTMP
    npm run debug:rtmp
-   ```
+```
 
 ## Core Components
 

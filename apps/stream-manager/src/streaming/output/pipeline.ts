@@ -30,6 +30,8 @@ export interface PipelineConfig {
   poolSize: number;
   quality: number;
   format: 'raw' | 'jpeg';
+  width: number;
+  height: number;
 }
 
 export class FramePipeline extends EventEmitter {
@@ -125,31 +127,46 @@ export class FramePipeline extends EventEmitter {
 
   private async processSharpFrame(frame: Buffer): Promise<Buffer> {
     try {
-      const sharpInstance = sharp(frame, {
-        raw: {
-          width: 854,
-          height: 480,
-          channels: 3
-        }
+      // Log input frame size
+      logger.debug('Processing frame with Sharp', {
+        inputSize: frame.length,
+        component: 'frame-pipeline'
       });
 
-      // Apply processing based on format
-      if (this.config.format === 'jpeg') {
-        return await sharpInstance
-          .jpeg({ quality: this.config.quality })
-          .toBuffer();
-      } else {
-        // For raw format, just resize if needed
-        return await sharpInstance
-          .raw()
-          .toBuffer();
-      }
-    } catch (err) {
-      logger.error('Error processing frame with Sharp', {
-        error: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
+      // Create a Sharp instance with the input buffer
+      const image = sharp(frame);
+
+      // Get image metadata
+      const metadata = await image.metadata();
+      logger.debug('Frame metadata', {
+        ...metadata,
+        component: 'frame-pipeline'
       });
-      throw err;
+
+      // Process the image
+      const processedFrame = await image
+        .resize(this.config.width, this.config.height, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 1 }
+        })
+        .jpeg({
+          quality: this.config.quality,
+          chromaSubsampling: '4:4:4'
+        })
+        .toBuffer();
+
+      logger.debug('Frame processed successfully', {
+        outputSize: processedFrame.length,
+        component: 'frame-pipeline'
+      });
+
+      return processedFrame;
+    } catch (error) {
+      logger.error('Error processing frame with Sharp', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        component: 'frame-pipeline'
+      });
+      throw error;
     }
   }
 

@@ -30,11 +30,6 @@ export const configSchema = z.object({
   PIPELINE_QUALITY: z.number().default(80),
   PIPELINE_FORMAT: z.enum(['raw', 'jpeg']).default('jpeg'),
 
-  // Muxer Configuration
-  MUXER_MAX_QUEUE_SIZE: z.number().default(60),
-  MUXER_RETRY_ATTEMPTS: z.number().default(3),
-  MUXER_RETRY_DELAY: z.number().default(1000),
-
   // Render Configuration
   RENDER_QUALITY: z.enum(['low', 'medium', 'high']).default('medium'),
   RENDER_FRAME_BUFFER: z.number().default(2),
@@ -53,9 +48,9 @@ export const configSchema = z.object({
   BUFFER_CLEANUP_INTERVAL: z.number().default(5000),
   BUFFER_REUSE_ENABLED: z.boolean().default(true),
 
-  // Worker pool configuration
+  // Worker Configuration
   WORKER_POOL_SIZE: z.number().default(4),
-  WORKER_QUEUE_SIZE: z.number().default(30),
+  WORKER_QUEUE_SIZE: z.number().default(100),
   WORKER_TASK_TIMEOUT: z.number().default(5000),
 
   // Core service settings
@@ -103,12 +98,6 @@ export interface PipelineConfig {
   poolSize: number;
   quality: number;
   format: 'raw' | 'jpeg';
-}
-
-export interface MuxerConfig {
-  maxQueueSize: number;
-  retryAttempts: number;
-  retryDelay: number;
 }
 
 export interface RenderConfig {

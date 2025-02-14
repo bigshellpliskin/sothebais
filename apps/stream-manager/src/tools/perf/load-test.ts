@@ -518,7 +518,7 @@ const scenarios: Record<string, TestScenario> = {
 };
 
 // Run test if called directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const scenarioArg = args.find(arg => arg.startsWith('--scenario='));
   const scenarioName = scenarioArg ? scenarioArg.split('=')[1] : 'basic';

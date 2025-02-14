@@ -26,6 +26,8 @@ import { StreamEncoder } from '../../streaming/output/encoder.js';
 import type { Asset, AssetTransform } from '../../types/layout.js';
 import type { ViewportDimensions } from '../../types/viewport.js';
 import type { RenderStats } from '../../rendering/renderer.js';
+import type { EventType, EventListener } from '../../types/events.js';
+import { stateManager } from '../../state/state-manager.js';
 
 interface PerformanceMetrics {
   // Stream metrics
@@ -111,6 +113,11 @@ class MockStateManager implements StateManager {
   removeEventListener() {}
   async loadState() {}
   async saveState() {}
+
+  // Add missing event methods
+  on(type: EventType, listener: EventListener): void {}
+  off(type: EventType, listener: EventListener): void {}
+  once(type: EventType, listener: EventListener): void {}
 }
 
 async function generateFrame(): Promise<Buffer> {
@@ -193,8 +200,7 @@ async function runPerformanceTest(testConfig: TestConfig): Promise<PerformanceMe
     logger.info('Redis service initialized');
 
     // Initialize state manager
-    const stateManager = await import('../../streaming/state-manager.js');
-    await stateManager.stateManager.loadState();
+    await stateManager.loadState();
     logger.info('State manager initialized');
 
     // Initialize core components
@@ -546,6 +552,27 @@ async function main() {
     });
     process.exit(1);
   }
+}
+
+// Run test if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const args = process.argv.slice(2);
+  const scenarioArg = args.find(arg => arg.startsWith('--scenario='));
+  const scenarioName = scenarioArg ? scenarioArg.split('=')[1] : 'basic';
+  
+  const testConfig: TestConfig = {
+    ...loadConfig(),
+    TEST_DURATION_MS: 60000, // 1 minute
+    FRAME_INTERVAL_MS: 33 // ~30fps
+  };
+
+  runPerformanceTest(testConfig).catch(error => {
+    logger.error('Performance test failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    process.exit(1);
+  });
 }
 
 main(); 

@@ -1,6 +1,8 @@
 import { Session } from 'inspector';
 import { logger } from '../../utils/logger.js';
 import { metricsService } from '../../monitoring/metrics.js';
+import { RTMPServer } from '../../streaming/rtmp/server.js';
+import { loadConfig } from '../../config/index.js';
 
 interface FrameStats {
   processingTime: number;
@@ -8,12 +10,15 @@ interface FrameStats {
   quality: string;
   isBatched: boolean;
   timestamp: number;
+  source: 'rtmp';
 }
 
 class FrameDebugger {
   private session: Session;
   private frameStats: FrameStats[] = [];
   private isAnalyzing = false;
+  private rtmpServer: RTMPServer | null = null;
+  private retryInterval: NodeJS.Timeout | null = null;
   
   constructor() {
     this.session = new Session();
@@ -26,9 +31,86 @@ class FrameDebugger {
 
   private cleanup() {
     this.isAnalyzing = false;
+    if (this.retryInterval) {
+      clearInterval(this.retryInterval);
+    }
     this.session.disconnect();
     this.analyzeResults();
     process.exit(0);
+  }
+
+  private async waitForStream(): Promise<void> {
+    return new Promise((resolve) => {
+      const tryConnect = async () => {
+        try {
+          if (!this.rtmpServer) {
+            const config = await loadConfig();
+            this.rtmpServer = await RTMPServer.initialize({
+              port: config.RTMP_PORT,
+              chunk_size: config.RTMP_CHUNK_SIZE,
+              gop_cache: config.RTMP_GOP_CACHE,
+              ping: config.RTMP_PING,
+              ping_timeout: config.RTMP_PING_TIMEOUT
+            });
+
+            logger.info('Connected to RTMP server', {
+              component: 'frame-debug',
+              port: config.RTMP_PORT
+            });
+
+            // Add event listeners
+            this.rtmpServer.on('client_connected', (client: any) => {
+              logger.info('RTMP client connected', {
+                clientId: client.id,
+                app: client.app
+              });
+            });
+
+            this.rtmpServer.on('stream_started', (stream: any) => {
+              logger.info('Stream started', {
+                path: stream.path
+              });
+              this.handleStream(stream);
+            });
+
+            if (this.retryInterval) {
+              clearInterval(this.retryInterval);
+            }
+            resolve();
+          }
+        } catch (error) {
+          logger.debug('Waiting for RTMP server...', {
+            component: 'frame-debug',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      };
+
+      // Try immediately
+      tryConnect();
+
+      // Then retry every second
+      this.retryInterval = setInterval(tryConnect, 1000);
+    });
+  }
+
+  private handleStream(stream: any) {
+    stream.on('data', (chunk: Buffer) => {
+      const stats: FrameStats = {
+        processingTime: 0, // Not applicable for raw RTMP
+        size: chunk.length,
+        quality: 'rtmp',
+        isBatched: false,
+        timestamp: Date.now(),
+        source: 'rtmp'
+      };
+
+      this.frameStats.push(stats);
+      this.logFrameStats(stats);
+
+      // Record metrics
+      metricsService.recordFrameSize(stats.size);
+    });
   }
 
   async analyze() {
@@ -36,25 +118,20 @@ class FrameDebugger {
       this.isAnalyzing = true;
       logger.info('Starting frame analysis');
 
-      // Enable runtime and debugger
-      await this.session.post('Runtime.enable');
-      await this.session.post('Debugger.enable');
-
-      // Set breakpoints in frame processing code
-      await this.setBreakpoints();
-
-      // Add expression watchers
-      await this.setupWatchers();
-
-      // Listen for frame events
-      this.session.on('Debugger.paused', (params) => this.handleFrameEvent(params));
-
+      // Wait for RTMP server
+      logger.info('Waiting for RTMP stream...', {
+        component: 'frame-debug'
+      });
+      
+      await this.waitForStream();
+      
       // Start periodic analysis
       this.startPeriodicAnalysis();
 
       logger.info('Frame debugger ready', {
         component: 'frame-debug',
-        status: 'listening'
+        status: 'listening',
+        url: 'rtmp://localhost:1935/live/test'
       });
     } catch (error) {
       logger.error('Failed to start frame analysis', {
@@ -62,78 +139,6 @@ class FrameDebugger {
         component: 'frame-debug'
       });
       this.cleanup();
-    }
-  }
-
-  private async setBreakpoints() {
-    // Set breakpoints at key frame processing points
-    const breakpoints = [
-      { file: 'frame-handler.ts', line: 42, condition: 'frame !== null' },
-      { file: 'message-batcher.ts', line: 76, condition: 'batch.frames.length > 0' }
-    ];
-
-    for (const bp of breakpoints) {
-      await this.session.post('Debugger.setBreakpointByUrl', {
-        lineNumber: bp.line,
-        urlRegex: `.*${bp.file}$`,
-        condition: bp.condition
-      });
-    }
-  }
-
-  private async setupWatchers() {
-    // Watch frame-related variables
-    const expressions = [
-      'frame.size',
-      'frame.quality',
-      'this.processingTime',
-      'batch.frames.length'
-    ];
-
-    for (const expr of expressions) {
-      await this.session.post('Runtime.evaluate', {
-        expression: expr,
-        contextId: 1
-      });
-    }
-  }
-
-  private handleFrameEvent(params: any) {
-    try {
-      const frame = this.extractFrameData(params.callFrames[0]);
-      
-      if (frame) {
-        this.frameStats.push(frame);
-        this.logFrameStats(frame);
-      }
-
-      // Resume execution
-      this.session.post('Debugger.resume');
-    } catch (error) {
-      logger.error('Error handling frame event', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        component: 'frame-debug'
-      });
-    }
-  }
-
-  private extractFrameData(callFrame: any): FrameStats | null {
-    try {
-      const scope = callFrame.scopeChain[0].object;
-      
-      return {
-        processingTime: scope.processingTime || 0,
-        size: scope.size || 0,
-        quality: scope.quality || 'unknown',
-        isBatched: scope.isBatched || false,
-        timestamp: Date.now()
-      };
-    } catch (error) {
-      logger.error('Error extracting frame data', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        component: 'frame-debug'
-      });
-      return null;
     }
   }
 
@@ -151,10 +156,6 @@ class FrameDebugger {
         component: 'frame-debug',
         timestamp: new Date().toISOString()
       });
-
-      // Record metrics
-      metricsService.recordFrameSize(analysis.averageSize);
-      metricsService.recordRenderTime(analysis.averageProcessingTime / 1000);
     }, 5000);
   }
 
@@ -170,11 +171,6 @@ class FrameDebugger {
     const p95ProcessingTime = this.calculatePercentile(processingTimes, 95);
     const p99ProcessingTime = this.calculatePercentile(processingTimes, 99);
 
-    const qualityDistribution = stats.reduce((acc, stat) => {
-      acc[stat.quality] = (acc[stat.quality] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
     return {
       totalFrames,
       averageProcessingTime,
@@ -183,7 +179,6 @@ class FrameDebugger {
       averageSize,
       batchedFrames,
       batchRatio: batchedFrames / totalFrames,
-      qualityDistribution,
       timeRange: {
         start: stats[0].timestamp,
         end: stats[stats.length - 1].timestamp
@@ -197,16 +192,14 @@ class FrameDebugger {
     return sorted[index];
   }
 
-  private logFrameStats(frame: FrameStats) {
-    if (!frame) return;
-
+  private logFrameStats(stats: FrameStats) {
     logger.debug('Frame processed', {
-      processingTime: frame.processingTime,
-      size: frame.size,
-      quality: frame.quality,
-      isBatched: frame.isBatched,
-      timestamp: new Date().toISOString(),
-      component: 'frame-debug'
+      component: 'frame-debug',
+      source: stats.source,
+      size: stats.size,
+      processingTime: stats.processingTime,
+      isBatched: stats.isBatched,
+      timestamp: new Date(stats.timestamp).toISOString()
     });
   }
 
