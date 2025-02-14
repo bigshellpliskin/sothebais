@@ -44,7 +44,7 @@ src/
 │   │   └── message-batcher.ts            # Message optimization
 │   ├── output/                           # Stream output
 │   │   ├── encoder.ts                    # FFmpeg encoding
-│   │   └── muxer.ts                      # Stream multiplexing
+│   │   └── pipeline.ts                   # Stream pipeline
 │   └── websocket.ts                      # WebSocket communication
 │             
 ├── tools/                                # Development and testing tools
@@ -53,7 +53,11 @@ src/
 │   │   ├── stream-performance.ts         # Stream performance testing
 │   │   └── stream-test.ts                # Stream component testing
 │   └── debug/                            # Debugging utilities
-│       └── generate-test-stream.ts       # Test stream generation
+│       ├── generate-test-stream.ts       # Test stream generation
+│       ├── frame-debug.ts                # Frame debugging utilities
+│       ├── heap-analyzer.ts              # Memory analysis tools
+│       ├── network-trace.ts              # Network debugging
+│       └── worker-debug.ts               # Worker debugging tools
 │
 ├── types/                                # TypeScript type definitions
 │   ├── README.md                         # Types documentation
@@ -83,16 +87,10 @@ src/
 │       ├── dashboard.ts                  # Web dashboard
 │       └── preview.ts                    # Stream preview
 │               
-├── utils/                                # Utilities
-│   ├── logger.ts                         # Logging utilities
-│   ├── metrics.ts                        # Metrics collection
-│   └── helpers.ts                        # Shared helpers
-│               
-└── types/                                # TypeScript types
-    ├── viewport.ts                       # Viewport types
-    ├── layout.ts                         # Layout types
-    ├── worker.ts                         # Worker types
-    └── stream.ts                         # Stream types
+└── utils/                                # Utilities
+    ├── logger.ts                         # Logging utilities
+    ├── metrics.ts                        # Metrics collection
+    └── helpers.ts                        # Shared helpers
 
 ```
 
@@ -124,6 +122,22 @@ src/
 - Creates synthetic test streams
 - Configurable frame rates and patterns
 - Useful for testing without real input
+
+#### Frame Debugging (`frame-debug.ts`)
+- Provides utilities for debugging frame processing
+- Helps identify frame-related issues
+
+#### Memory Analysis (`heap-analyzer.ts`)
+- Analyzes heap snapshots for memory leaks
+- Helps identify memory management issues
+
+#### Network Debugging (`network-trace.ts`)
+- Traces network connections
+- Helps identify network-related issues
+
+#### Worker Debugging (`worker-debug.ts`)
+- Provides utilities for debugging worker threads
+- Helps identify worker-related issues
 
 ### Preview Streaming (`streaming/preview/`)
 

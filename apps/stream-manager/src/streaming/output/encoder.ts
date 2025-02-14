@@ -175,111 +175,84 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private buildFFmpegArgs(): string[] {
-    // Global options (affect whole process)
+    // Global options
     const globalArgs: string[] = [
-      '-hide_banner',        // Reduce log noise
-      '-nostats',            // Disable progress stats
-      '-loglevel', 'debug'   // Enable debug logging
+      '-hide_banner',
+      '-nostats',
+      '-loglevel', 'debug',
+      '-thread_queue_size', '512'
     ];
 
-    // Input options (affect next input)
+    // Input options
     const inputArgs: string[] = [
       '-f', 'rawvideo',
       '-pix_fmt', this.config.pipeline?.inputFormat || 'rgba',
       '-s', `${this.config.width}x${this.config.height}`,
       '-r', this.config.fps.toString(),
-      '-i', 'pipe:0'        // Read from stdin
+      '-i', 'pipe:0'
     ];
 
-    // Audio input (null audio for now, will be replaced with AI speech)
+    // Add format conversion for h264
+    const pixelFormatArgs = [
+      '-vf', 'format=yuv420p',
+      '-g', '30',  // GOP size
+      '-keyint_min', '30'
+    ];
+
+    // Audio input
     const audioArgs = [
       '-f', 'lavfi',
       '-i', 'anullsrc=r=44100:cl=stereo',
-      '-c:a', 'aac',
-      '-b:a', '128k'
+      '-shortest'
     ];
 
-    // Codec options (affect next output)
-    let codecArgs: string[] = [];
-    switch (this.config.codec) {
-      case 'h264rgb':
-        codecArgs = [
-          '-c:v', 'libx264rgb',     // RGB-specific encoder
-          '-preset', this.config.preset,
-          '-tune', 'zerolatency',   // Minimize latency
-          '-b:v', `${this.config.bitrate}k`,
-          '-x264-params', [         // x264 specific options
-            'nal-hrd=cbr',          // Constant bitrate
-            'force-cfr=1',          // Constant frame rate
-            `threads=${this.config.pipeline?.threads || '2'}`,
-            'rc-lookahead=0',       // Disable lookahead
-            'sync-lookahead=0',     // Disable sync lookahead
-            'bframes=0',            // Disable B-frames
-            'annexb=1',             // Force Annex B NAL format
-            'repeat-headers=1'       // Repeat SPS/PPS headers
-          ].join(':')
-        ];
-        break;
-      
-      case 'h264':
-        codecArgs = [
-          '-c:v', 'libx264',
-          '-preset', this.config.preset,
-          '-tune', 'zerolatency',
-          '-b:v', `${this.config.bitrate}k`,
-          '-x264-params', [
-            'nal-hrd=cbr',
-            'force-cfr=1',
-            `threads=${this.config.pipeline?.threads || '2'}`,
-            'annexb=1',             // Force Annex B NAL format
-            'repeat-headers=1'       // Repeat SPS/PPS headers
-          ].join(':')
-        ];
-        break;
-      
-      case 'vp8':
-      case 'vp9':
-        // No changes needed for VP8/VP9
-        codecArgs = [
-          '-c:v', this.getCodec(),
-          '-quality', 'realtime',
-          '-cpu-used', '4',
-          '-b:v', `${this.config.bitrate}k`,
-          '-deadline', 'realtime'
-        ];
-        break;
-    }
+    // Codec options
+    const codecArgs = [
+      '-c:v', 'libx264',
+      '-preset', this.config.preset,
+      '-tune', 'zerolatency',
+      '-b:v', `${this.config.bitrate}k`,
+      '-maxrate', `${this.config.bitrate * 1.5}k`,
+      '-bufsize', `${this.config.bitrate * 2}k`,
+      '-profile:v', 'high',
+      '-level', '4.1',
+      '-x264-params', [
+        'nal-hrd=cbr',
+        'force-cfr=1',
+        `threads=${this.config.pipeline?.threads || '2'}`,
+        'rc-lookahead=10',
+        'ref=1',
+        'bframes=0',
+        'intra-refresh=1'
+      ].join(':')
+    ];
 
-    // Output options (affect next output)
+    // Audio codec
+    const audioCodecArgs = [
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-ar', '44100',
+      '-ac', '2'
+    ];
+
+    // Output options
     const outputArgs = [
-      // RTMP options
       '-f', 'flv',
       '-flvflags', '+no_duration_filesize',
-      
-      // Low latency options
-      '-shortest',         // End stream when shortest input ends
-      '-sync', 'ext',      // Use external clock for sync
-      
-      // Output URL
+      '-movflags', '+faststart',
       this.config.streamUrl || 'rtmp://localhost:1935/live/test'
     ];
 
-    // Combine all args in correct order
-    const ffmpegArgs = [
-      ...globalArgs,        // Global options first
-      ...inputArgs,         // Then input options
-      ...audioArgs,         // Then audio input
-      ...codecArgs,         // Then codec options
-      ...outputArgs         // Output options last
+    // Combine all args
+    return [
+      ...globalArgs,
+      ...inputArgs,
+      ...audioArgs,
+      ...pixelFormatArgs,
+      ...codecArgs,
+      ...audioCodecArgs,
+      ...outputArgs
     ];
-
-    logger.debug('FFmpeg encoder command', {
-      command: 'ffmpeg ' + ffmpegArgs.join(' '),
-      codec: this.config.codec,
-      inputFormat: this.config.pipeline?.inputFormat
-    });
-
-    return ffmpegArgs;
   }
 
   private getHwAccelCodec(): string {

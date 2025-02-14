@@ -71,7 +71,11 @@ async function main() {
     fps: config.TARGET_FPS
   });
 
-  // Initialize components in production order
+  const streamKey = 'test';
+  const streamPath = `/live/${streamKey}`;
+  const rtmpUrl = `rtmp://localhost:1935${streamPath}`;
+
+  // Initialize RTMP server
   const rtmpServer = await RTMPServer.initialize({
     port: config.RTMP_PORT,
     chunk_size: config.RTMP_CHUNK_SIZE,
@@ -80,8 +84,8 @@ async function main() {
     ping_timeout: config.RTMP_PING_TIMEOUT
   });
 
-  const streamKey = 'test';
-  const streamUrl = `rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`;
+  // Add test stream key
+  rtmpServer.addStreamKey(streamKey);
 
   // Initialize pipeline first (handles frame processing)
   const pipeline = await FramePipeline.initialize({
@@ -98,29 +102,24 @@ async function main() {
     width,
     height,
     fps: config.TARGET_FPS,
-    bitrate: 2000,
-    codec: 'h264rgb',  // Change to h264rgb for RGB input
+    bitrate: 4000,
+    codec: 'h264',
     preset: 'ultrafast',
-    outputs: [streamUrl], // Direct RTMP output
-    streamUrl, // Primary RTMP output URL
-    hwaccel: {
-      enabled: false
-    },
+    streamUrl: rtmpUrl,
+    outputs: [rtmpUrl],
     pipeline: {
       maxLatency: 1000,
       dropThreshold: 500,
-      zeroCopy: true,
       threads: 2,
-      cpuFlags: ['sse4_2', 'avx2', 'fma', 'avx512f'],
-      inputFormat: 'rgba'  // Explicitly specify RGBA input format
+      inputFormat: 'rgba',
+      zeroCopy: false  // Disable zero copy since we need format conversion
     }
   });
 
-
-
   logger.info('Initialized components', { 
-    streamUrl,
+    streamPath,
     streamKey,
+    rtmpUrl,
     rtmpPort: config.RTMP_PORT,
     rtmpConfig: {
       chunk_size: config.RTMP_CHUNK_SIZE,
@@ -134,9 +133,9 @@ async function main() {
       poolSize: 4
     },
     encoderConfig: {
-      codec: 'h264rgb',
+      codec: 'h264',
       preset: 'ultrafast',
-      bitrate: 2000,
+      bitrate: 4000,
       pipeline: {
         maxLatency: 1000,
         dropThreshold: 500,
@@ -145,9 +144,6 @@ async function main() {
       }
     }
   });
-
-  // Add stream key to allowed list
-  rtmpServer.addStreamKey(streamKey);
 
   // Track active connections
   let activeConnections = 0;
@@ -254,7 +250,7 @@ async function main() {
       error: error.message,
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString(),
-      streamUrl,
+      streamUrl: rtmpUrl,
       encoderState: encoder.getMetrics()
     });
   });
@@ -264,7 +260,7 @@ async function main() {
       resolution: `${width}x${height}`,
       fps: config.TARGET_FPS,
       timestamp: new Date().toISOString(),
-      streamUrl,
+      streamUrl: rtmpUrl,
       encoderState: encoder.getMetrics()
     });
   });
@@ -281,10 +277,10 @@ async function main() {
   logger.info('Encoder started');
   
   logger.info('Components started successfully', {
-    streamPath: `/live/${streamKey}`,
+    streamPath,
     resolution: `${width}x${height}`,
     fps: config.TARGET_FPS,
-    rtmpUrl: streamUrl
+    rtmpUrl
   });
 
   // Stream loop
@@ -353,18 +349,7 @@ async function main() {
             bitrate: metrics.bitrate,
             restartAttempts: metrics.restartAttempts
           },
-          rtmp: {
-            ...rtmpStats,
-            publishers: publisherConnections,
-            players: playerConnections,
-            totalConnections: connections.size,
-            activeConnections: Array.from(connections.values()).map(c => ({
-              id: c.id,
-              type: c.type,
-              duration: Date.now() - c.startTime
-            }))
-          },
-          timestamp: new Date().toISOString()
+          rtmp: rtmpStats
         });
       }
       frameCount++;

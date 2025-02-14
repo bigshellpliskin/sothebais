@@ -39,7 +39,15 @@ export enum EventType {
   // System events
   SYSTEM_ERROR = 'system:error',
   SYSTEM_WARNING = 'system:warning',
-  SYSTEM_INFO = 'system:info'
+  SYSTEM_INFO = 'system:info',
+  
+  // RTMP events
+  RTMP_CONNECTION = 'rtmp:connection',
+  RTMP_DISCONNECTION = 'rtmp:disconnection',
+  RTMP_PUBLISH_START = 'rtmp:publish:start',
+  RTMP_PUBLISH_STOP = 'rtmp:publish:stop',
+  RTMP_PLAY_START = 'rtmp:play:start',
+  RTMP_PLAY_STOP = 'rtmp:play:stop',
 }
 
 // Event sources
@@ -50,6 +58,14 @@ export enum EventSource {
   STREAM_CONTROLLER = 'stream_controller',
   PREVIEW_CLIENT = 'preview_client',
   SYSTEM = 'system'
+}
+
+// Add after EventSource enum
+export enum ConnectionType {
+  PUBLISHER = 'publisher',
+  PLAYER = 'player',
+  PREVIEW = 'preview',
+  PENDING = 'pending'
 }
 
 // Payload types
@@ -79,6 +95,16 @@ export interface SystemEventPayload {
   details?: Record<string, unknown>;
 }
 
+// Add new RTMP event payload type
+export interface RTMPEventPayload {
+  clientId: string;
+  connectionType: ConnectionType;
+  streamPath?: string;
+  timestamp: number;
+  duration?: number;
+  error?: string;
+}
+
 // Concrete event types
 export interface StreamEvent extends BaseEvent {
   type: EventType.STATE_STREAM_UPDATE | EventType.STREAM_START | EventType.STREAM_STOP | 
@@ -103,8 +129,16 @@ export interface SystemEvent extends BaseEvent {
   payload: SystemEventPayload;
 }
 
+// Add to concrete event types
+export interface RTMPEvent extends BaseEvent {
+  type: EventType.RTMP_CONNECTION | EventType.RTMP_DISCONNECTION |
+        EventType.RTMP_PUBLISH_START | EventType.RTMP_PUBLISH_STOP |
+        EventType.RTMP_PLAY_START | EventType.RTMP_PLAY_STOP;
+  payload: RTMPEventPayload;
+}
+
 // Union type for all possible events
-export type StreamManagerEvent = StreamEvent | LayerEvent | PreviewEvent | SystemEvent;
+export type StreamManagerEvent = StreamEvent | LayerEvent | PreviewEvent | SystemEvent | RTMPEvent;
 
 // Event listener type
 export type EventListener = (event: StreamManagerEvent) => void | Promise<void>;

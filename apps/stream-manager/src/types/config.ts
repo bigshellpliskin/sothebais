@@ -11,7 +11,7 @@ export const configSchema = z.object({
   REDIS_PASSWORD: z.string().optional(),
 
   // Stream settings
-  STREAM_RESOLUTION: z.string().default('1920x1080'),
+  STREAM_RESOLUTION: z.string().default('1280x720'),
   TARGET_FPS: z.number().default(30),
   STREAM_BITRATE: z.string().default('6000k'),
   ENABLE_HARDWARE_ACCELERATION: z.boolean().default(false),
@@ -54,8 +54,8 @@ export const configSchema = z.object({
   WORKER_TASK_TIMEOUT: z.number().default(5000),
 
   // Core service settings
-  VIEWPORT_WIDTH: z.number().default(1920),
-  VIEWPORT_HEIGHT: z.number().default(1080),
+  VIEWPORT_WIDTH: z.number().default(1280),
+  VIEWPORT_HEIGHT: z.number().default(720),
   ASSET_STORAGE_PATH: z.string().default('./assets'),
   MAX_LAYERS: z.number().default(10),
 
