@@ -68,10 +68,19 @@ export class FramePipeline extends EventEmitter {
   }
 
   private initializeBufferPool(): void {
+    // Calculate buffer size based on RGBA format (4 bytes per pixel)
+    const frameSize = this.config.width * this.config.height * 4;
+    
+    logger.info('Initializing buffer pool', {
+      frameSize,
+      width: this.config.width,
+      height: this.config.height,
+      channels: 4,
+      poolSize: this.config.poolSize
+    });
+
     for (let i = 0; i < this.config.poolSize; i++) {
-      // Allocate buffers based on expected frame size
-      // This is an example size, adjust based on your needs
-      this.bufferPool.push(Buffer.alloc(1920 * 1080 * 4)); // 4 bytes per pixel for RGBA
+      this.bufferPool.push(Buffer.alloc(frameSize));
     }
   }
 
@@ -127,33 +136,23 @@ export class FramePipeline extends EventEmitter {
 
   private async processSharpFrame(frame: Buffer): Promise<Buffer> {
     try {
-      // Log frame processing start
-      logger.info('Processing frame', {
-        inputSize: frame.length,
-        timestamp: Date.now()
+      // Create a Sharp instance with the input buffer
+      const image = sharp(frame, {
+        raw: {
+          width: this.config.width,
+          height: this.config.height,
+          channels: 4  // RGBA
+        }
       });
 
-      // Create a Sharp instance with the input buffer
-      const image = sharp(frame);
-
-      // Process the image
+      // Process the image, maintaining RGBA format
       const processedFrame = await image
         .resize(this.config.width, this.config.height, {
           fit: 'contain',
           background: { r: 0, g: 0, b: 0, alpha: 1 }
         })
-        .jpeg({
-          quality: this.config.quality,
-          chromaSubsampling: '4:4:4'
-        })
+        .raw()  // Keep as raw RGBA buffer
         .toBuffer();
-
-      // Log successful frame processing
-      logger.info('Frame processed', {
-        inputSize: frame.length,
-        outputSize: processedFrame.length,
-        timestamp: Date.now()
-      });
 
       return processedFrame;
     } catch (error) {

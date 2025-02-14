@@ -185,10 +185,10 @@ export class StreamEncoder extends EventEmitter {
       '-vsync', 'cfr'  // Constant frame rate
     ];
 
-    // Input options with explicit format
+    // Input options with explicit RGBA format
     const inputArgs: string[] = [
       '-f', 'rawvideo',
-      '-pix_fmt', this.config.pipeline?.inputFormat || 'rgba',
+      '-pix_fmt', 'rgba',  // Always use RGBA
       '-s', `${this.config.width}x${this.config.height}`,
       '-r', this.config.fps.toString(),
       '-i', 'pipe:0'
@@ -196,7 +196,11 @@ export class StreamEncoder extends EventEmitter {
 
     // Add format conversion for h264 with explicit parameters
     const pixelFormatArgs = [
-      '-vf', `format=yuv420p,scale=${this.config.width}:${this.config.height}:force_original_aspect_ratio=decrease`,
+      '-vf', [
+        'format=rgba',  // Ensure RGBA format
+        `scale=${this.config.width}:${this.config.height}:force_original_aspect_ratio=decrease`,
+        'format=yuv420p'  // Convert to yuv420p for h264 encoding
+      ].join(','),
       '-g', '30',
       '-keyint_min', '30',
       '-sc_threshold', '0',
@@ -418,18 +422,44 @@ export class StreamEncoder extends EventEmitter {
     }
 
     try {
-      // Log frame write attempt
-      logger.info('Sending frame to FFmpeg', {
-        bufferSize: buffer.length,
-        timestamp: startTime,
-        zeroCopy: this.config.pipeline?.zeroCopy
-      });
+      // Check if buffer size matches expected RGBA frame size
+      const expectedSize = this.config.width * this.config.height * 4; // 4 bytes per pixel (RGBA)
+      if (buffer.length !== expectedSize) {
+        logger.warn('Buffer size mismatch', {
+          actual: buffer.length,
+          expected: expectedSize,
+          width: this.config.width,
+          height: this.config.height
+        });
+        return;
+      }
 
-      // Use zero-copy write if enabled
+      // Use zero-copy write if enabled and buffer is properly aligned
       if (this.config.pipeline?.zeroCopy) {
-        const view = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.length);
-        this.ffmpeg.stdin.write(view);
+        // Check if buffer is aligned and contiguous
+        if (buffer.byteOffset % 4 === 0 && buffer.buffer.byteLength >= buffer.byteOffset + buffer.length) {
+          // Create a view of the underlying ArrayBuffer without copying
+          const view = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.length);
+          this.ffmpeg.stdin.write(view);
+          
+          if (this.frameCount % 300 === 0) { // Log every 300 frames
+            logger.debug('Zero-copy write successful', {
+              byteOffset: buffer.byteOffset,
+              length: buffer.length,
+              alignment: buffer.byteOffset % 4
+            });
+          }
+        } else {
+          // Fall back to regular write if buffer is not properly aligned
+          logger.debug('Zero-copy disabled - buffer not aligned', {
+            byteOffset: buffer.byteOffset,
+            length: buffer.length,
+            alignment: buffer.byteOffset % 4
+          });
+          this.ffmpeg.stdin.write(buffer);
+        }
       } else {
+        // Regular write with data copy
         this.ffmpeg.stdin.write(buffer);
       }
       
@@ -449,7 +479,8 @@ export class StreamEncoder extends EventEmitter {
           fps: this.currentFPS,
           frameLatency: this.frameLatency,
           droppedFrames: this.droppedFrames,
-          timestamp: now
+          timestamp: now,
+          zeroCopyEnabled: this.config.pipeline?.zeroCopy
         });
       }
     } catch (error) {
@@ -457,7 +488,8 @@ export class StreamEncoder extends EventEmitter {
         error: error instanceof Error ? error.message : 'Unknown error',
         latency: currentLatency,
         droppedFrames: this.droppedFrames,
-        bufferSize: buffer.length
+        bufferSize: buffer.length,
+        zeroCopyEnabled: this.config.pipeline?.zeroCopy
       });
       this.handleError(error as Error);
     }

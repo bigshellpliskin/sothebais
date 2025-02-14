@@ -16,21 +16,40 @@ async function generateTestImage(width: number, height: number): Promise<Buffer>
     // Load background image from assets
     const bgPath = path.join(__dirname, '../../../assets/bgs/layoutFull-BG.png');
     
-    // Create image processor and process the image
+    // Create image processor
     const image = sharp(bgPath);
+
+    // Get metadata to log original format (commented for performance)
+    // const metadata = await image.metadata();
+    // logger.debug('Input image metadata', metadata);
+
+    // Process the image to RGBA
     const processedImage = await image
       .resize(width, height, {
         fit: 'cover',
         position: 'center'
       })
-      .png()
-      .toBuffer();
+      .ensureAlpha()      // Ensure we have alpha channel
+      .raw()              // Convert to raw pixels
+      .toBuffer();        // Get final buffer
+
+    // Verify the output size
+    const expectedSize = width * height * 4;  // RGBA = 4 bytes per pixel
+    if (processedImage.length !== expectedSize) {
+      logger.warn('Generated image size mismatch', {
+        expected: expectedSize,
+        actual: processedImage.length,
+        // width,
+        // height,
+        // metadata
+      });
+    }
 
     return processedImage;
   } catch (error) {
     logger.error('Error generating test image', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      // stack: error instanceof Error ? error.stack : undefined
     });
     throw error;
   }
@@ -124,9 +143,6 @@ async function main() {
       }
     }
   });
-
-  // Track active connections
-  let activeConnections = 0;
 
   // Track connections by type
   let publisherConnections = 0;
