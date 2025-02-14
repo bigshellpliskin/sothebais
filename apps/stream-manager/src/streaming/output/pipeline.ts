@@ -127,21 +127,14 @@ export class FramePipeline extends EventEmitter {
 
   private async processSharpFrame(frame: Buffer): Promise<Buffer> {
     try {
-      // Log input frame size
-      logger.debug('Processing frame with Sharp', {
+      // Log frame processing start
+      logger.info('Processing frame', {
         inputSize: frame.length,
-        component: 'frame-pipeline'
+        timestamp: Date.now()
       });
 
       // Create a Sharp instance with the input buffer
       const image = sharp(frame);
-
-      // Get image metadata
-      const metadata = await image.metadata();
-      logger.debug('Frame metadata', {
-        ...metadata,
-        component: 'frame-pipeline'
-      });
 
       // Process the image
       const processedFrame = await image
@@ -155,9 +148,11 @@ export class FramePipeline extends EventEmitter {
         })
         .toBuffer();
 
-      logger.debug('Frame processed successfully', {
+      // Log successful frame processing
+      logger.info('Frame processed', {
+        inputSize: frame.length,
         outputSize: processedFrame.length,
-        component: 'frame-pipeline'
+        timestamp: Date.now()
       });
 
       return processedFrame;

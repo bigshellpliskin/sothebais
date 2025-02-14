@@ -15,45 +15,22 @@ async function generateTestImage(width: number, height: number): Promise<Buffer>
   try {
     // Load background image from assets
     const bgPath = path.join(__dirname, '../../../assets/bgs/layoutFull-BG.png');
-    logger.debug('Loading background image', {
-      path: bgPath,
-      absolutePath: path.resolve(bgPath),
-      cwd: process.cwd(),
-      __dirname
-    });
     
-    // Create image processor
+    // Create image processor and process the image
     const image = sharp(bgPath);
-    
-    // Get image metadata
-    const metadata = await image.metadata();
-    logger.debug('Background image metadata', {
-      ...metadata,
-      path: bgPath
-    });
-
-    // Process the image - just resize for now, overlays should be handled by composition engine
     const processedImage = await image
       .resize(width, height, {
-        fit: 'cover', // Cover entire area
+        fit: 'cover',
         position: 'center'
       })
       .png()
       .toBuffer();
 
-    logger.debug('Generated test frame', {
-      size: processedImage.length,
-      timestamp: new Date().toISOString()
-    });
-
     return processedImage;
   } catch (error) {
     logger.error('Error generating test image', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      cwd: process.cwd(),
-      __dirname,
-      resolvedPath: path.resolve(__dirname, '../../../../assets/bgs/layoutFull-BG.png')
+      stack: error instanceof Error ? error.stack : undefined
     });
     throw error;
   }
@@ -71,13 +48,15 @@ async function main() {
     fps: config.TARGET_FPS
   });
 
+  // RTMP Configuration
+  const streamPath = '/live';
   const streamKey = 'test';
-  const streamPath = `/live/${streamKey}`;
-  const rtmpUrl = `rtmp://localhost:1935${streamPath}`;
+  const rtmpPort = config.RTMP_PORT || 1935;
+  const rtmpUrl = `rtmp://localhost:${rtmpPort}${streamPath}/${streamKey}`;
 
   // Initialize RTMP server
   const rtmpServer = await RTMPServer.initialize({
-    port: config.RTMP_PORT,
+    port: rtmpPort,
     chunk_size: config.RTMP_CHUNK_SIZE,
     gop_cache: true,
     ping: config.RTMP_PING,
@@ -86,6 +65,7 @@ async function main() {
 
   // Add test stream key
   rtmpServer.addStreamKey(streamKey);
+  logger.info('Added stream key', { streamKey, rtmpUrl });
 
   // Initialize pipeline first (handles frame processing)
   const pipeline = await FramePipeline.initialize({
@@ -97,7 +77,7 @@ async function main() {
     height
   });
 
-  // Initialize encoder (processes raw frames)
+  // Initialize encoder with correct RTMP URL
   const encoder = await StreamEncoder.initialize({
     width,
     height,
@@ -112,7 +92,7 @@ async function main() {
       dropThreshold: 500,
       threads: 2,
       inputFormat: 'rgba',
-      zeroCopy: false  // Disable zero copy since we need format conversion
+      zeroCopy: false
     }
   });
 
@@ -265,22 +245,31 @@ async function main() {
     });
   });
 
-  // Start components in correct order
+  // Start components in correct order with connection info
   logger.info('Starting components...');
   
   // 1. Start RTMP server first
   rtmpServer.start();
-  logger.info('RTMP server started');
+  logger.info('RTMP server started', {
+    port: rtmpPort,
+    url: rtmpUrl,
+    streamKey
+  });
   
   // 2. Start encoder
-  await encoder.start();
-  logger.info('Encoder started');
-  
-  logger.info('Components started successfully', {
-    streamPath,
+  encoder.start();
+  logger.info('Encoder started', {
+    url: rtmpUrl,
     resolution: `${width}x${height}`,
-    fps: config.TARGET_FPS,
-    rtmpUrl
+    fps: config.TARGET_FPS
+  });
+
+  // Log connection information for VLC
+  logger.info('Stream ready for playback', {
+    playbackUrl: rtmpUrl,
+    vlcUrl: `rtmp://localhost:${rtmpPort}${streamPath}/${streamKey}`,
+    resolution: `${width}x${height}`,
+    fps: config.TARGET_FPS
   });
 
   // Stream loop
@@ -314,11 +303,9 @@ async function main() {
   while (isRunning) {
     try {
       // 1. Generate test frame
-      logger.debug(`Generating frame ${frameCount}`);
       const frame = await generateTestImage(width, height);
       
       // 2. Process through pipeline
-      logger.debug('Processing frame through pipeline');
       const processedFrame = await pipeline.processFrame(frame);
       
       if (!processedFrame) {
@@ -327,7 +314,6 @@ async function main() {
       }
 
       // 3. Send to encoder
-      logger.debug('Sending frame to encoder');
       encoder.sendFrame(processedFrame);
       
       // Log metrics every second

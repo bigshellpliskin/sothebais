@@ -121,6 +121,7 @@ services:
       - ./apps/stream-manager/src:/app/src:ro
       - ./apps/stream-manager/package.json:/app/package.json:ro
       - ./data/stream-manager:/app/storage:rw
+      - ./apps/stream-manager/assets:/app/assets:ro  # Mount assets directory
     networks:
       - auction_net
     labels:

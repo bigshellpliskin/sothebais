@@ -66,6 +66,7 @@ export class StreamEncoder extends EventEmitter {
   private droppedFrames: number = 0;
   private readonly cpuCores: number;
   private lastFPSUpdate: number = 0;
+  private lastReportedFPS: number = 0;
 
   private constructor(config: StreamConfig) {
     super();
@@ -179,11 +180,12 @@ export class StreamEncoder extends EventEmitter {
     const globalArgs: string[] = [
       '-hide_banner',
       '-nostats',
-      '-loglevel', 'debug',
-      '-thread_queue_size', '512'
+      '-loglevel', 'info',
+      '-thread_queue_size', '1024',  // Increased queue size
+      '-vsync', 'cfr'  // Constant frame rate
     ];
 
-    // Input options
+    // Input options with explicit format
     const inputArgs: string[] = [
       '-f', 'rawvideo',
       '-pix_fmt', this.config.pipeline?.inputFormat || 'rgba',
@@ -192,21 +194,24 @@ export class StreamEncoder extends EventEmitter {
       '-i', 'pipe:0'
     ];
 
-    // Add format conversion for h264
+    // Add format conversion for h264 with explicit parameters
     const pixelFormatArgs = [
-      '-vf', 'format=yuv420p',
-      '-g', '30',  // GOP size
-      '-keyint_min', '30'
+      '-vf', `format=yuv420p,scale=${this.config.width}:${this.config.height}:force_original_aspect_ratio=decrease`,
+      '-g', '30',
+      '-keyint_min', '30',
+      '-sc_threshold', '0',
+      '-sws_flags', 'bilinear',
+      '-force_key_frames', 'expr:gte(t,n_forced*1)'  // Force keyframe every second
     ];
 
-    // Audio input
+    // Audio input (silent)
     const audioArgs = [
       '-f', 'lavfi',
       '-i', 'anullsrc=r=44100:cl=stereo',
       '-shortest'
     ];
 
-    // Codec options
+    // Codec options with explicit settings
     const codecArgs = [
       '-c:v', 'libx264',
       '-preset', this.config.preset,
@@ -214,8 +219,8 @@ export class StreamEncoder extends EventEmitter {
       '-b:v', `${this.config.bitrate}k`,
       '-maxrate', `${this.config.bitrate * 1.5}k`,
       '-bufsize', `${this.config.bitrate * 2}k`,
-      '-profile:v', 'high',
-      '-level', '4.1',
+      '-profile:v', 'baseline',
+      '-level', '3.1',
       '-x264-params', [
         'nal-hrd=cbr',
         'force-cfr=1',
@@ -223,11 +228,16 @@ export class StreamEncoder extends EventEmitter {
         'rc-lookahead=10',
         'ref=1',
         'bframes=0',
-        'intra-refresh=1'
+        'intra-refresh=1',
+        'slice-max-size=1500',
+        'sync-lookahead=0',  // Reduce latency
+        'subme=0',  // Speed up encoding
+        'trellis=0',  // Speed up encoding
+        'direct-pred=spatial'  // Better for streaming
       ].join(':')
     ];
 
-    // Audio codec
+    // Audio codec (minimal settings)
     const audioCodecArgs = [
       '-c:a', 'aac',
       '-b:a', '128k',
@@ -235,16 +245,16 @@ export class StreamEncoder extends EventEmitter {
       '-ac', '2'
     ];
 
-    // Output options
+    // Output options optimized for RTMP
     const outputArgs = [
       '-f', 'flv',
       '-flvflags', '+no_duration_filesize',
-      '-movflags', '+faststart',
+      '-movflags', '+faststart+frag_keyframe+empty_moov+default_base_moof',
+      '-max_interleave_delta', '0',  // Minimize interleaving delay
       this.config.streamUrl || 'rtmp://localhost:1935/live/test'
     ];
 
-    // Combine all args
-    return [
+    const args = [
       ...globalArgs,
       ...inputArgs,
       ...audioArgs,
@@ -253,6 +263,17 @@ export class StreamEncoder extends EventEmitter {
       ...audioCodecArgs,
       ...outputArgs
     ];
+
+    logger.info('FFmpeg command configuration', {
+      command: 'ffmpeg ' + args.join(' '),
+      inputFormat: this.config.pipeline?.inputFormat || 'rgba',
+      resolution: `${this.config.width}x${this.config.height}`,
+      fps: this.config.fps,
+      preset: this.config.preset,
+      bitrate: this.config.bitrate
+    });
+
+    return args;
   }
 
   private getHwAccelCodec(): string {
@@ -293,11 +314,6 @@ export class StreamEncoder extends EventEmitter {
       default:
         return 'libx264';
     }
-  }
-
-  public connectMuxer(muxer: any): void {
-    // No longer needed, but keep for compatibility
-    logger.info('Muxer connection no longer needed - encoder outputs directly to RTMP');
   }
 
   /**
@@ -377,25 +393,39 @@ export class StreamEncoder extends EventEmitter {
 
   public sendFrame(buffer: Buffer): void {
     if (!this.isStreaming || !this.ffmpeg || !this.ffmpeg.stdin?.writable) {
+      logger.warn('Cannot send frame - encoder not ready', {
+        isStreaming: this.isStreaming,
+        hasFfmpeg: !!this.ffmpeg,
+        isWritable: !!this.ffmpeg?.stdin?.writable
+      });
       return;
     }
 
     const startTime = Date.now();
     const currentLatency = this.lastFrameTime ? startTime - this.lastFrameTime : 0;
 
-    // Drop frames if we're exceeding latency threshold
+    // Only log dropped frames if it's a significant number
     if (this.config.pipeline?.dropThreshold && currentLatency > this.config.pipeline.dropThreshold) {
       this.droppedFrames++;
-      logger.debug('Dropping frame due to high latency', {
-        latency: currentLatency,
-        threshold: this.config.pipeline.dropThreshold,
-        droppedFrames: this.droppedFrames
-      } as LogContext);
+      if (this.droppedFrames % 30 === 0) { // Log every 30 dropped frames
+        logger.warn('High frame drop rate detected', {
+          latency: currentLatency,
+          threshold: this.config.pipeline.dropThreshold,
+          droppedFrames: this.droppedFrames
+        });
+      }
       return;
     }
 
     try {
-      // Use zero-copy write if enabled by sharing the underlying ArrayBuffer
+      // Log frame write attempt
+      logger.info('Sending frame to FFmpeg', {
+        bufferSize: buffer.length,
+        timestamp: startTime,
+        zeroCopy: this.config.pipeline?.zeroCopy
+      });
+
+      // Use zero-copy write if enabled
       if (this.config.pipeline?.zeroCopy) {
         const view = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.length);
         this.ffmpeg.stdin.write(view);
@@ -403,26 +433,32 @@ export class StreamEncoder extends EventEmitter {
         this.ffmpeg.stdin.write(buffer);
       }
       
-      // Update metrics
+      // Update metrics less frequently
       const now = Date.now();
       this.frameLatency = now - startTime;
-      this.lastFrameTime = now;  // Update lastFrameTime for every frame
+      this.lastFrameTime = now;
       this.frameCount++;
 
-      // Calculate FPS every second
-      if (now - this.lastFPSUpdate >= 1000) {
-        this.currentFPS = this.frameCount;
+      // Calculate FPS every 5 seconds instead of every second
+      if (now - this.lastFPSUpdate >= 5000) {
+        this.currentFPS = this.frameCount / 5; // Average over 5 seconds
         this.frameCount = 0;
         this.lastFPSUpdate = now;
+        
+        logger.info('Encoder metrics update', {
+          fps: this.currentFPS,
+          frameLatency: this.frameLatency,
+          droppedFrames: this.droppedFrames,
+          timestamp: now
+        });
       }
-
-      encodingTimeGauge.set(this.frameLatency);
     } catch (error) {
       logger.error('Failed to send frame to FFmpeg', {
         error: error instanceof Error ? error.message : 'Unknown error',
         latency: currentLatency,
-        droppedFrames: this.droppedFrames
-      } as LogContext);
+        droppedFrames: this.droppedFrames,
+        bufferSize: buffer.length
+      });
       this.handleError(error as Error);
     }
   }
