@@ -30,20 +30,46 @@ src/
 │       └── state.ts       # Shared state types
 │
 ├── state/                 # State management
-│   ├── store/             # State stores
-│   │   ├── config.ts      # Dynamic config store
-│   │   └── sync.ts        # Redis synchronization
-│   ├── persistence.ts     # State persistence
-│   └── events.ts          # Event system
+│   ├── README.md         # State system documentation
+│   ├── state-manager.ts  # Core state management
+│   ├── event-emitter.ts  # Event system implementation
+│   └── redis-service.ts  # Redis integration & persistence
 │
 ├── streaming/             # Streaming functionality
-│   ├── rtmp/              # RTMP handling
-│   │   ├── server.ts      # RTMP server
-│   │   └── events.ts      # RTMP event handlers
-│   ├── output/            # Stream output
-│   │   ├── encoder.ts     # FFmpeg encoding
-│   │   └── muxer.ts       # Stream multiplexing
-│   └── websocket.ts       # WebSocket communication
+│   ├── rtmp/             # RTMP handling
+│   │   ├── server.ts     # RTMP server
+│   │   └── events.ts     # RTMP event handlers
+│   ├── preview/          # Preview streaming
+│   │   ├── frame-handler.ts  # Frame processing
+│   │   └── message-batcher.ts # Message optimization
+│   ├── output/           # Stream output
+│   │   ├── encoder.ts    # FFmpeg encoding
+│   │   └── muxer.ts      # Stream multiplexing
+│   └── websocket.ts      # WebSocket communication
+│
+├── tools/                # Development and testing tools
+│   ├── perf/            # Performance testing tools
+│   │   ├── load-test.ts  # WebSocket load testing
+│   │   ├── stream-performance.ts # Stream performance testing
+│   │   └── stream-test.ts # Stream component testing
+│   └── debug/           # Debugging utilities
+│       └── generate-test-stream.ts # Test stream generation
+│
+├── types/               # TypeScript type definitions
+│   ├── README.md       # Types documentation
+│   ├── state-manager.ts # State management types
+│   ├── events.ts       # Event system types
+│   ├── config.ts       # Configuration types
+│   ├── core.ts         # Core component types
+│   ├── stream.ts       # Stream types
+│   ├── layout.ts       # Layout types
+│   ├── viewport.ts     # Viewport types
+│   ├── layers.ts       # Layer types
+│   ├── canvas.ts       # Canvas types
+│   ├── worker.ts       # Worker types
+│   ├── frame-buffer.ts # Frame buffer types
+│   ├── animation.ts    # Animation types
+│   └── global.d.ts     # Global type declarations
 │
 ├── server/                # HTTP & WebSocket servers
 │   ├── api/               # HTTP API endpoints
@@ -69,6 +95,245 @@ src/
     └── stream.ts          # Stream types
 
 ```
+
+## Component Documentation
+
+### Performance Testing Tools (`tools/perf/`)
+
+#### Load Testing (`load-test.ts`)
+- Component verification testing for WebSocket connections
+- Supports multiple test scenarios:
+  - `basic`: Single client connectivity test (30s)
+  - `quality`: Quality selection testing with 3 clients (1m)
+  - `batching`: Message batching with 5 clients (1m)
+- Detailed metrics collection and logging
+
+#### Stream Performance (`stream-performance.ts`)
+- Comprehensive stream pipeline testing
+- Measures encoding, processing, and delivery performance
+- Supports various quality and load configurations
+
+#### Stream Component Testing (`stream-test.ts`)
+- Isolated testing of stream components
+- Verifies individual stream processing stages
+- Quick validation of stream functionality
+
+### Debugging Tools (`tools/debug/`)
+
+#### Test Stream Generation (`generate-test-stream.ts`)
+- Creates synthetic test streams
+- Configurable frame rates and patterns
+- Useful for testing without real input
+
+### Preview Streaming (`streaming/preview/`)
+
+#### Frame Handler (`frame-handler.ts`)
+```typescript
+interface FrameQualityConfig {
+  maxFPS: number;        // Target frame rate
+  compression: number;   // JPEG quality (0-100)
+  maxWidth: number;      // Maximum frame width
+  maxHeight: number;     // Maximum frame height
+}
+
+// Quality configurations
+const QUALITY_CONFIGS = {
+  high: { maxFPS: 30, compression: 85, maxWidth: 1920, maxHeight: 1080 },
+  medium: { maxFPS: 20, compression: 75, maxWidth: 1280, maxHeight: 720 },
+  low: { maxFPS: 10, compression: 60, maxWidth: 854, maxHeight: 480 }
+};
+```
+
+#### Message Batcher (`message-batcher.ts`)
+- Optimizes WebSocket communication
+- Batches frames and state updates
+- Configurable batch size and interval
+- Efficient binary message format
+
+### State Management (`state/`)
+
+#### State Manager (`state-manager.ts`)
+- Centralized state management
+- Real-time state synchronization
+- Redis persistence
+- Event broadcasting
+
+#### Event Emitter (`event-emitter.ts`)
+- Type-safe event system
+- Asynchronous event handling
+- Event filtering and routing
+
+### Type System (`types/`)
+
+#### New Type Definitions
+- `state-manager.ts`: State management interfaces
+- `events.ts`: Event system types
+- `config.ts`: Configuration interfaces
+- `core.ts`: Core component types
+- `animation.ts`: Animation system types
+- `frame-buffer.ts`: Frame handling types
+- `global.d.ts`: Global type declarations
+
+## Testing & Debugging Guide
+
+### Test Categories
+
+#### 1. Unit & Integration Tests
+```bash
+# Run all tests
+npm test
+
+# Run specific test suites
+npm run test:unit         # Unit tests only
+npm run test:integration  # Integration tests
+npm run test:e2e         # End-to-end tests
+
+# Development
+npm run test:watch       # Watch mode
+npm run test:coverage    # Coverage report
+```
+
+#### 2. Performance Testing
+```bash
+# Component Tests
+npm run test:load         # Default load test
+npm run test:load:basic   # Basic connectivity (1 client, 30s)
+npm run test:load:quality # Quality switching (3 clients, 1m)
+npm run test:load:batching # Message batching (5 clients, 1m)
+
+# Stream Performance
+npm run test:perf:stream  # Stream pipeline performance
+npm run test:frames:timing # Frame timing analysis
+npm run test:frames:drops # Frame drop analysis
+```
+
+#### 3. Memory Analysis
+```bash
+# Memory monitoring
+npm run test:memory:leaks  # Leak detection
+npm run test:memory:heap   # Heap snapshots
+npm run test:memory:gc     # GC analysis
+
+# Development monitoring
+npm run dev:memory        # Run with heap profiling
+```
+
+### Debugging Tools
+
+#### 1. Component Debugging
+```bash
+# Start with debugging
+npm run dev:debug        # Debug mode with inspector
+
+# Component-specific debugging
+npm run debug:stream     # Stream generation
+npm run debug:workers    # Worker pool
+npm run debug:frames     # Frame pipeline
+npm run debug:ws        # WebSocket
+npm run debug:rtmp      # RTMP connections
+```
+
+#### 2. Performance Profiling
+```bash
+# CPU profiling
+npm run dev:profile     # Run with CPU profiling
+
+# Network analysis
+npm run dev:network     # Network debugging
+```
+
+### Debug Configuration
+
+```typescript
+// Environment variables
+DEBUG='stream:*'                           # All stream logs
+DEBUG='stream:worker:*'                    # Worker logs only
+DEBUG='stream:frames:*'                    # Frame logs only
+DEBUG='stream:network,stream:rtmp,stream:ws' # Network logs
+
+// Node.js options
+NODE_OPTIONS='--inspect'                   # Node inspector
+NODE_OPTIONS='--inspect --heap-prof'       # Memory profiling
+NODE_OPTIONS='--prof'                      # CPU profiling
+NODE_OPTIONS='--trace-gc'                  # GC tracking
+```
+
+### Metrics Collection
+
+The metrics system provides unified monitoring across all components:
+
+```typescript
+interface MetricsConfig {
+  // Collection settings
+  sampleRate: number;     // Metrics collection frequency
+  retentionPeriod: number; // Data retention time
+  
+  // Component monitoring
+  components: {
+    stream: boolean;     // Stream metrics
+    workers: boolean;    // Worker pool metrics
+    memory: boolean;     // Memory metrics
+    network: boolean;    // Network metrics
+  };
+}
+```
+
+Key metrics collected:
+- Stream performance (FPS, latency, quality)
+- Worker pool utilization
+- Memory usage and GC patterns
+- Network statistics
+- Frame processing metrics
+
+### Common Debug Workflows
+
+1. **Performance Investigation**
+   ```bash
+   # Start with performance monitoring
+   npm run dev:profile
+   
+   # Run load test
+   npm run test:load:basic
+   
+   # Analyze results
+   npm run debug:timing
+   ```
+
+2. **Memory Leak Investigation**
+   ```bash
+   # Start with heap profiling
+   npm run dev:memory
+   
+   # Run memory leak detection
+   npm run test:memory:leaks
+   
+   # Generate heap snapshot
+   npm run debug:heap
+   ```
+
+3. **Frame Pipeline Analysis**
+   ```bash
+   # Monitor frame processing
+   npm run debug:frames
+   
+   # Run frame timing analysis
+   npm run test:frames:timing
+   
+   # Check for drops
+   npm run test:frames:drops
+   ```
+
+4. **Network Troubleshooting**
+   ```bash
+   # Enable network debugging
+   npm run dev:network
+   
+   # Monitor WebSocket
+   npm run debug:ws
+   
+   # Check RTMP
+   npm run debug:rtmp
+   ```
 
 ## Core Components
 
@@ -387,20 +652,25 @@ STREAM_PERF_METRICS=true                   // Enable performance metrics collect
 #### Performance Testing Scripts
 
 ```bash
-# Full performance test suite
-npm run test:perf
+# Component verification tests
+npm run test:load:basic    # Test basic connectivity (1 client, 30s)
+npm run test:load:quality  # Test quality selection (3 clients, 1m)
+npm run test:load:batching # Test batching logic (5 clients, 1m)
 
-# Individual performance tests
-npm run test:perf:stream    # Test stream processing performance
-npm run test:perf:workers   # Test worker pool performance
-npm run test:perf:memory    # Test memory usage patterns
-npm run test:perf:network   # Test network throughput
+# Debug specific components
+DEBUG_COMPONENTS=workers,renderer npm run dev
 
-# Load testing
-npm run test:load -- --concurrent=10 --duration=300  # 10 concurrent streams for 5 minutes
+# Enable all debugging
+DEBUG=stream:*,worker:*,rtmp:*,ws:* npm run dev
 
-# Stress testing
-npm run test:stress         # Push system to limits
+# Profile CPU usage
+npm run dev:profile
+
+# Memory debugging
+npm run dev:memory
+
+# Network debugging
+npm run dev:network
 ```
 
 #### Memory Profiling
@@ -521,11 +791,15 @@ interface PerformanceMetrics {
   
   // Frame pipeline metrics
   frames: {
-    processed: number;
+    received: number;
     dropped: number;
     avgProcessingTime: number;
     bufferUtilization: number;
     compositionTime: number;
+    batched: number;
+    lastBatchSize: number;
+    avgFrameSize: number;
+    avgInterval: number;
   };
 }
 ```
@@ -698,3 +972,255 @@ interface StreamConfig {
 - Frame drops
 - Encoding quality
 - Client connections
+
+### Dynamic Debugging Tools
+
+The debug utilities use Node.js's inspector protocol and diagnostic tools to analyze the application without modifying source code.
+
+#### 1. Frame Pipeline Debugger (`debug:frames`)
+```typescript
+// tools/debug/frame-debug.ts
+import { Session } from 'inspector';
+
+class FrameDebugger {
+  private session: Session;
+  
+  constructor() {
+    this.session = new Session();
+    this.session.connect();
+  }
+
+  async analyze() {
+    // Set breakpoints in frame processing code
+    await this.session.post('Debugger.setBreakpointByUrl', {
+      lineNumber: 42,
+      url: 'frame-handler.ts'
+    });
+
+    // Add expression to watch
+    await this.session.post('Runtime.evaluate', {
+      expression: 'frameStats',
+      contextId: 1
+    });
+
+    // Listen for frame events
+    this.session.on('Debugger.paused', (params) => {
+      const frameData = params.callFrames[0].scopeChain;
+      console.log('Frame processing stats:', frameData);
+    });
+  }
+}
+```
+
+Usage:
+```bash
+# Start the application with inspector
+npm run dev:debug
+
+# In another terminal, run frame debugger
+npm run debug:frames
+```
+
+#### 2. Worker Analysis (`debug:workers`)
+```typescript
+// tools/debug/worker-debug.ts
+import { createHook } from 'async_hooks';
+import { performance } from 'perf_hooks';
+
+class WorkerDebugger {
+  private taskTimings = new Map();
+  
+  constructor() {
+    // Create async hook to track worker tasks
+    const hook = createHook({
+      init: (asyncId, type, triggerAsyncId) => {
+        if (type === 'WORKER') {
+          this.taskTimings.set(asyncId, performance.now());
+        }
+      },
+      destroy: (asyncId) => {
+        if (this.taskTimings.has(asyncId)) {
+          const duration = performance.now() - this.taskTimings.get(asyncId);
+          console.log(`Worker task ${asyncId} took ${duration}ms`);
+        }
+      }
+    });
+    hook.enable();
+  }
+}
+```
+
+Usage:
+```bash
+# Run with worker debugging
+npm run debug:workers
+```
+
+#### 3. Memory Analysis (`debug:heap`)
+```typescript
+// tools/debug/heap-analyzer.ts
+import v8 from 'v8';
+import fs from 'fs';
+
+class HeapAnalyzer {
+  private snapshotInterval: NodeJS.Timeout;
+  
+  startAnalysis() {
+    // Take heap snapshots every 30 seconds
+    this.snapshotInterval = setInterval(() => {
+      const snapshot = v8.getHeapSnapshot();
+      const timestamp = Date.now();
+      
+      fs.writeFileSync(
+        `heap-${timestamp}.heapsnapshot`,
+        JSON.stringify(snapshot)
+      );
+      
+      // Analyze for memory leaks
+      this.analyzeSnapshot(snapshot);
+    }, 30000);
+  }
+
+  private analyzeSnapshot(snapshot: any) {
+    // Look for growing object collections
+    const retainedObjects = new Map();
+    for (const node of snapshot.nodes) {
+      if (node.retainedSize > 1000000) { // 1MB
+        console.warn('Large retained object:', {
+          type: node.type,
+          name: node.name,
+          size: node.retainedSize
+        });
+      }
+    }
+  }
+}
+```
+
+Usage:
+```bash
+# Start with heap profiling
+npm run dev:memory
+
+# Run heap analysis
+npm run debug:heap
+```
+
+#### 4. Network Tracing (`debug:ws`, `debug:rtmp`)
+```typescript
+// tools/debug/network-trace.ts
+import { createHook } from 'async_hooks';
+import { performance } from 'perf_hooks';
+
+class NetworkTracer {
+  private connections = new Map();
+  
+  constructor(protocol: 'ws' | 'rtmp') {
+    const hook = createHook({
+      init: (asyncId, type, triggerAsyncId) => {
+        if (type === 'TCPWRAP' || type === 'TLSWRAP') {
+          this.connections.set(asyncId, {
+            startTime: performance.now(),
+            protocol,
+            events: []
+          });
+        }
+      },
+      before: (asyncId) => {
+        const connection = this.connections.get(asyncId);
+        if (connection) {
+          connection.events.push({
+            timestamp: performance.now(),
+            type: 'before'
+          });
+        }
+      },
+      after: (asyncId) => {
+        const connection = this.connections.get(asyncId);
+        if (connection) {
+          connection.events.push({
+            timestamp: performance.now(),
+            type: 'after'
+          });
+          this.analyzeLatency(connection);
+        }
+      }
+    });
+    hook.enable();
+  }
+
+  private analyzeLatency(connection: any) {
+    const latencies = [];
+    for (let i = 0; i < connection.events.length - 1; i += 2) {
+      const latency = connection.events[i + 1].timestamp - 
+                     connection.events[i].timestamp;
+      latencies.push(latency);
+    }
+    
+    console.log(`${connection.protocol} connection stats:`, {
+      avgLatency: latencies.reduce((a, b) => a + b, 0) / latencies.length,
+      maxLatency: Math.max(...latencies),
+      eventCount: connection.events.length / 2
+    });
+  }
+}
+```
+
+Usage:
+```bash
+# Start with network debugging
+npm run dev:network
+
+# Check WebSocket
+npm run debug:ws
+
+# Check RTMP
+npm run debug:rtmp
+```
+
+These debugging tools provide:
+1. **Non-intrusive monitoring**: Uses Node.js APIs to inspect running code
+2. **Real-time analysis**: Monitors performance and behavior while the app runs
+3. **Automatic detection**: Identifies issues without manual logging
+4. **Detailed metrics**: Collects comprehensive data about specific components
+
+To use these tools effectively:
+
+1. **Start with broad analysis**:
+   ```bash
+   # Run app with debugging enabled
+   npm run dev:debug
+   
+   # In another terminal, start general monitoring
+   npm run debug:frames
+   ```
+
+2. **Narrow down issues**:
+   ```bash
+   # If you spot frame issues
+   npm run debug:frames
+   
+   # For worker problems
+   npm run debug:workers
+   
+   # Memory concerns
+   npm run debug:heap
+   ```
+
+3. **Network investigation**:
+   ```bash
+   # WebSocket issues
+   npm run debug:ws
+   
+   # RTMP problems
+   npm run debug:rtmp
+   ```
+
+The tools use Node.js's built-in capabilities:
+- Inspector Protocol for runtime analysis
+- Async hooks for operation tracking
+- V8 profiler for memory analysis
+- Performance hooks for timing
+- Event tracing for network analysis
+
+This approach allows debugging without code modification while providing detailed insights into the application's behavior.

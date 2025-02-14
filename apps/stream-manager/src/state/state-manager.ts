@@ -1,15 +1,22 @@
 import type { 
   StateManager,
   PreviewClientState,
-  StateEventListener,
-  StateUpdateEvent,
   AppState
 } from '../types/state-manager.js';
 import type { LayerState } from '../types/layers.js';
 import type { StreamState } from '../types/stream.js';
+import { EventType, EventSource } from '../types/events.js';
+import type { 
+  StreamEvent, 
+  LayerEvent, 
+  PreviewEvent,
+  StreamManagerEvent,
+  EventListener as StreamManagerEventListener 
+} from '../types/events.js';
 import { redisService } from './redis-service.js';
 import { logger } from '../utils/logger.js';
 import { webSocketService } from '../server/websocket.js';
+import { eventEmitter } from './event-emitter.js';
 
 const DEFAULT_STREAM_STATE: StreamState = {
   isLive: false,
@@ -30,8 +37,6 @@ const DEFAULT_LAYER_STATE: LayerState = {
 
 export class StateManagerImpl implements StateManager {
   private state: AppState;
-  private listeners: Set<StateEventListener>;
-  private saveTimeout: NodeJS.Timeout | null = null;
   private static instance: StateManagerImpl | null = null;
 
   private constructor() {
@@ -40,7 +45,6 @@ export class StateManagerImpl implements StateManager {
       layers: { ...DEFAULT_LAYER_STATE },
       previewClients: {}
     };
-    this.listeners = new Set();
   }
 
   public static getInstance(): StateManagerImpl {
@@ -66,11 +70,14 @@ export class StateManagerImpl implements StateManager {
   // State updates
   public async updateStreamState(update: Partial<StreamState>): Promise<void> {
     try {
+      const previousState = { ...this.state.stream };
+      const changes = Object.keys(update);
+
       // Log state change details
       logger.info('Updating stream state:', { 
-        current: this.state.stream,
+        current: previousState,
         update,
-        changedFields: Object.keys(update)
+        changes
       });
 
       // Update in-memory state
@@ -82,19 +89,29 @@ export class StateManagerImpl implements StateManager {
       // Save immediately to Redis
       await redisService.saveStreamState(this.state.stream);
 
+      // Create standardized event
+      const event: StreamEvent = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        type: EventType.STATE_STREAM_UPDATE,
+        source: EventSource.STATE_MANAGER,
+        payload: {
+          previous: previousState,
+          current: this.state.stream,
+          changes
+        }
+      };
+
+      // Emit event
+      await eventEmitter.emit(event);
+
       // Broadcast via WebSocket
-      webSocketService.broadcastStateUpdate(this.state.stream);
+      webSocketService.broadcastStateUpdate(event);
 
       logger.info('Stream state updated and persisted:', {
         newState: this.state.stream,
-        changedFields: Object.keys(update),
+        changes,
         timestamp: new Date().toISOString()
-      });
-
-      // Notify listeners
-      this.notifyListeners({
-        type: 'stream',
-        payload: this.state.stream
       });
     } catch (error) {
       logger.error('Failed to update stream state', {
@@ -107,58 +124,91 @@ export class StateManagerImpl implements StateManager {
   }
 
   public async updateLayerState(update: Partial<LayerState>): Promise<void> {
-    this.state.layers = {
-      ...this.state.layers,
-      ...update
-    };
+    try {
+      const previousState = { ...this.state.layers };
+      const changes = Object.keys(update);
 
-    this.notifyListeners({
-      type: 'layers',
-      payload: this.state.layers
-    });
+      // Log state change details
+      logger.info('Updating layer state:', {
+        current: previousState,
+        update,
+        changes
+      });
 
-    await this.scheduleSave();
+      // Update in-memory state
+      this.state.layers = {
+        ...this.state.layers,
+        ...update
+      };
+
+      // Save immediately to Redis
+      await redisService.saveLayerState(this.state.layers);
+
+      // Create standardized event
+      const event: LayerEvent = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        type: EventType.STATE_LAYER_UPDATE,
+        source: EventSource.STATE_MANAGER,
+        payload: {
+          previous: previousState,
+          current: this.state.layers,
+          changes
+        }
+      };
+
+      // Emit event
+      await eventEmitter.emit(event);
+
+      // Broadcast via WebSocket
+      webSocketService.broadcastStateUpdate(event);
+
+      logger.info('Layer state updated and persisted:', {
+        newState: this.state.layers,
+        changes,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to update layer state', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        update,
+        currentState: this.state.layers
+      });
+      throw error;
+    }
   }
 
   public async updatePreviewClient(clientId: string, update: Partial<PreviewClientState>): Promise<void> {
-    const currentClient = this.state.previewClients[clientId] || {
+    const previousState = this.state.previewClients[clientId] || {
       id: clientId,
       quality: 'medium',
       lastPing: Date.now(),
       connected: true
     };
 
+    const changes = Object.keys(update);
+
     this.state.previewClients[clientId] = {
-      ...currentClient,
+      ...previousState,
       ...update
     };
 
-    this.notifyListeners({
-      type: 'previewClient',
-      payload: this.state.previewClients[clientId]
-    });
-  }
-
-  // Event handling
-  public addEventListener(listener: StateEventListener): void {
-    this.listeners.add(listener);
-  }
-
-  public removeEventListener(listener: StateEventListener): void {
-    this.listeners.delete(listener);
-  }
-
-  private notifyListeners(event: StateUpdateEvent): void {
-    this.listeners.forEach(listener => {
-      try {
-        listener(event);
-      } catch (error) {
-        logger.error('Error in state update listener', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          event
-        });
+    // Create standardized event
+    const event: PreviewEvent = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      type: EventType.STATE_PREVIEW_UPDATE,
+      source: EventSource.STATE_MANAGER,
+      payload: {
+        clientId,
+        previous: previousState,
+        current: this.state.previewClients[clientId],
+        changes
       }
-    });
+    };
+
+    // Emit event
+    await eventEmitter.emit(event);
   }
 
   // Persistence
@@ -227,22 +277,17 @@ export class StateManagerImpl implements StateManager {
     }
   }
 
-  private async scheduleSave(): Promise<void> {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
+  // Event handling methods that delegate to eventEmitter
+  public on(type: EventType, listener: StreamManagerEventListener): void {
+    eventEmitter.on(type, listener);
+  }
 
-    // Debounce saves to prevent too frequent Redis writes
-    this.saveTimeout = setTimeout(async () => {
-      try {
-        await this.saveState();
-      } catch (error) {
-        logger.error('Scheduled state save failed', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        });
-      }
-    }, 1000);
+  public off(type: EventType, listener: StreamManagerEventListener): void {
+    eventEmitter.off(type, listener);
+  }
+
+  public once(type: EventType, listener: StreamManagerEventListener): void {
+    eventEmitter.once(type, listener);
   }
 }
 

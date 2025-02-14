@@ -217,15 +217,21 @@ private notifyListeners(event: StateUpdateEvent): void {
 
 ### 🚧 In Progress
 1. WebSocket Features
-   - [ ] Event standardization
+   - [x] Event standardization
    - [x] Layer state synchronization
-   - [ ] Preview frame optimization
+   - [✅] Preview frame optimization
+     - [x] Quality-based throttling (30/20/10 fps)
+     - [x] Resolution scaling (1080p/720p/480p)
+     - [x] JPEG compression (85%/75%/60%)
+     - [x] Frame buffer management
+     - [ ] Message batching
+     - [ ] Binary protocol
    - [x] Connection management with health checks
 
 2. Performance
-   - [x] Direct Redis persistence
+   - [x] Immediate Redis persistence
    - [x] Real-time state updates
-   - [ ] State change batching
+   - [ ] State change batching for WebSocket broadcasts only
    - [x] Performance logging
 
 3. Monitoring
@@ -292,9 +298,9 @@ METRICS_PORT=9090  # Metrics server port
 ### 1. Admin Operations Flow
 1. Admin UI makes HTTP request
 2. State middleware validates request
-3. StateManager updates state
-4. Debounced persistence to Redis
-5. Event emission to listeners
+3. StateManager updates runtime state
+4. Immediate persistence to Redis (no debouncing)
+5. Event emission to listeners and WebSocket broadcast
 6. Response sent to Admin UI
 
 ### 2. Preview Flow
@@ -307,9 +313,9 @@ METRICS_PORT=9090  # Metrics server port
 ### 3. Layer Management Flow
 1. Layer update request received
 2. State validation performed
-3. Layer state updated
-4. Events emitted to clients
-5. State persisted to Redis
+3. Layer state updated in memory
+4. Immediate persistence to Redis
+5. Events emitted to clients and WebSocket broadcast
 
 ## Security Considerations
 
@@ -411,4 +417,85 @@ function isStreamState(obj: unknown): obj is StreamState {
     // ... other validations
   );
 }
-``` 
+```
+
+## Event System
+
+The state manager now uses a standardized event system for all state changes and notifications. Events are structured as follows:
+
+### Event Types
+```typescript
+enum EventType {
+  // State events
+  STATE_STREAM_UPDATE = 'state:stream:update',
+  STATE_LAYER_UPDATE = 'state:layer:update',
+  STATE_PREVIEW_UPDATE = 'state:preview:update',
+  
+  // Stream events
+  STREAM_START = 'stream:start',
+  STREAM_STOP = 'stream:stop',
+  STREAM_PAUSE = 'stream:pause',
+  STREAM_RESUME = 'stream:resume',
+  STREAM_ERROR = 'stream:error',
+  
+  // Preview events
+  PREVIEW_FRAME = 'preview:frame',
+  PREVIEW_QUALITY_CHANGE = 'preview:quality:change',
+  PREVIEW_CONNECTION = 'preview:connection',
+  PREVIEW_DISCONNECTION = 'preview:disconnection',
+  
+  // Layer events
+  LAYER_CREATE = 'layer:create',
+  LAYER_UPDATE = 'layer:update',
+  LAYER_DELETE = 'layer:delete',
+  LAYER_REORDER = 'layer:reorder'
+}
+```
+
+### Event Structure
+All events follow a standard structure:
+```typescript
+interface BaseEvent {
+  id: string;          // Unique event identifier
+  timestamp: number;   // Event creation timestamp
+  type: EventType;     // Event type from enum
+  source: EventSource; // Source of the event
+}
+
+interface StreamEvent extends BaseEvent {
+  payload: {
+    previous?: Partial<StreamState>;  // Previous state
+    current: Partial<StreamState>;    // New state
+    changes: string[];               // Changed fields
+  }
+}
+```
+
+### Usage Example
+```typescript
+// Subscribe to stream state updates
+stateManager.on(EventType.STATE_STREAM_UPDATE, async (event) => {
+  console.log('Stream state changed:', event.payload.changes);
+  console.log('New state:', event.payload.current);
+});
+
+// Subscribe to layer updates
+stateManager.on(EventType.LAYER_UPDATE, async (event) => {
+  console.log('Layer updated:', event.payload.changes);
+});
+
+// One-time subscription
+stateManager.once(EventType.STREAM_START, async (event) => {
+  console.log('Stream started:', event.payload);
+});
+```
+
+### Event Flow
+1. State change is initiated
+2. In-memory state is updated
+3. Changes are persisted to Redis
+4. Standardized event is created and emitted
+5. WebSocket broadcasts the event
+6. Event listeners are notified
+
+This standardized event system ensures consistent handling of state changes across the application and provides a robust foundation for real-time updates and monitoring. 

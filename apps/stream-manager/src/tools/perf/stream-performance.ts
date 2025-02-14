@@ -193,7 +193,7 @@ async function runPerformanceTest(testConfig: TestConfig): Promise<PerformanceMe
     logger.info('Redis service initialized');
 
     // Initialize state manager
-    const stateManager = await import('../../state/state-manager.js');
+    const stateManager = await import('../../streaming/state-manager.js');
     await stateManager.stateManager.loadState();
     logger.info('State manager initialized');
 

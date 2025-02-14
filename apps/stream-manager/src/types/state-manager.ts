@@ -8,6 +8,7 @@
 
 import type { LayerState } from './layers.js';
 import type { StreamState } from './stream.js';
+import type { EventType, EventListener } from './events.js';
 
 /**
  * Represents the state of a preview client connection
@@ -57,11 +58,12 @@ export interface StateManager {
   updateLayerState(update: Partial<LayerState>): Promise<void>;
   updatePreviewClient(clientId: string, update: Partial<PreviewClientState>): Promise<void>;
   
-  // Event handling
-  addEventListener(listener: StateEventListener): void;
-  removeEventListener(listener: StateEventListener): void;
-  
-  // Persistence
+  // State persistence
   loadState(): Promise<void>;
   saveState(): Promise<void>;
+
+  // Event handling - now delegates to eventEmitter
+  on(type: EventType, listener: EventListener): void;
+  off(type: EventType, listener: EventListener): void;
+  once(type: EventType, listener: EventListener): void;
 } 

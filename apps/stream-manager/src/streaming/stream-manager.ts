@@ -4,7 +4,7 @@ import { FramePipeline } from './output/pipeline.js';
 import { StreamEncoder } from './output/encoder.js';
 import { StreamMuxer } from './output/muxer.js';
 import { RTMPServer } from './rtmp/server.js';
-import { StateManagerImpl } from '../state/state-manager.js';
+import { StateManagerImpl } from './state-manager.js';
 import type { Config } from '../types/config.js';
 
 export class StreamManager extends EventEmitter {
