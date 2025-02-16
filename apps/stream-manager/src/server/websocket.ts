@@ -23,59 +23,75 @@ class WebSocketService {
     return WebSocketService.instance;
   }
 
-  initialize() {
-    if (this.isInitialized) {
-      logger.warn('WebSocket server already initialized, skipping initialization');
-      return;
-    }
+  initialize(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.isInitialized) {
+        logger.warn('WebSocket server already initialized, skipping initialization');
+        resolve();
+        return;
+      }
 
-    const wsPort = process.env.WS_PORT ? parseInt(process.env.WS_PORT, 10) : 4201;
+      const wsPort = process.env.WS_PORT ? parseInt(process.env.WS_PORT, 10) : 4201;
 
-    logger.info('Initializing WebSocket server', {
-      port: wsPort,
-      timestamp: new Date().toISOString()
-    });
-
-    try {
-      // Create WebSocket server with path configuration
-      this.wss = new WebSocketServer({ 
+      logger.info('Initializing WebSocket server', {
         port: wsPort,
-        path: '/ws',
-        // Add custom headers for WebSocket upgrade
-        handleProtocols: (protocols, request) => {
-          logger.debug('WebSocket protocols', {
-            protocols,
-            headers: request.headers,
+        timestamp: new Date().toISOString()
+      });
+
+      try {
+        // Create WebSocket server with path configuration
+        this.wss = new WebSocketServer({ 
+          port: wsPort,
+          path: '/ws',
+          // Add custom headers for WebSocket upgrade
+          handleProtocols: (protocols, request) => {
+            logger.debug('WebSocket protocols', {
+              protocols,
+              headers: request.headers,
+              timestamp: new Date().toISOString()
+            });
+            return protocols[0];
+          }
+        });
+        
+        // Wait for the server to start listening
+        this.wss.on('listening', () => {
+          logger.info('WebSocket server created successfully', { 
+            port: wsPort,
+            path: '/ws',
             timestamp: new Date().toISOString()
           });
-          return protocols[0];
-        }
-      });
-      
-      logger.info('WebSocket server created successfully', { 
-        port: wsPort,
-        path: '/ws',
-        timestamp: new Date().toISOString()
-      });
-      
-      // Setup event listeners
-      this.setupEventListeners();
-      
-      this.isInitialized = true;
-      logger.info('WebSocket server initialization complete', {
-        status: 'ready',
-        port: wsPort,
-        path: '/ws',
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      logger.error('Failed to initialize WebSocket server', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
-      throw error;
-    }
+          
+          // Setup event listeners
+          this.setupEventListeners();
+          
+          this.isInitialized = true;
+          logger.info('WebSocket server initialization complete', {
+            status: 'ready',
+            port: wsPort,
+            path: '/ws',
+            timestamp: new Date().toISOString()
+          });
+          resolve();
+        });
+
+        this.wss.on('error', (error) => {
+          logger.error('WebSocket server error during initialization', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString()
+          });
+          reject(error);
+        });
+      } catch (error) {
+        logger.error('Failed to initialize WebSocket server', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        });
+        reject(error);
+      }
+    });
   }
 
   private setupEventListeners(): void {

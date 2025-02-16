@@ -66,6 +66,10 @@ export class StateManagerImpl implements StateManager {
       logger.info('Initializing Redis service...');
       await this.redisService.initialize(config);
 
+      // Initialize WebSocket service
+      logger.info('Initializing WebSocket service...');
+      await webSocketService.initialize();
+
       // Load initial state
       await this.loadState();
       

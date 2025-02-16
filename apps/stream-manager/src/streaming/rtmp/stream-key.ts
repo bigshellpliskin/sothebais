@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import type { LogContext } from '../../utils/logger.js';
 
 const STREAM_KEY_PREFIX = 'stream:key:';
+const STREAM_ALIAS_PREFIX = 'stream:alias:';
 const STREAM_KEY_LENGTH = 32;
 
 export interface StreamKeyInfo {
@@ -14,6 +15,7 @@ export interface StreamKeyInfo {
   isActive: boolean;
   createdAt: Date;
   lastUsedAt?: Date;
+  alias?: string;
 }
 
 export class StreamKeyService {
@@ -199,5 +201,64 @@ export class StreamKeyService {
    */
   private hashKey(streamKey: string): string {
     return createHash('sha256').update(streamKey).digest('hex');
+  }
+
+  /**
+   * Create or get an alias for easier debugging/preview access
+   */
+  public async getOrCreateAlias(alias: string, userId: string, streamId: string): Promise<string> {
+    try {
+      // Check if alias exists
+      const existingKey = await this.redis.get(STREAM_ALIAS_PREFIX + alias);
+      if (existingKey) {
+        // Validate the existing key
+        const keyInfo = await this.getKeyInfo(existingKey);
+        if (keyInfo && keyInfo.isActive) {
+          return existingKey;
+        }
+      }
+
+      // Create new key with alias
+      const streamKey = await this.generateKey(userId, streamId, {
+        expiresIn: 86400 * 30 // 30 days for debug/preview keys
+      });
+
+      // Store alias mapping
+      await this.redis.set(STREAM_ALIAS_PREFIX + alias, streamKey);
+
+      // Update key info with alias
+      const keyInfo = await this.getKeyInfo(streamKey);
+      if (keyInfo) {
+        keyInfo.alias = alias;
+        await this.redis.set(
+          STREAM_KEY_PREFIX + this.hashKey(streamKey),
+          JSON.stringify(keyInfo),
+          'KEEPTTL'
+        );
+      }
+
+      return streamKey;
+    } catch (error) {
+      logger.error('Error creating stream alias', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        alias
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get stream key by alias
+   */
+  public async getKeyByAlias(alias: string): Promise<string | null> {
+    try {
+      return await this.redis.get(STREAM_ALIAS_PREFIX + alias);
+    } catch (error) {
+      logger.error('Error getting stream key by alias', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        alias
+      });
+      return null;
+    }
   }
 } 

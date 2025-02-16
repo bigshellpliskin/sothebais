@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { FramePipeline } from './output/pipeline.js';
 import { StreamEncoder } from './output/encoder.js';
 import { RTMPServer } from './rtmp/server.js';
+import { StreamKeyService } from './rtmp/stream-key.js';
 import { stateManager } from '../state/state-manager.js';
 import { webSocketService } from '../server/websocket.js';
 import type { StateManagerImpl } from '../state/state-manager.js';
@@ -59,6 +60,11 @@ export class StreamManager extends EventEmitter {
       // Initialize state manager first
       await this.stateManager.initialize(config);
 
+      // Initialize StreamKeyService with same Redis URL as state manager
+      logger.info('Initializing stream key service...');
+      const streamKeyService = StreamKeyService.initialize(config.REDIS_URL);
+      logger.info('Stream key service initialized');
+
       // Store core components
       this.assets = dependencies.assets;
       this.composition = dependencies.composition;
@@ -73,10 +79,6 @@ export class StreamManager extends EventEmitter {
         ping_timeout: config.RTMP_PING_TIMEOUT
       });
 
-      // Add test stream key for development
-      const streamKey = 'test';
-      this.rtmpServer.addStreamKey(streamKey);
-
       // Initialize frame pipeline
       const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
       this.pipeline = await FramePipeline.initialize({
@@ -88,7 +90,26 @@ export class StreamManager extends EventEmitter {
         height
       });
 
-      // Initialize encoder
+      // Generate test stream key for development
+      const streamKey = await streamKeyService.generateKey('test-user', 'test-stream', {
+        expiresIn: 86400 // 24 hours
+      });
+
+      // Validate the stream key before using it
+      const keyInfo = await streamKeyService.getKeyInfo(streamKey);
+      if (!keyInfo || !keyInfo.isActive) {
+        throw new Error('Failed to generate valid stream key');
+      }
+
+      logger.info('Generated test stream key for development', { 
+        streamKey,
+        userId: keyInfo.userId,
+        streamId: keyInfo.streamId,
+        expiresAt: keyInfo.expiresAt
+      });
+
+      // Initialize encoder with validated key
+      logger.info('Initializing encoder with stream key', { streamKey });
       this.encoder = await StreamEncoder.initialize({
         width,
         height,
@@ -196,10 +217,12 @@ export class StreamManager extends EventEmitter {
     try {
       logger.info('Starting stream');
 
-      // Start components in sequence
-      this.rtmpServer?.start();
+      // Start components in sequence and wait for each
+      logger.info('Starting RTMP server...');
+      await this.rtmpServer?.start();
       logger.info('RTMP server started');
 
+      logger.info('Starting encoder...');
       this.encoder?.start();
       logger.info('Encoder started');
 
@@ -233,22 +256,37 @@ export class StreamManager extends EventEmitter {
     try {
       logger.info('Stopping stream');
 
-      // Stop frame generation
+      // Stop frame generation first
       if (this.frameInterval) {
         clearInterval(this.frameInterval);
         this.frameInterval = null;
       }
 
-      // Stop components in reverse order
-      this.encoder?.stop();
+      // Stop components in reverse order with proper cleanup
+      logger.info('Stopping encoder...');
+      await this.encoder?.stop();
+      logger.info('Encoder stopped');
+
+      logger.info('Cleaning up pipeline...');
       await this.pipeline?.cleanup();
-      this.rtmpServer?.stop();
+      logger.info('Pipeline cleaned up');
+
+      logger.info('Stopping RTMP server...');
+      await this.rtmpServer?.stop();
+      logger.info('RTMP server stopped');
+
+      // Reset counters
+      this.frameCount = 0;
+      this.droppedFrames = 0;
 
       // Update state
       await this.stateManager.updateStreamState({
         isLive: false,
         isPaused: false,
-        startTime: null
+        startTime: null,
+        frameCount: 0,
+        droppedFrames: 0,
+        fps: 0
       });
 
       this.emit('stopped');

@@ -2,9 +2,9 @@ import NodeMediaServer from 'node-media-server';
 import { EventEmitter } from 'events';
 import { Registry, Gauge, Counter } from 'prom-client';
 import { logger } from '../../utils/logger.js';
-import { RTMPEvents } from './events.js';
 import { EventType, ConnectionType } from '../../types/events.js';
 import type { RTMPEventPayload } from '../../types/events.js';
+import { StreamKeyService } from './stream-key.js';
 
 // Create a Registry for metrics
 const register = new Registry();
@@ -26,6 +26,18 @@ const rtmpErrorsGauge = new Gauge({
   name: 'rtmp_errors_total',
   help: 'Total number of RTMP errors',
   registers: [register]
+});
+
+const connectionCounter = new Counter({
+  name: 'rtmp_connection_attempts_total',
+  help: 'Total number of RTMP connection attempts',
+  labelNames: ['status']
+});
+
+const publishCounter = new Counter({
+  name: 'rtmp_publish_attempts_total',
+  help: 'Total number of RTMP publish attempts',
+  labelNames: ['status']
 });
 
 // Add type definition for session
@@ -63,34 +75,48 @@ export class RTMPServer extends EventEmitter {
   private server: NodeMediaServerExtended;
   private config: RTMPConfig;
   private activeStreams: Map<string, any> = new Map();
-  private events: RTMPEvents;
-  private allowedStreamKeys: Set<string> = new Set();
   private connections: Map<string, Connection> = new Map();
+  private isRunning: boolean = false;
+  private streamKeyService: StreamKeyService;
 
   private constructor(config: RTMPConfig) {
     super();
     this.config = config;
-    this.events = new RTMPEvents(this);
+    this.streamKeyService = StreamKeyService.getInstance();
 
-    // Configure Node-Media-Server
-    this.server = new NodeMediaServer({
-      rtmp: {
-        port: config.port,
-        chunk_size: config.chunk_size,
-        gop_cache: true,
-        ping: config.ping,
-        ping_timeout: config.ping_timeout
-      },
-      logType: 3 // Log to callback only
-    });
+    try {
+      // Configure Node-Media-Server
+      this.server = new NodeMediaServer({
+        rtmp: {
+          port: config.port,
+          chunk_size: config.chunk_size,
+          gop_cache: true,
+          ping: config.ping,
+          ping_timeout: config.ping_timeout
+        },
+        logType: 3 // Log to callback only
+      });
 
-    // Setup event handlers
-    this.setupEventHandlers();
-    this.startMetricsCollection();
-
-    logger.info('RTMP server initialized', {
-      config: this.config
-    });
+      // Setup event handlers
+      this.setupEventHandlers();
+      this.setupProcessHandlers();
+      
+      // Mark server as running since NodeMediaServer starts on construction
+      this.isRunning = true;
+      this.startMetricsCollection();
+      
+      logger.info('RTMP server initialized and running', {
+        config: this.config
+      });
+      
+      // Emit ready event since server is now running
+      this.emit('rtmp:ready');
+    } catch (error) {
+      logger.error('Failed to initialize RTMP server', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   }
 
   public static initialize(config: RTMPConfig): RTMPServer {
@@ -108,7 +134,9 @@ export class RTMPServer extends EventEmitter {
   }
 
   private setupEventHandlers(): void {
-    this.server.on('preConnect', (id: string, StreamPath: string, args: { query?: { role?: string } }) => {
+    this.server.on('preConnect', (id: string, StreamPath: string, args: { query?: { role?: string }; ip?: string }) => {
+      connectionCounter.labels('attempt').inc();
+      
       // Don't count encoder connections as players
       const isEncoder = args?.query?.role === 'encoder';
       
@@ -132,6 +160,7 @@ export class RTMPServer extends EventEmitter {
     });
 
     this.server.on('postConnect', (id, args) => {
+      connectionCounter.labels('success').inc();
       const conn = this.connections.get(id);
       if (conn) {
         const payload: RTMPEventPayload = {
@@ -167,31 +196,42 @@ export class RTMPServer extends EventEmitter {
       rtmpConnectionsGauge.dec();
     });
 
-    this.server.on('prePublish', async (id, StreamPath, args) => {
+    this.server.on('prePublish', async (id: string, StreamPath: string, args: any) => {
+      publishCounter.labels('attempt').inc();
       const conn = this.connections.get(id);
       if (conn) {
         conn.type = ConnectionType.PUBLISHER;
         conn.streamPath = StreamPath;
       }
       
-      // Extract stream key from path (e.g., /live/stream-key)
-      const streamKey = StreamPath.split('/').pop();
+      // Extract stream key or alias from path (e.g., /live/stream-key or /live/preview)
+      const keyOrAlias = StreamPath.split('/').pop();
       
-      if (!streamKey || !this.validateStreamKey(streamKey)) {
-        logger.warn('Invalid stream key, rejecting stream', {
+      if (!keyOrAlias) {
+        logger.warn('Invalid stream path, rejecting stream', {
           id,
           streamPath: StreamPath
         });
         
-        // Get session and safely type cast
-        const rawSession = this.server.getSession(id);
-        if (
-          rawSession && 
-          typeof rawSession === 'object' && 
-          'reject' in rawSession && 
-          typeof (rawSession as NodeMediaSession).reject === 'function'
-        ) {
-          const session = rawSession as NodeMediaSession;
+        const session = this.server.getSession(id) as NodeMediaSession;
+        if (session?.reject) {
+          session.reject();
+        }
+        return;
+      }
+
+      // Try to get stream key from alias first
+      const streamKey = await this.streamKeyService.getKeyByAlias(keyOrAlias) || keyOrAlias;
+      
+      if (!await this.streamKeyService.validateKey(streamKey, args.ip)) {
+        logger.warn('Invalid stream key/alias, rejecting stream', {
+          id,
+          streamPath: StreamPath,
+          keyOrAlias
+        });
+        
+        const session = this.server.getSession(id) as NodeMediaSession;
+        if (session?.reject) {
           session.reject();
         } else {
           logger.warn('Could not reject invalid stream - session invalid', { id });
@@ -199,9 +239,11 @@ export class RTMPServer extends EventEmitter {
         return;
       }
 
-      logger.info('Stream key validated, allowing stream', {
+      publishCounter.labels('success').inc();
+      logger.info('Stream key/alias validated, allowing stream', {
         id,
-        streamPath: StreamPath
+        streamPath: StreamPath,
+        keyOrAlias
       });
     });
 
@@ -285,10 +327,10 @@ export class RTMPServer extends EventEmitter {
       logger.info('RTMP client stopped playing', { id, StreamPath, args });
     });
 
-    this.server.on('error', (err) => {
-      logger.error('RTMP server error', { error: err });
+    this.server.on('error', (error: unknown) => {
+      logger.error('RTMP server error', { error: error instanceof Error ? error.message : 'Unknown error' });
       rtmpErrorsGauge.inc();
-      this.emit('error', err);
+      this.emit('error', error);
     });
   }
 
@@ -299,25 +341,54 @@ export class RTMPServer extends EventEmitter {
     }, 1000);
   }
 
-  public start(): void {
-    this.server.run();
-    logger.info('RTMP server started', {
-      port: this.config.port
+  public start(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.isRunning) {
+        logger.warn('RTMP server is already running');
+        resolve();
+        return;
+      }
+
+      try {
+        // Server is already running from constructor, just wait for ready event
+        this.once('rtmp:ready', () => {
+          logger.info('Starting RTMP ready...');
+          resolve();
+        });
+
+        // Add timeout in case server fails to start
+        setTimeout(() => {
+          if (!this.isRunning) {
+            const error = new Error('RTMP server failed to start within timeout');
+            logger.error('RTMP server startup timeout', { error });
+            reject(error);
+          }
+        }, 5000);
+
+      } catch (error) {
+        logger.error('Failed to start RTMP server', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        reject(error);
+      }
     });
   }
 
-  public stop(): void {
-    try {
+  public stop(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        logger.info('Stopping RTMP server...');
+        
         // Force close all active sessions
         Array.from(this.connections.values()).forEach(conn => {
-            const session = this.server.getSession(conn.id) as NodeMediaSession;
-            if (session) {
-                try {
-                    session.reject();
-                } catch (e) {
-                    logger.warn('Error closing session', { id: conn.id, error: e });
-                }
+          const session = this.server.getSession(conn.id) as NodeMediaSession;
+          if (session) {
+            try {
+              session.reject();
+            } catch (e) {
+              logger.warn('Error closing session', { id: conn.id, error: e });
             }
+          }
         });
 
         // Clear all tracking maps
@@ -331,12 +402,17 @@ export class RTMPServer extends EventEmitter {
 
         // Stop the server
         this.server.stop();
+        this.isRunning = false;
         
         logger.info('RTMP server stopped and cleaned up');
-    } catch (error) {
-        logger.error('Error during RTMP server shutdown', { error });
-        throw error;
-    }
+        resolve();
+      } catch (error) {
+        logger.error('Error during RTMP server shutdown', { 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+        reject(error);
+      }
+    });
   }
 
   public getActiveStreams(): Map<string, { id: string; startedAt: Date }> {
@@ -344,26 +420,10 @@ export class RTMPServer extends EventEmitter {
   }
 
   /**
-   * Add a valid stream key
-   */
-  public addStreamKey(key: string): void {
-    this.allowedStreamKeys.add(key);
-    logger.info('Added stream key', { key });
-  }
-
-  /**
-   * Remove a stream key
-   */
-  public removeStreamKey(key: string): void {
-    this.allowedStreamKeys.delete(key);
-    logger.info('Removed stream key', { key });
-  }
-
-  /**
    * Validate a stream key
    */
-  public validateStreamKey(key: string): boolean {
-    return this.allowedStreamKeys.has(key);
+  public async validateStreamKey(key: string): Promise<boolean> {
+    return this.streamKeyService.validateKey(key);
   }
 
   public getMetrics(): {

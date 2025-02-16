@@ -12,14 +12,22 @@ export interface BaseEvent {
 // Event types enum
 export enum EventType {
   STATE_STREAM_UPDATE = 'state:stream:update',
-  STATE_SCENE_UPDATE = 'state:scene:update'
+  STATE_SCENE_UPDATE = 'state:scene:update',
+  // RTMP Events
+  RTMP_CONNECTION = 'rtmp:connection',
+  RTMP_DISCONNECTION = 'rtmp:disconnection',
+  RTMP_PUBLISH_START = 'rtmp:publish:start',
+  RTMP_PUBLISH_STOP = 'rtmp:publish:stop',
+  RTMP_PLAY_START = 'rtmp:play:start',
+  RTMP_PLAY_STOP = 'rtmp:play:stop'
 }
 
 // Event sources
 export enum EventSource {
   STATE_MANAGER = 'state_manager',
   STREAM_MANAGER = 'stream_manager',
-  SCENE_MANAGER = 'scene_manager'
+  SCENE_MANAGER = 'scene_manager',
+  RTMP_SERVER = 'rtmp_server'
 }
 
 // Connection types for RTMP server
@@ -40,6 +48,14 @@ export interface SystemEventPayload {
   message: string;
   code?: string;
   details?: Record<string, unknown>;
+}
+
+export interface RTMPEventPayload {
+  clientId: string;
+  connectionType: ConnectionType;
+  streamPath?: string;
+  timestamp: number;
+  duration?: number;
 }
 
 // Concrete event types

@@ -376,23 +376,40 @@ export class StreamEncoder extends EventEmitter {
   /**
    * Stop the FFmpeg process and clean up resources
    */
-  public stop(): void {
-    if (!this.isStreaming || !this.ffmpeg) {
-      return;
-    }
+  public stop(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (!this.isStreaming || !this.ffmpeg) {
+        resolve();
+        return;
+      }
 
-    try {
-      // Send SIGTERM to FFmpeg process
-      this.ffmpeg.stdin?.end();
-      this.ffmpeg.kill('SIGTERM');
-      this.isStreaming = false;
-      this.frameCount = 0;
-      logger.info('Stream encoder stopped');
-    } catch (error) {
-      logger.error('Failed to stop FFmpeg process', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      } as LogContext);
-    }
+      try {
+        // Send SIGTERM to FFmpeg process
+        this.ffmpeg.stdin?.end();
+        this.ffmpeg.kill('SIGTERM');
+        
+        // Wait for process to exit
+        this.ffmpeg.on('exit', () => {
+          this.isStreaming = false;
+          this.frameCount = 0;
+          this.lastFrameTime = 0;
+          this.currentFPS = 0;
+          this.restartAttempts = 0;
+          this.frameLatency = 0;
+          this.droppedFrames = 0;
+          this.ffmpeg = null;
+          
+          logger.info('Stream encoder stopped and cleaned up');
+          resolve();
+        });
+      } catch (error) {
+        logger.error('Failed to stop FFmpeg process', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        // Still resolve since we want to continue cleanup
+        resolve();
+      }
+    });
   }
 
   public sendFrame(buffer: Buffer): void {

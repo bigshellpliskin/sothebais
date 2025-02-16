@@ -16,6 +16,7 @@ import { AssetManager as AM } from '../../core/assets.js';
 import { StreamManager as SM } from '../../streaming/stream-manager.js';
 import { createDefaultScene } from '../../scenes/default-scene.js';
 import { stateManager } from '../../state/state-manager.js';
+import { StreamKeyService } from '../../streaming/rtmp/stream-key.js';
 
 // Get directory name for ES modules
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,12 +76,18 @@ async function main() {
     // Log connection information
     const rtmpPort = config.RTMP_PORT || 1935;
     const streamPath = '/live';
-    const streamKey = 'test';
+    const streamAlias = 'preview'; // Consistent alias for preview/debug streams
+    
+    // Get stream key from alias
+    const streamKeyService = StreamKeyService.getInstance();
+    const streamKey = await streamKeyService.getOrCreateAlias(streamAlias, 'test-user', 'preview-stream');
+    
     const rtmpUrl = `rtmp://localhost:${rtmpPort}${streamPath}/${streamKey}`;
+    const previewUrl = `rtmp://localhost:${rtmpPort}${streamPath}/${streamAlias}`; // Easier to remember URL
 
     logger.info('Stream ready for playback', {
       playbackUrl: rtmpUrl,
-      vlcUrl: `rtmp://localhost:${rtmpPort}${streamPath}/${streamKey}`,
+      previewUrl: previewUrl,
       resolution: `${width}x${height}`,
       fps: config.TARGET_FPS
     });
