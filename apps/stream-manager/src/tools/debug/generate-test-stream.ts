@@ -15,6 +15,7 @@ import { CompositionEngine as CE } from '../../core/composition.js';
 import { AssetManager as AM } from '../../core/assets.js';
 import { StreamManager as SM } from '../../streaming/stream-manager.js';
 import { createDefaultScene } from '../../scenes/default-scene.js';
+import { stateManager } from '../../state/state-manager.js';
 
 // Get directory name for ES modules
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,8 +27,8 @@ async function initializeCoreComponents(config: Config) {
   const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
 
   // Initialize managers with proper typing
-  const assets = (await (AM as unknown as AssetManagerStatic).initialize(config)) as AssetManager;
-  const composition = (await (CE as unknown as CompositionEngineStatic).initialize(config)) as CompositionEngine;
+  const assets = AM.getInstance() as AssetManager;
+  const composition = CE.getInstance(config) as CompositionEngine;
 
   // Update composition dimensions
   composition.updateDimensions(width, height);
@@ -57,7 +58,7 @@ async function main() {
     const scene = createDefaultScene(config);
 
     // Initialize stream manager with proper typing
-    const streamManager = (SM as unknown as StreamManagerStatic).getInstance() as StreamManager;
+    const streamManager = SM.getInstance() as StreamManager;
     await streamManager.initialize(config, {
       assets,
       composition,
@@ -74,7 +75,7 @@ async function main() {
     // Log connection information
     const rtmpPort = config.RTMP_PORT || 1935;
     const streamPath = '/live';
-    const streamKey = 'test-stream';
+    const streamKey = 'test';
     const rtmpUrl = `rtmp://localhost:${rtmpPort}${streamPath}/${streamKey}`;
 
     logger.info('Stream ready for playback', {

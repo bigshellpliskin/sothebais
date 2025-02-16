@@ -56,6 +56,9 @@ export class StreamManager extends EventEmitter {
       logger.info('Initializing stream manager');
       this.config = config;
 
+      // Initialize state manager first
+      await this.stateManager.initialize(config);
+
       // Store core components
       this.assets = dependencies.assets;
       this.composition = dependencies.composition;
@@ -71,7 +74,8 @@ export class StreamManager extends EventEmitter {
       });
 
       // Add test stream key for development
-      this.rtmpServer.addStreamKey('test-stream');
+      const streamKey = 'test';
+      this.rtmpServer.addStreamKey(streamKey);
 
       // Initialize frame pipeline
       const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
@@ -92,7 +96,7 @@ export class StreamManager extends EventEmitter {
         bitrate: parseInt(config.STREAM_BITRATE.replace('k', '000')),
         codec: 'h264',
         preset: 'veryfast',
-        outputs: [`rtmp://localhost:${config.RTMP_PORT}/live/test-stream`]
+        outputs: [`rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`]
       });
 
       // Setup event handlers

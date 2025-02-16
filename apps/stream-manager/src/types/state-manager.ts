@@ -6,35 +6,24 @@
  * of how the state management system works.
  */
 
-import type { LayerState } from './layers.js';
 import type { StreamState } from './stream.js';
-import type { EventType, EventListener } from './events.js';
-
-/**
- * Represents the state of a preview client connection
- */
-export interface PreviewClientState {
-  id: string;
-  quality: 'high' | 'medium' | 'low';
-  lastPing: number;
-  connected: boolean;
-}
+import type { SceneState } from './scene.js';
+import type { Config } from './config.js';
 
 /**
  * The complete application state structure
  */
 export interface AppState {
   stream: StreamState;
-  layers: LayerState;
-  previewClients: Record<string, PreviewClientState>;
+  scene: SceneState;
 }
 
 /**
  * Events that can be emitted by the state manager
  */
 export type StateUpdateEvent = {
-  type: 'stream' | 'layers' | 'previewClient';
-  payload: Partial<StreamState> | Partial<LayerState> | PreviewClientState;
+  type: 'stream' | 'scene';
+  payload: Partial<StreamState> | Partial<SceneState>;
 };
 
 /**
@@ -48,22 +37,11 @@ export interface StateEventListener {
  * Interface defining the state manager's public API
  */
 export interface StateManager {
-  // State getters
+  initialize(config: Config): Promise<void>;
   getStreamState(): StreamState;
-  getLayerState(): LayerState;
-  getPreviewClients(): Record<string, PreviewClientState>;
-  
-  // State updates
+  getSceneState(): SceneState;
   updateStreamState(update: Partial<StreamState>): Promise<void>;
-  updateLayerState(update: Partial<LayerState>): Promise<void>;
-  updatePreviewClient(clientId: string, update: Partial<PreviewClientState>): Promise<void>;
-  
-  // State persistence
+  updateSceneState(update: Partial<SceneState>): Promise<void>;
   loadState(): Promise<void>;
   saveState(): Promise<void>;
-
-  // Event handling - now delegates to eventEmitter
-  on(type: EventType, listener: EventListener): void;
-  off(type: EventType, listener: EventListener): void;
-  once(type: EventType, listener: EventListener): void;
 } 

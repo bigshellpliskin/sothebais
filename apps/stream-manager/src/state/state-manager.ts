@@ -1,22 +1,21 @@
 import type { 
   StateManager,
-  PreviewClientState,
   AppState
 } from '../types/state-manager.js';
-import type { LayerState } from '../types/layers.js';
 import type { StreamState } from '../types/stream.js';
+import type { SceneState } from '../types/scene.js';
 import { EventType, EventSource } from '../types/events.js';
 import type { 
   StreamEvent, 
-  LayerEvent, 
-  PreviewEvent,
+  SceneEvent,
   StreamManagerEvent,
   EventListener as StreamManagerEventListener 
 } from '../types/events.js';
-import { redisService } from './redis-service.js';
+import { RedisService } from './redis-service.js';
 import { logger } from '../utils/logger.js';
 import { webSocketService } from '../server/websocket.js';
 import { eventEmitter } from './event-emitter.js';
+import type { Config } from '../types/config.js';
 
 const DEFAULT_STREAM_STATE: StreamState = {
   isLive: false,
@@ -30,21 +29,24 @@ const DEFAULT_STREAM_STATE: StreamState = {
   error: null
 };
 
-const DEFAULT_LAYER_STATE: LayerState = {
-  layers: [],
-  activeLayerId: null
+const DEFAULT_SCENE_STATE: SceneState = {
+  background: [],
+  quadrants: new Map(),
+  overlay: []
 };
 
 export class StateManagerImpl implements StateManager {
   private state: AppState;
   private static instance: StateManagerImpl | null = null;
+  private isInitialized: boolean = false;
+  private redisService: RedisService;
 
   private constructor() {
     this.state = {
       stream: { ...DEFAULT_STREAM_STATE },
-      layers: { ...DEFAULT_LAYER_STATE },
-      previewClients: {}
+      scene: { ...DEFAULT_SCENE_STATE }
     };
+    this.redisService = RedisService.getInstance();
   }
 
   public static getInstance(): StateManagerImpl {
@@ -54,42 +56,74 @@ export class StateManagerImpl implements StateManager {
     return StateManagerImpl.instance;
   }
 
+  public async initialize(config: Config): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      // Initialize Redis service first
+      logger.info('Initializing Redis service...');
+      await this.redisService.initialize(config);
+
+      // Load initial state
+      await this.loadState();
+      
+      this.isInitialized = true;
+      logger.info('State manager initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize state manager', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error;
+    }
+  }
+
   // State getters
   public getStreamState(): StreamState {
     return { ...this.state.stream };
   }
 
-  public getLayerState(): LayerState {
-    return { ...this.state.layers };
-  }
-
-  public getPreviewClients(): Record<string, PreviewClientState> {
-    return { ...this.state.previewClients };
+  public getSceneState(): SceneState {
+    return {
+      background: [...this.state.scene.background],
+      quadrants: new Map(this.state.scene.quadrants),
+      overlay: [...this.state.scene.overlay]
+    };
   }
 
   // State updates
+  private async ensureRedisConnection(): Promise<void> {
+    if (!this.redisService.isReady()) {
+      logger.info('Redis disconnected, attempting to reconnect...');
+      await this.redisService.connect();
+    }
+  }
+
   public async updateStreamState(update: Partial<StreamState>): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('State manager not initialized');
+    }
+
     try {
       const previousState = { ...this.state.stream };
       const changes = Object.keys(update);
 
-      // Log state change details
       logger.info('Updating stream state:', { 
         current: previousState,
         update,
         changes
       });
 
-      // Update in-memory state
       this.state.stream = {
         ...this.state.stream,
         ...update
       };
 
-      // Save immediately to Redis
-      await redisService.saveStreamState(this.state.stream);
+      await this.ensureRedisConnection();
+      await this.redisService.saveStreamState(this.state.stream);
 
-      // Create standardized event
       const event: StreamEvent = {
         id: Date.now().toString(),
         timestamp: Date.now(),
@@ -102,10 +136,7 @@ export class StateManagerImpl implements StateManager {
         }
       };
 
-      // Emit event
       await eventEmitter.emit(event);
-
-      // Broadcast via WebSocket
       webSocketService.broadcastStateUpdate(event);
 
       logger.info('Stream state updated and persisted:', {
@@ -123,36 +154,40 @@ export class StateManagerImpl implements StateManager {
     }
   }
 
-  public async updateLayerState(update: Partial<LayerState>): Promise<void> {
+  public async updateSceneState(update: Partial<SceneState>): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('State manager not initialized');
+    }
+
     try {
-      const previousState = { ...this.state.layers };
+      const previousState = this.getSceneState();
       const changes = Object.keys(update);
 
       // Log state change details
-      logger.info('Updating layer state:', {
+      logger.info('Updating scene state:', {
         current: previousState,
         update,
         changes
       });
 
       // Update in-memory state
-      this.state.layers = {
-        ...this.state.layers,
+      this.state.scene = {
+        ...this.state.scene,
         ...update
       };
 
-      // Save immediately to Redis
-      await redisService.saveLayerState(this.state.layers);
+      await this.ensureRedisConnection();
+      await this.redisService.saveSceneState(this.state.scene);
 
       // Create standardized event
-      const event: LayerEvent = {
+      const event: SceneEvent = {
         id: Date.now().toString(),
         timestamp: Date.now(),
-        type: EventType.STATE_LAYER_UPDATE,
+        type: EventType.STATE_SCENE_UPDATE,
         source: EventSource.STATE_MANAGER,
         payload: {
           previous: previousState,
-          current: this.state.layers,
+          current: this.getSceneState(),
           changes
         }
       };
@@ -163,110 +198,76 @@ export class StateManagerImpl implements StateManager {
       // Broadcast via WebSocket
       webSocketService.broadcastStateUpdate(event);
 
-      logger.info('Layer state updated and persisted:', {
-        newState: this.state.layers,
+      logger.info('Scene state updated and persisted:', {
+        newState: this.state.scene,
         changes,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      logger.error('Failed to update layer state', {
+      logger.error('Failed to update scene state', {
         error: error instanceof Error ? error.message : 'Unknown error',
         update,
-        currentState: this.state.layers
+        currentState: this.state.scene
       });
       throw error;
     }
   }
 
-  public async updatePreviewClient(clientId: string, update: Partial<PreviewClientState>): Promise<void> {
-    const previousState = this.state.previewClients[clientId] || {
-      id: clientId,
-      quality: 'medium',
-      lastPing: Date.now(),
-      connected: true
-    };
-
-    const changes = Object.keys(update);
-
-    this.state.previewClients[clientId] = {
-      ...previousState,
-      ...update
-    };
-
-    // Create standardized event
-    const event: PreviewEvent = {
-      id: Date.now().toString(),
-      timestamp: Date.now(),
-      type: EventType.STATE_PREVIEW_UPDATE,
-      source: EventSource.STATE_MANAGER,
-      payload: {
-        clientId,
-        previous: previousState,
-        current: this.state.previewClients[clientId],
-        changes
-      }
-    };
-
-    // Emit event
-    await eventEmitter.emit(event);
-  }
-
   // Persistence
   public async loadState(): Promise<void> {
+    if (!this.redisService.isReady()) {
+      throw new Error('Redis client not connected');
+    }
+
     try {
       // Load stream state from Redis
-      const streamState = await redisService.getStreamState();
+      const streamState = await this.redisService.getStreamState();
+      const sceneState = await this.redisService.getSceneState();
 
       if (streamState) {
         this.state.stream = streamState;
         logger.info('Loaded stream state from Redis', { state: streamState });
-      } else if (streamState === null) {
-          // Explicitly check for null, which indicates either no state or an error
-          const redisState = await redisService.client?.get('streamState');
-          if (redisState === null || redisState === undefined) {
-              // Key does not exist in Redis, initialize default state
-              this.state.stream = { ...DEFAULT_STREAM_STATE };
-              await redisService.saveStreamState(this.state.stream);
-              logger.info('Initialized default stream state', { state: this.state.stream });
-          } else {
-              // Key exists, but there was an error parsing. Log and keep in-memory default, but don't overwrite Redis
-              logger.warn('Failed to load or parse stream state from Redis. Using in-memory default.');
-              this.state.stream = { ...DEFAULT_STREAM_STATE }; // Use default, but don't save
-          }
+      } else {
+        this.state.stream = { ...DEFAULT_STREAM_STATE };
+        await this.redisService.saveStreamState(this.state.stream);
+        logger.info('Initialized default stream state', { state: this.state.stream });
       }
 
-      // Load layer state from Redis (similar handling)
-      const layerState = await redisService.getLayerState();
-      if (layerState) {
-        this.state.layers = layerState;
-        logger.info('Loaded layer state from Redis', { state: layerState });
+      if (sceneState) {
+        this.state.scene = sceneState;
+        logger.info('Loaded scene state from Redis', { state: sceneState });
+      } else {
+        this.state.scene = { ...DEFAULT_SCENE_STATE };
+        await this.redisService.saveSceneState(this.state.scene);
+        logger.info('Initialized default scene state', { state: this.state.scene });
       }
     } catch (error) {
       logger.error('Failed to load state from Redis', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       });
-      throw error; // Re-throw the error to be handled upstream
+      throw error;
     }
   }
 
   public async saveState(): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('State manager not initialized');
+    }
+
     try {
       // Ensure Redis is connected
-      if (!redisService.isReady()) {
-        logger.info('Redis not connected, attempting to reconnect');
-        await redisService.connect();
-      }
+      await this.ensureRedisConnection();
 
-      // Save both stream and layer state
+      // Save both states
       await Promise.all([
-        redisService.saveStreamState(this.state.stream),
-        redisService.saveLayerState(this.state.layers)
+        this.redisService.saveStreamState(this.state.stream),
+        this.redisService.saveSceneState(this.state.scene)
       ]);
 
       logger.info('State saved to Redis', {
         stream: this.state.stream,
-        layers: this.state.layers
+        scene: this.state.scene
       });
     } catch (error) {
       logger.error('Failed to save state to Redis', {

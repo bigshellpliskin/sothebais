@@ -1,50 +1,249 @@
 # Stream Manager State System
 
-## Architecture Overview
+The state system manages the application's runtime state, focusing on two primary aspects:
+1. Stream operational state (metrics, status)
+2. Scene composition state (visual elements)
+
+## Architecture
 
 ```mermaid
 graph TD
-    subgraph Frontend ["Admin Frontend"]
-        UI[Admin UI]
-        Preview[Preview Client]
-        StateHook[useStreamState]
+    subgraph State ["State Management"]
+        SM[State Manager]
+        Redis[(Redis)]
+        Events[Event Emitter]
     end
 
-    subgraph Backend ["Stream Manager Backend"]
-        subgraph State ["State Management"]
-            Redis[(Redis Store)]
-            RuntimeState[Runtime State]
-            StateManager[State Manager]
-        end
-        
-        subgraph API ["API Layer"]
-            HTTP[HTTP API]
-            PreviewWS[Preview WebSocket]
-            StateMiddleware[State Middleware]
-        end
-
-        subgraph Server ["Stream Server"]
-            StreamControl[Stream Control]
-            LayerManager[Layer Manager]
-            AssetHandler[Asset Handler]
-            Monitoring[Monitoring]
-        end
+    subgraph Components ["Core Components"]
+        Stream[Stream Manager]
+        Composition[Composition Engine]
+        Scene[Scene Manager]
     end
 
-    UI -->|HTTP API Calls| HTTP
-    Preview -->|WS Frame Updates| PreviewWS
-    StateHook -->|Poll State| HTTP
+    subgraph Clients ["Clients"]
+        WS[WebSocket Clients]
+    end
+
+    %% State flow
+    SM -->|"Persist"| Redis
+    Redis -->|"Load"| SM
+    SM -->|"Emit Events"| Events
+    Events -->|"State Updates"| Components
+    Events -->|"Broadcasts"| WS
+
+    %% Component interactions
+    Stream -->|"Update Stream State"| SM
+    Scene -->|"Update Scene State"| SM
+    Composition -->|"Read Scene State"| SM
+
+    classDef state fill:#e1f5fe,stroke:#01579b;
+    classDef component fill:#e8f5e9,stroke:#2e7d32;
+    classDef client fill:#fce4ec,stroke:#c2185b;
     
-    HTTP -->|Validate| StateMiddleware
-    StateMiddleware -->|Load/Update| StateManager
-    PreviewWS -->|Read Only| StateManager
-    StateManager -->|Persist| Redis
-    StateManager -->|Update| RuntimeState
-
-    StreamControl -->|Update| StateManager
-    LayerManager -->|Manage| StateManager
-    Monitoring -->|Read| StateManager
+    class SM,Redis,Events state;
+    class Stream,Composition,Scene component;
+    class WS client;
 ```
+
+## State Structure
+
+### Stream State
+Tracks operational metrics and status:
+```typescript
+interface StreamState {
+  isLive: boolean;
+  isPaused: boolean;
+  fps: number;
+  targetFPS: number;
+  frameCount: number;
+  droppedFrames: number;
+  averageRenderTime: number;
+  startTime: number | null;
+  error: string | null;
+}
+```
+
+### Scene State
+Manages the current visual composition:
+```typescript
+interface SceneState {
+  background: Asset[];     // Fixed bottom layer assets
+  quadrants: Map<QuadrantId, Quadrant>;  // Main content areas
+  overlay: Asset[];        // Fixed top layer assets
+}
+```
+
+## Event System
+
+The state manager emits events for all state changes, allowing components to react to updates.
+
+### Event Types
+
+1. Stream State Events
+```typescript
+interface StreamEvent {
+  id: string;
+  timestamp: number;
+  type: EventType.STATE_STREAM_UPDATE;
+  source: EventSource.STATE_MANAGER;
+  payload: {
+    previous: StreamState;
+    current: StreamState;
+    changes: string[];
+  }
+}
+```
+
+2. Scene State Events
+```typescript
+interface SceneEvent {
+  id: string;
+  timestamp: number;
+  type: EventType.STATE_SCENE_UPDATE;
+  source: EventSource.STATE_MANAGER;
+  payload: {
+    previous: SceneState;
+    current: SceneState;
+    changes: string[];
+  }
+}
+```
+
+### Event Flow
+1. Component calls state update method
+2. State manager updates in-memory state
+3. State is persisted to Redis
+4. Event is emitted with previous/current states
+5. Event is broadcast to WebSocket clients
+6. Components react to state changes
+
+## State Updates
+
+### Stream State Updates
+```typescript
+// Update stream metrics
+await stateManager.updateStreamState({
+  fps: currentFPS,
+  frameCount: totalFrames,
+  droppedFrames: droppedFrameCount
+});
+```
+
+### Scene State Updates
+```typescript
+// Update scene composition
+await stateManager.updateSceneState({
+  background: newBackgroundAssets,
+  overlay: newOverlayAssets
+});
+```
+
+## Persistence
+
+The state system uses Redis for persistence with automatic serialization/deserialization:
+
+1. Stream State: Simple JSON serialization
+2. Scene State: Custom serialization for Map structures
+   ```typescript
+   // Serialization
+   const serialized = {
+     ...state,
+     quadrants: Array.from(state.quadrants.entries())
+   };
+
+   // Deserialization
+   const reconstructed = {
+     ...parsed,
+     quadrants: new Map(parsed.quadrants)
+   };
+   ```
+
+## Usage Guidelines
+
+### State Updates
+1. Always use state manager methods for updates
+2. Never modify state objects directly
+3. Keep updates atomic and focused
+4. Handle update errors appropriately
+
+### Event Handling
+1. Subscribe to specific event types
+2. Use type guards for event payloads
+3. Keep event handlers lightweight
+4. Unsubscribe when components unmount
+
+Example:
+```typescript
+// Subscribe to scene updates
+stateManager.on(EventType.STATE_SCENE_UPDATE, (event) => {
+  if (event.type === EventType.STATE_SCENE_UPDATE) {
+    // Handle scene update
+    const { previous, current, changes } = event.payload;
+    // React to changes
+  }
+});
+```
+
+### Error Handling
+1. State updates are atomic
+2. Failed updates roll back
+3. Redis errors don't block state updates
+4. Events emit even if persistence fails
+
+## Implementation Details
+
+### Singleton Pattern
+The state manager uses a singleton pattern to ensure a single source of truth:
+```typescript
+export class StateManagerImpl implements StateManager {
+  private static instance: StateManagerImpl | null = null;
+
+  public static getInstance(): StateManagerImpl {
+    if (!StateManagerImpl.instance) {
+      StateManagerImpl.instance = new StateManagerImpl();
+    }
+    return StateManagerImpl.instance;
+  }
+}
+```
+
+### Initialization
+The state manager requires explicit initialization:
+```typescript
+await stateManager.initialize();
+```
+This ensures:
+1. Redis connection is established
+2. Initial state is loaded
+3. Event system is ready
+
+### Type Safety
+The system uses TypeScript for type safety:
+1. State interfaces define valid state shape
+2. Event types ensure correct payload structure
+3. Type guards validate Redis data
+
+## Best Practices
+
+1. **State Updates**
+   - Keep updates minimal and focused
+   - Use partial updates when possible
+   - Handle update errors appropriately
+
+2. **Event Handling**
+   - Subscribe to specific event types
+   - Use type guards for event payloads
+   - Clean up subscriptions
+
+3. **Error Handling**
+   - Catch and log errors
+   - Provide fallback states
+   - Maintain system stability
+
+4. **Performance**
+   - Batch related updates
+   - Keep event handlers lightweight
+   - Use appropriate event types
 
 ## Project Structure
 

@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events';
 import sharp from 'sharp';
 import { logger } from '../utils/logger.js';
-import type { Asset, AssetType } from '../types/layout.js';
-import type { ViewportPosition, ViewportTransform } from '../types/viewport.js';
+import type { Asset, Position as ViewportPosition, Transform as ViewportTransform } from './scene-manager.js';
+
+type AssetType = Asset['type'];
 
 interface AssetCache {
   buffer: Buffer;
@@ -170,5 +171,27 @@ export class AssetManager extends EventEmitter {
       });
       return undefined;
     }
+  }
+
+  public async storeAsset(source: string, data: Buffer): Promise<void> {
+    // Store as a generic image type since we're just caching the buffer
+    const cacheKey = this.getCacheKey(source, 'image');
+    this.assetCache.set(cacheKey, {
+      buffer: data,
+      timestamp: Date.now()
+    });
+    this.emit('asset:stored', { source });
+  }
+
+  public async deleteAsset(source: string): Promise<void> {
+    // Use image type since that's how we stored it
+    const cacheKey = this.getCacheKey(source, 'image');
+    this.assetCache.delete(cacheKey);
+    this.emit('asset:deleted', { source });
+  }
+
+  public async cleanup(): Promise<void> {
+    this.clearCache();
+    this.emit('cleanup:complete');
   }
 } 

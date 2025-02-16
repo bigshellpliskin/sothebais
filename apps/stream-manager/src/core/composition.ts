@@ -8,6 +8,7 @@ import type {
   Position
 } from './scene-manager.js';
 import { logger } from '../utils/logger.js';
+import type { Config } from '../types/config.js';
 
 interface CompositeOperation {
   input: Buffer;
@@ -28,9 +29,13 @@ export class CompositionEngine extends EventEmitter {
   private canvas: { width: number; height: number; aspectRatio: number };
   private renderCache: Map<string, RenderCache>;
   private readonly CACHE_TTL = 5000; // 5 seconds
+  private static config: Config;
 
-  private constructor(width: number = 1920, height: number = 1080) {
+  private constructor() {
     super();
+    const width = CompositionEngine.config?.VIEWPORT_WIDTH || 1920;
+    const height = CompositionEngine.config?.VIEWPORT_HEIGHT || 1080;
+    
     this.canvas = {
       width,
       height,
@@ -44,7 +49,10 @@ export class CompositionEngine extends EventEmitter {
     });
   }
 
-  public static getInstance(): CompositionEngine {
+  public static getInstance(config?: Config): CompositionEngine {
+    if (config) {
+      CompositionEngine.config = config;
+    }
     if (!CompositionEngine.instance) {
       CompositionEngine.instance = new CompositionEngine();
     }
@@ -247,5 +255,10 @@ export class CompositionEngine extends EventEmitter {
   public clearCache(): void {
     this.renderCache.clear();
     this.emit('cache:cleared');
+  }
+
+  public async cleanup(): Promise<void> {
+    this.clearCache();
+    this.emit('cleanup:complete');
   }
 } 

@@ -191,7 +191,7 @@ export class StreamEncoder extends EventEmitter {
       '-pix_fmt', 'rgba',  // Always use RGBA
       '-s', `${this.config.width}x${this.config.height}`,
       '-r', this.config.fps.toString(),
-      '-i', 'pipe:0'
+      '-i', 'pipe:0' 
     ];
 
     // Add format conversion for h264 with explicit parameters

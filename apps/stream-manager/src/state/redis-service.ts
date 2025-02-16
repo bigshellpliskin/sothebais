@@ -1,7 +1,7 @@
 import { createClient } from 'redis';
-import type { LayerState } from '../types/layers.js';
 import type { StreamState } from '../types/stream.js';
-import type { Config } from '../config/index.js';
+import type { SceneState } from '../types/scene.js';
+import type { Config } from '../types/config.js';
 import { logger } from '../utils/logger.js';
 import type { LogContext } from '../utils/logger.js';
 import type { RedisClientType, RedisClientOptions } from 'redis';
@@ -24,20 +24,31 @@ function isStreamState(obj: unknown): obj is StreamState {
 }
 
 /**
- * Type guard for LayerState
+ * Type guard for SceneState
  */
-function isLayerState(obj: unknown): obj is LayerState {
+function isSceneState(obj: unknown): obj is SceneState {
   if (!obj || typeof obj !== 'object') return false;
-  const state = obj as Partial<LayerState>;
+  const state = obj as Partial<SceneState>;
   return (
-    Array.isArray(state.layers) &&
-    (state.activeLayerId === null || typeof state.activeLayerId === 'string')
+    Array.isArray(state.background) &&
+    state.quadrants instanceof Map &&
+    Array.isArray(state.overlay)
   );
 }
 
 class RedisService {
-  public client: RedisClientType | null = null;
+  private client: RedisClientType | null = null;
   private isConnected = false;
+  private static instance: RedisService | null = null;
+
+  private constructor() {}
+
+  static getInstance(): RedisService {
+    if (!RedisService.instance) {
+      RedisService.instance = new RedisService();
+    }
+    return RedisService.instance;
+  }
 
   async initialize(config: Config): Promise<void> {
     if (this.client) {
@@ -92,18 +103,23 @@ class RedisService {
     }
   }
 
-  async saveLayerState(state: LayerState): Promise<void> {
-    if (!this.isConnected || !this.client) {
-      throw new Error('Redis client not connected');
-    }
-    await this.client.set('layerState', JSON.stringify(state));
-  }
-
   async saveStreamState(state: StreamState): Promise<void> {
     if (!this.isConnected || !this.client) {
       throw new Error('Redis client not connected');
     }
     await this.client.set('streamState', JSON.stringify(state));
+  }
+
+  async saveSceneState(state: SceneState): Promise<void> {
+    if (!this.isConnected || !this.client) {
+      throw new Error('Redis client not connected');
+    }
+    // Convert Map to array of entries for JSON serialization
+    const serializedState = {
+      ...state,
+      quadrants: Array.from(state.quadrants.entries())
+    };
+    await this.client.set('sceneState', JSON.stringify(serializedState));
   }
 
   async getStreamState(): Promise<StreamState | null> {
@@ -129,22 +145,27 @@ class RedisService {
     }
   }
 
-  async getLayerState(): Promise<LayerState | null> {
+  async getSceneState(): Promise<SceneState | null> {
     if (!this.isConnected || !this.client) {
       throw new Error('Redis client not connected');
     }
-    const state = await this.client.get('layerState');
+    const state = await this.client.get('sceneState');
     if (!state) return null;
 
     try {
       const parsed = JSON.parse(state);
-      if (!isLayerState(parsed)) {
-        logger.error('Invalid layer state format in Redis', { state: parsed });
+      // Convert array of entries back to Map
+      const reconstructedState = {
+        ...parsed,
+        quadrants: new Map(parsed.quadrants)
+      };
+      if (!isSceneState(reconstructedState)) {
+        logger.error('Invalid scene state format in Redis', { state: parsed });
         return null;
       }
-      return parsed;
+      return reconstructedState;
     } catch (error) {
-      logger.error('Failed to parse layer state from Redis', {
+      logger.error('Failed to parse scene state from Redis', {
         error: error instanceof Error ? error.message : 'Unknown error',
         raw: state
       });
@@ -152,16 +173,9 @@ class RedisService {
     }
   }
 
-  async clearLayerState(): Promise<void> {
-    if (!this.isConnected || !this.client) {
-      throw new Error('Redis client not connected');
-    }
-    await this.client.del('layerState');
-  }
-
   isReady(): boolean {
     return this.isConnected && this.client !== null;
   }
 }
 
-export const redisService = new RedisService(); 
+export { RedisService }; 
