@@ -1,64 +1,51 @@
-import type { Config, ViewportConfig, AssetConfig, LayoutConfig, WorkerPoolConfig } from './config.js';
+import type { Config } from './config.js';
+import type { Scene } from '../core/scene-manager.js';
 
 export interface CoreService {
   cleanup(): Promise<void>;
 }
 
-export interface ViewportManager extends CoreService {
-  getWidth(): number;
-  getHeight(): number;
-  resize(width: number, height: number): Promise<void>;
-}
-
 export interface AssetManager extends CoreService {
-  loadAsset(id: string): Promise<Buffer>;
-  storeAsset(id: string, data: Buffer): Promise<void>;
-  deleteAsset(id: string): Promise<void>;
-}
-
-export interface LayoutManager extends CoreService {
-  addLayer(id: string): Promise<void>;
-  removeLayer(id: string): Promise<void>;
-  updateLayer(id: string, visible: boolean): Promise<void>;
+  loadAsset(source: string, type: string): Promise<Buffer>;
+  storeAsset(source: string, data: Buffer): Promise<void>;
+  deleteAsset(source: string): Promise<void>;
 }
 
 export interface CompositionEngine extends CoreService {
-  render(): Promise<Buffer>;
-  updateLayout(): Promise<void>;
-  getMetrics(): any; // TODO: Define metrics type
+  renderScene(scene: Scene): Promise<Buffer>;
+  updateDimensions(width: number, height: number): void;
+  clearCache(): void;
 }
 
-export interface WorkerPoolManager extends CoreService {
-  addTask(task: any): Promise<any>; // TODO: Define task types
-  getMetrics(): any; // TODO: Define metrics type
+export interface StreamManager extends CoreService {
+  initialize(config: Config, deps: {
+    assets: AssetManager;
+    composition: CompositionEngine;
+    currentScene: Scene;
+  }): Promise<void>;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  getMetrics(): {
+    frameCount: number;
+    droppedFrames: number;
+    fps: number;
+    encoderMetrics: Record<string, unknown>;
+    pipelineMetrics: Record<string, unknown>;
+  };
 }
 
-// Static initialization methods for core services
-export interface ViewportManagerStatic {
-  getInstance(): ViewportManager;
-  initialize(config: Config): Promise<ViewportManager>;
-}
-
+// Static initialization methods
 export interface AssetManagerStatic {
   getInstance(): AssetManager;
   initialize(config: Config): Promise<AssetManager>;
 }
 
-export interface LayoutManagerStatic {
-  getInstance(): LayoutManager;
-  initialize(config: Config): Promise<LayoutManager>;
-}
-
 export interface CompositionEngineStatic {
   getInstance(): CompositionEngine;
-  initialize(config: {
-    viewport: ViewportManager;
-    assets: AssetManager;
-    layout: LayoutManager;
-  }): Promise<CompositionEngine>;
+  initialize(config: Config): Promise<CompositionEngine>;
 }
 
-export interface WorkerPoolManagerStatic {
-  getInstance(): WorkerPoolManager;
-  initialize(config: WorkerPoolConfig): Promise<WorkerPoolManager>;
+export interface StreamManagerStatic {
+  getInstance(): StreamManager;
+  initialize(config: Config): Promise<StreamManager>;
 } 

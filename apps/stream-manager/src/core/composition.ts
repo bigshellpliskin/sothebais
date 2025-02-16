@@ -1,7 +1,12 @@
 import sharp from 'sharp';
 import { EventEmitter } from 'events';
-import type { Asset, Scene, Transition } from '../types/layout.js';
-import type { ViewportDimensions } from '../types/viewport.js';
+import type { 
+  Scene,
+  Asset,
+  Quadrant,
+  QuadrantId,
+  Position
+} from './scene-manager.js';
 import { logger } from '../utils/logger.js';
 
 interface CompositeOperation {
@@ -12,23 +17,29 @@ interface CompositeOperation {
   opacity?: number;
 }
 
+interface RenderCache {
+  buffer: Buffer;
+  timestamp: number;
+  hash: string;  // Hash of state for quick comparison
+}
+
 export class CompositionEngine extends EventEmitter {
   private static instance: CompositionEngine | null = null;
-  private dimensions: ViewportDimensions;
-  private compositeCache: Map<string, { buffer: Buffer; timestamp: number }>;
+  private canvas: { width: number; height: number; aspectRatio: number };
+  private renderCache: Map<string, RenderCache>;
   private readonly CACHE_TTL = 5000; // 5 seconds
 
   private constructor(width: number = 1920, height: number = 1080) {
     super();
-    this.dimensions = {
+    this.canvas = {
       width,
       height,
       aspectRatio: width / height
     };
-    this.compositeCache = new Map();
+    this.renderCache = new Map();
 
     logger.info('Composition engine initialized', {
-      dimensions: this.dimensions,
+      canvas: this.canvas,
       version: sharp.versions
     });
   }
@@ -40,57 +51,45 @@ export class CompositionEngine extends EventEmitter {
     return CompositionEngine.instance;
   }
 
-  public async renderScene(scene: Scene, transition?: Transition): Promise<Buffer> {
+  public async renderScene(scene: Scene): Promise<Buffer> {
     const startTime = performance.now();
 
     try {
       // Create base canvas
       const baseImage = sharp({
         create: {
-          width: this.dimensions.width,
-          height: this.dimensions.height,
+          width: this.canvas.width,
+          height: this.canvas.height,
           channels: 4,
           background: { r: 0, g: 0, b: 0, alpha: 1 }
         }
       });
 
-      // Sort assets by z-index
-      const sortedAssets = [...scene.assets]
-        .filter(asset => asset.visible)
-        .sort((a, b) => a.zIndex - b.zIndex);
-
-      // Prepare composite operations
       const compositeOps: CompositeOperation[] = [];
 
-      // Process each asset
-      for (const asset of sortedAssets) {
-        const assetBuffer = await this.renderAsset(asset);
-        if (!assetBuffer) continue;
+      // 1. Render background assets
+      const backgroundOps = await this.renderBackgroundAssets(scene.background);
+      compositeOps.push(...backgroundOps);
 
-        compositeOps.push({
-          input: assetBuffer,
-          top: Math.round(asset.position.y),
-          left: Math.round(asset.position.x),
-          blend: 'over',
-          opacity: asset.transform.opacity
-        });
-      }
+      // 2. Render quadrant assets
+      const quadrantOps = await this.renderQuadrants(scene.quadrants);
+      compositeOps.push(...quadrantOps);
 
-      // Apply transition if provided
-      if (transition) {
-        // TODO: Implement transition effects
-      }
+      // 3. Render overlay assets
+      const overlayOps = await this.renderOverlayAssets(scene.overlay);
+      compositeOps.push(...overlayOps);
 
-      // Composite all layers
+      // Composite all operations
       const composited = await baseImage
         .composite(compositeOps)
         .toBuffer();
 
       const endTime = performance.now();
-      logger.debug('Scene rendered', {
+      const duration = endTime - startTime;
+
+      this.emit('render:complete', {
         sceneId: scene.id,
-        duration: endTime - startTime,
-        assetCount: sortedAssets.length
+        duration
       });
 
       return composited;
@@ -103,14 +102,84 @@ export class CompositionEngine extends EventEmitter {
     }
   }
 
-  private async renderAsset(asset: Asset): Promise<Buffer | null> {
-    const cacheKey = this.getAssetCacheKey(asset);
-    const cached = this.compositeCache.get(cacheKey);
+  private async renderBackgroundAssets(assets: Asset[]): Promise<CompositeOperation[]> {
+    const ops: CompositeOperation[] = [];
+    
+    // Sort by z-index
+    const sortedAssets = [...assets].sort((a, b) => a.zIndex - b.zIndex);
+    
+    for (const asset of sortedAssets) {
+      if (!asset.visible) continue;
 
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      return cached.buffer;
+      const assetBuffer = await this.renderAsset(asset);
+      if (!assetBuffer) continue;
+
+      ops.push({
+        input: assetBuffer,
+        top: Math.round(asset.position.y),
+        left: Math.round(asset.position.x),
+        blend: 'over',
+        opacity: asset.transform.opacity
+      });
     }
 
+    return ops;
+  }
+
+  private async renderQuadrants(quadrants: Map<QuadrantId, Quadrant>): Promise<CompositeOperation[]> {
+    const ops: CompositeOperation[] = [];
+    
+    for (const [_, quadrant] of quadrants) {
+      if (quadrant.id === 0) continue; // Skip absolute positioning quadrant
+
+      // Sort assets by z-index within quadrant
+      const sortedAssets = [...quadrant.assets].sort((a, b) => a.zIndex - b.zIndex);
+      
+      for (const asset of sortedAssets) {
+        if (!asset.visible) continue;
+
+        const assetBuffer = await this.renderAsset(asset);
+        if (!assetBuffer) continue;
+
+        // Position is relative to quadrant bounds
+        ops.push({
+          input: assetBuffer,
+          top: Math.round(asset.position.y),
+          left: Math.round(asset.position.x),
+          blend: 'over',
+          opacity: asset.transform.opacity
+        });
+      }
+    }
+
+    return ops;
+  }
+
+  private async renderOverlayAssets(assets: Asset[]): Promise<CompositeOperation[]> {
+    const ops: CompositeOperation[] = [];
+    
+    // Sort by z-index
+    const sortedAssets = [...assets].sort((a, b) => a.zIndex - b.zIndex);
+    
+    for (const asset of sortedAssets) {
+      if (!asset.visible) continue;
+
+      const assetBuffer = await this.renderAsset(asset);
+      if (!assetBuffer) continue;
+
+      ops.push({
+        input: assetBuffer,
+        top: Math.round(asset.position.y),
+        left: Math.round(asset.position.x),
+        blend: 'over',
+        opacity: asset.transform.opacity
+      });
+    }
+
+    return ops;
+  }
+
+  private async renderAsset(asset: Asset): Promise<Buffer | null> {
     try {
       let assetImage: sharp.Sharp;
 
@@ -144,25 +213,17 @@ export class CompositionEngine extends EventEmitter {
       }
 
       // Apply transformations
-      const transformed = await assetImage
+      return await assetImage
         .rotate(asset.transform.rotation)
         .resize(
-          Math.round(this.dimensions.width * asset.transform.scale),
-          Math.round(this.dimensions.height * asset.transform.scale),
+          Math.round(this.canvas.width * asset.transform.scale),
+          Math.round(this.canvas.height * asset.transform.scale),
           {
             fit: 'contain',
             background: { r: 0, g: 0, b: 0, alpha: 0 }
           }
         )
         .toBuffer();
-
-      // Cache the result
-      this.compositeCache.set(cacheKey, {
-        buffer: transformed,
-        timestamp: Date.now()
-      });
-
-      return transformed;
     } catch (error) {
       logger.error('Error rendering asset', {
         assetId: asset.id,
@@ -173,22 +234,18 @@ export class CompositionEngine extends EventEmitter {
     }
   }
 
-  private getAssetCacheKey(asset: Asset): string {
-    return `${asset.id}_${asset.transform.rotation}_${asset.transform.scale}`;
-  }
-
   public updateDimensions(width: number, height: number): void {
-    this.dimensions = {
+    this.canvas = {
       width,
       height,
       aspectRatio: width / height
     };
-    this.compositeCache.clear();
-    this.emit('dimensions:updated', this.dimensions);
+    this.renderCache.clear();
+    this.emit('dimensions:updated', this.canvas);
   }
 
   public clearCache(): void {
-    this.compositeCache.clear();
+    this.renderCache.clear();
     this.emit('cache:cleared');
   }
 } 

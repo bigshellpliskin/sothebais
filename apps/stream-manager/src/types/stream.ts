@@ -1,3 +1,5 @@
+import type { Scene } from '../core/scene-manager.js';
+
 // Stream Configuration Types
 export interface StreamConfig {
   resolution: {
@@ -43,6 +45,7 @@ export interface StreamState {
   config?: StreamConfig;
   audio?: AudioConfig;
   metrics?: StreamMetrics;
+  currentScene?: Scene | null;
 }
 
 // Stream Output Configuration

@@ -1,10 +1,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEmitter } from 'events';
-import { Renderer } from '../../rendering/renderer.js';
+import { CompositionEngine } from '../../core/composition.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
-import { stateManager } from '../../streaming/state-manager.js';
+import { stateManager } from '../../state/state-manager.js';
 import type { PreviewClientState } from '../../types/state-manager.js';
+import type { Scene } from '../../core/scene-manager.js';
+import type { StreamState } from '../../types/stream.js';
+import { EventType, type StreamEvent } from '../../types/events.js';
 
 interface PreviewMessage {
   type: 'config' | 'frame' | 'quality' | 'ping' | 'pong';
@@ -14,18 +17,24 @@ interface PreviewMessage {
 export class PreviewServer extends EventEmitter {
   private static instance: PreviewServer | null = null;
   private wss: WebSocketServer | null = null;
-  private renderer: Renderer;
+  private composition: CompositionEngine;
   private lastFrameBuffer: Buffer | null = null;
   private isInitialized: boolean = false;
+  private frameInterval: NodeJS.Timeout | null = null;
+  private currentScene: Scene | null = null;
 
   private constructor() {
     super();
-    this.renderer = Renderer.getInstance();
+    this.composition = CompositionEngine.getInstance();
 
-    // Listen for state updates
-    stateManager.addEventListener(event => {
-      if (event.type === 'stream') {
-        this.handleStreamStateUpdate(event.payload);
+    // Listen for state updates using EventEmitter
+    stateManager.on(EventType.STATE_STREAM_UPDATE, (event: StreamEvent) => {
+      const streamState = event.payload.current;
+      this.handleStreamStateUpdate(streamState);
+      
+      // Update current scene if provided in state update
+      if ('currentScene' in streamState && streamState.currentScene) {
+        this.currentScene = streamState.currentScene;
       }
     });
   }
@@ -49,28 +58,12 @@ export class PreviewServer extends EventEmitter {
       
       this.wss.on('connection', this.handleNewConnection.bind(this));
 
-      // Listen for new frames from renderer
-      this.renderer.on('frame:ready', (frame: Buffer) => {
-        this.lastFrameBuffer = frame;
-        this.broadcastFrame(frame);
-
-        // Update stream state with new frame metrics
-        const stats = this.renderer.getStats();
-        stateManager.updateStreamState({
-          fps: stats.fps,
-          frameCount: stats.frameCount,
-          droppedFrames: stats.droppedFrames,
-          averageRenderTime: stats.frameTime
-        });
-      });
-
       // Start ping interval
       setInterval(this.pingClients.bind(this), 30000);
 
       this.isInitialized = true;
       logger.info('Preview server initialized', { 
-        path: '/stream/preview',
-        rendererStatus: this.renderer.getStats()
+        path: '/stream/preview'
       });
     } catch (error) {
       logger.error('Failed to initialize preview server', {
@@ -237,7 +230,7 @@ export class PreviewServer extends EventEmitter {
     });
   }
 
-  private handleStreamStateUpdate(streamState: any): void {
+  private handleStreamStateUpdate(streamState: Partial<StreamState>): void {
     if (!this.wss) return;
 
     // Broadcast stream state changes to all clients
@@ -258,14 +251,39 @@ export class PreviewServer extends EventEmitter {
   }
 
   public start(): void {
+    if (this.frameInterval) return;
+
     stateManager.updateStreamState({ isLive: true, startTime: Date.now() });
-    this.renderer.start();
+    
+    // Start frame generation at target FPS
+    const targetFPS = config.TARGET_FPS || 30;
+    const frameInterval = 1000 / targetFPS;
+    
+    this.frameInterval = setInterval(async () => {
+      try {
+        if (!this.currentScene) return;
+
+        const frame = await this.composition.renderScene(this.currentScene);
+        if (frame) {
+          this.lastFrameBuffer = frame;
+          this.broadcastFrame(frame);
+        }
+      } catch (error) {
+        logger.error('Error generating preview frame', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }, frameInterval);
+
     logger.info('Preview streaming started');
   }
 
   public stop(): void {
+    if (this.frameInterval) {
+      clearInterval(this.frameInterval);
+      this.frameInterval = null;
+    }
     stateManager.updateStreamState({ isLive: false, startTime: undefined });
-    this.renderer.stop();
     logger.info('Preview streaming stopped');
   }
 
