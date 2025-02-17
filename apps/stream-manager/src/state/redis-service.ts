@@ -1,5 +1,5 @@
 import { createClient } from 'redis';
-import type { StreamState } from '../types/stream.js';
+import type { StreamState } from '@shared/types/stream.js';
 import type { SceneState } from '../types/scene.js';
 import type { Config } from '../types/config.js';
 import { logger } from '../utils/logger.js';

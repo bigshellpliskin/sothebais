@@ -4,11 +4,8 @@ const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://prometheus:9090';
 // Skip authentication for metrics endpoint during testing
 export const dynamic = 'force-dynamic';
 // Make this a public API route
-export const config = {
-  api: {
-    auth: false
-  }
-};
+export const runtime = 'edge';
+export const fetchCache = 'force-no-store';
 
 // Standard metrics queries for all services
 const STANDARD_METRICS = {

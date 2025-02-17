@@ -1,4 +1,4 @@
-import type { StreamState } from './stream.js';
+import type { StreamState } from '@shared/types/stream.js';
 import type { SceneState } from './scene.js';
 
 // Base event interface

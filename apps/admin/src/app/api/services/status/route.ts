@@ -5,12 +5,8 @@ import { ServiceStatus } from '@/types/service';
 const PROMETHEUS_URL = 'http://prometheus:9090';  // Always use Docker network name
 // Skip authentication for status endpoint during testing
 export const dynamic = 'force-dynamic';
-// Make this a public API route
-export const config = {
-  api: {
-    auth: false
-  }
-};
+export const runtime = 'edge';
+export const fetchCache = 'force-no-store';
 
 // Cache for service status to prevent frequent re-queries
 const statusCache = new Map<string, { status: ServiceStatus; timestamp: number }>();

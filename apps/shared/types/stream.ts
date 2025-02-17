@@ -1,4 +1,4 @@
-import type { Scene } from '../core/scene-manager.js';
+import type { Scene } from '../../stream-manager/src/core/scene-manager.js' with { "resolution-mode": "import" };
 
 // Stream Configuration Types
 export interface StreamConfig {

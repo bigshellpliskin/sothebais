@@ -4,15 +4,21 @@ WORKDIR /app
 # Install dependencies including health check utilities
 RUN apk add --no-cache curl netcat-openbsd
 
-# Install all dependencies
-COPY package.json ./
+# Copy package files first
+COPY package*.json ./
+
+# Install dependencies
 RUN npm install
 
 # Add node_modules/.bin to PATH and set other environment variables
-ENV PATH="/app/node_modules/.bin:$PATH"
+ENV PATH="/app/node_modules/.bin:$PATH" \
+    NEXT_TELEMETRY_DISABLED=1
 
 # Copy the rest of the application
 COPY . .
+
+# Generate TypeScript types and build the application
+RUN npm run build
 
 # Expose ports (3000: Main App, 3090: Metrics, 3091: Health)
 EXPOSE 3000

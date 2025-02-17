@@ -4,22 +4,25 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { usePreviewSocket } from '@/hooks/usePreviewSocket';
 import { useStreamState } from '@/hooks/useStreamState';
+import type { StreamState } from '@shared/types/stream';
 
 interface StreamViewerProps {
   width?: number;
   height?: number;
   quality?: 'high' | 'medium' | 'low';
+  streamState: StreamState;
 }
 
 export function StreamViewer({ 
   width = 1280,
   height = 720,
-  quality = 'medium'
+  quality = 'medium',
+  streamState
 }: StreamViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { streamState } = useStreamState({
+  const { streamState: internalStreamState } = useStreamState({
     pollInterval: 2000 // Increase poll interval to reduce updates
   });
   
@@ -44,7 +47,7 @@ export function StreamViewer({
   const { isConnected, error: socketError } = usePreviewSocket({
     quality,
     onFrame: handleFrame,
-    autoConnect: streamState.isLive // Only connect when stream is live
+    autoConnect: internalStreamState.isLive // Only connect when stream is live
   });
 
   // Update canvas size
@@ -78,7 +81,7 @@ export function StreamViewer({
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <div className="text-white text-center">
               <p className="text-lg font-semibold">
-                {streamState.isLive ? 'Connecting...' : 'Stream Offline'}
+                {internalStreamState.isLive ? 'Connecting...' : 'Stream Offline'}
               </p>
               {(error || socketError) && (
                 <p className="text-sm text-red-400 mt-2">
@@ -90,11 +93,11 @@ export function StreamViewer({
         )}
 
         {/* Stream Stats */}
-        {isConnected && streamState.isLive && (
+        {isConnected && internalStreamState.isLive && (
           <div className="absolute top-2 right-2 bg-black/70 text-white text-xs p-2 rounded">
-            <p>FPS: {streamState.fps}/{streamState.targetFPS}</p>
+            <p>FPS: {internalStreamState.fps}/{internalStreamState.targetFPS}</p>
             <p>Quality: {quality}</p>
-            <p>Latency: {streamState.averageRenderTime.toFixed(1)}ms</p>
+            <p>Latency: {internalStreamState.averageRenderTime.toFixed(1)}ms</p>
           </div>
         )}
       </div>

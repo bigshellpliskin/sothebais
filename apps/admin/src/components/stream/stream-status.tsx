@@ -5,7 +5,6 @@ interface StreamStatusProps {
   isPaused: boolean;
   fps: number;
   targetFPS: number;
-  layerCount: number;
   averageRenderTime: number;
 }
 
@@ -14,7 +13,6 @@ export function StreamStatus({
   isPaused,
   fps,
   targetFPS,
-  layerCount,
   averageRenderTime
 }: StreamStatusProps) {
   // Determine status text and styles
@@ -71,9 +69,6 @@ export function StreamStatus({
       {/* Metrics Tabs */}
       <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-medium text-slate-700">
         FPS: {isLive ? (fps || 0).toFixed(1) : '0.0'} / {targetFPS || 30}
-      </div>
-      <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-medium text-slate-700">
-        Layers: {layerCount || 0}
       </div>
       <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-sm font-medium text-slate-700">
         Render: {isLive ? (averageRenderTime || 0).toFixed(1) : '0.0'}ms

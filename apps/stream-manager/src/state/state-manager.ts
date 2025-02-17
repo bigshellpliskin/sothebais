@@ -2,7 +2,7 @@ import type {
   StateManager,
   AppState
 } from '../types/state-manager.js';
-import type { StreamState } from '../types/stream.js';
+import type { StreamState, StreamConfig, StreamMetrics } from '@shared/types/stream.js';
 import type { SceneState } from '../types/scene.js';
 import { EventType, EventSource } from '../types/events.js';
 import type { 
