@@ -117,7 +117,7 @@ export class StreamManager extends EventEmitter {
         bitrate: parseInt(config.STREAM_BITRATE.replace('k', '000')),
         codec: 'h264',
         preset: 'veryfast',
-        outputs: [`rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`]
+        outputs: [`rtmp://stream-manager:${config.RTMP_PORT}/live/${streamKey}`]
       });
 
       // Setup event handlers
@@ -169,7 +169,116 @@ export class StreamManager extends EventEmitter {
       error: error.message,
       stack: error.stack
     });
-    this.emit('error', error);
+
+    // If error is from encoder, attempt cleanup and restart
+    if (this.encoder && error.message.includes('FFmpeg')) {
+      logger.info('Attempting to recover from FFmpeg error');
+      this.cleanup().catch(cleanupError => {
+        logger.error('Failed to cleanup after FFmpeg error', {
+          error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error'
+        });
+      });
+    } else {
+      // For other errors, just emit
+      this.emit('error', error);
+    }
+  }
+
+  public async start(): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('Stream manager not initialized');
+    }
+
+    try {
+      logger.info('Starting stream');
+
+      // Wait for RTMP server to be ready
+      logger.info('Waiting for RTMP server to be ready...');
+      await this.rtmpServer?.start();
+      logger.info('RTMP server ready');
+
+      // Initialize and start encoder
+      logger.info('Starting encoder...');
+      await this.encoder?.start();
+      logger.info('Encoder started and connected');
+
+      // Verify pipeline is ready
+      if (!this.pipeline?.isReady()) {
+        throw new Error('Frame pipeline not ready');
+      }
+
+      // Start frame generation with proper error handling
+      const targetFps = this.config?.TARGET_FPS || 60;
+      const frameInterval = 1000 / targetFps;
+      
+      this.frameInterval = setInterval(async () => {
+        try {
+          await this.generateFrame();
+        } catch (error) {
+          logger.error('Error in frame generation', {
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          this.handleError(error as Error);
+        }
+      }, frameInterval);
+
+      // Update state
+      await this.stateManager.updateStreamState({
+        isLive: true,
+        isPaused: false,
+        startTime: Date.now()
+      });
+
+      this.emit('started');
+      logger.info('Stream started successfully');
+
+      // Start metrics collection
+      this.startMetricsCollection();
+
+    } catch (error) {
+      logger.error('Failed to start stream', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      // Attempt cleanup on startup failure
+      try {
+        await this.cleanup();
+      } catch (cleanupError) {
+        logger.error('Failed to cleanup after startup error', {
+          error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error'
+        });
+      }
+      
+      throw error;
+    }
+  }
+
+  private startMetricsCollection(): void {
+    // Collect metrics every 5 seconds
+    setInterval(() => {
+      if (!this.isInitialized) return;
+
+      const metrics = {
+        frameStats: {
+          total: this.frameCount,
+          dropped: this.droppedFrames,
+          fps: this.encoder?.getCurrentFPS() || 0
+        },
+        encoder: {
+          isStreaming: this.encoder?.isActive() || false,
+          currentFPS: this.encoder?.getCurrentFPS() || 0,
+          bitrate: this.encoder?.getBitrate() || 0,
+          restartAttempts: this.encoder?.getRestartAttempts() || 0
+        },
+        pipeline: {
+          queueSize: this.pipeline?.getQueueSize() || 0,
+          processingTime: this.pipeline?.getAverageProcessingTime() || 0,
+          memoryUsage: process.memoryUsage().heapUsed
+        }
+      };
+
+      logger.info('Stream metrics', metrics);
+    }, 5000);
   }
 
   private async generateFrame(): Promise<void> {
@@ -177,9 +286,9 @@ export class StreamManager extends EventEmitter {
       throw new Error('Required components not initialized');
     }
 
-    try {
-      const frameStartTime = Date.now();
+    const frameStartTime = Date.now();
 
+    try {
       // Render frame through composition engine
       const frame = await this.composition.renderScene(this.currentScene);
 
@@ -197,54 +306,17 @@ export class StreamManager extends EventEmitter {
 
       this.frameCount++;
 
-      // Log performance metrics
-      const frameTime = Date.now() - frameStartTime;
-      logger.debug('Frame generated', {
-        frameCount: this.frameCount,
-        droppedFrames: this.droppedFrames,
-        processingTime: frameTime
-      });
+      // Log performance metrics periodically
+      if (this.frameCount % 300 === 0) { // Every 300 frames
+        const frameTime = Date.now() - frameStartTime;
+        logger.debug('Frame generation stats', {
+          frameCount: this.frameCount,
+          droppedFrames: this.droppedFrames,
+          processingTime: frameTime
+        });
+      }
     } catch (error) {
       this.handleError(error as Error);
-    }
-  }
-
-  public async start(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('Stream manager not initialized');
-    }
-
-    try {
-      logger.info('Starting stream');
-
-      // Start components in sequence and wait for each
-      logger.info('Starting RTMP server...');
-      await this.rtmpServer?.start();
-      logger.info('RTMP server started');
-
-      logger.info('Starting encoder...');
-      this.encoder?.start();
-      logger.info('Encoder started');
-
-      // Start frame generation
-      const targetFps = this.config?.TARGET_FPS || 60;
-      const frameInterval = 1000 / targetFps;
-      this.frameInterval = setInterval(() => this.generateFrame(), frameInterval);
-
-      // Update state
-      await this.stateManager.updateStreamState({
-        isLive: true,
-        isPaused: false,
-        startTime: Date.now()
-      });
-
-      this.emit('started');
-      logger.info('Stream started successfully');
-    } catch (error) {
-      logger.error('Failed to start stream', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      throw error;
     }
   }
 

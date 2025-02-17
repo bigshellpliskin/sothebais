@@ -67,6 +67,9 @@ export class StreamEncoder extends EventEmitter {
   private readonly cpuCores: number;
   private lastFPSUpdate: number = 0;
   private lastReportedFPS: number = 0;
+  private isConnected: boolean = false;
+  private connectionTimeout: NodeJS.Timeout | null = null;
+  private readonly CONNECTION_TIMEOUT = 5000;
 
   private constructor(config: StreamConfig) {
     super();
@@ -323,54 +326,73 @@ export class StreamEncoder extends EventEmitter {
   /**
    * Start the FFmpeg process and begin streaming
    */
-  public start(): void {
-    if (this.isStreaming) {
-      logger.warn('Stream encoder is already running');
-      return;
-    }
+  public start(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.isStreaming) {
+        logger.info('Encoder is already running');
+        resolve();
+        return;
+      }
 
-    try {
-      const args = this.buildFFmpegArgs();
-      this.ffmpeg = spawn('ffmpeg', args);
+      try {
+        const args = this.buildFFmpegArgs();
+        logger.info('FFmpeg command configuration', {
+          command: args.join(' '),
+          inputFormat: this.config.pipeline?.inputFormat || 'rgba',
+          resolution: `${this.config.width}x${this.config.height}`,
+          fps: this.config.fps,
+          preset: this.config.preset,
+          bitrate: this.config.bitrate
+        });
 
-      this.ffmpeg.stderr?.on('data', (data) => {
-        const message = data.toString().trim();
-        if (message) {  // Only log non-empty messages
-          logger.debug(`FFmpeg: ${message}`, {
-            ffmpegOutput: message
-          });
-        }
-      });
+        this.ffmpeg = spawn('ffmpeg', args);
+        this.isStreaming = true;
 
-      this.ffmpeg.on('error', (error) => {
-        logger.error('FFmpeg process error', {
-          error: error.message,
-          command: 'ffmpeg ' + args.join(' ')
-        } as LogContext);
-        this.handleError(error);
-      });
+        // Set up connection timeout
+        this.connectionTimeout = setTimeout(() => {
+          if (!this.isConnected) {
+            const error = new Error('Encoder failed to establish connection within timeout');
+            this.handleError(error);
+            reject(error);
+          }
+        }, this.CONNECTION_TIMEOUT);
 
-      this.ffmpeg.on('exit', (code, signal) => {
-        logger.info('FFmpeg process exited', {
-          code,
-          signal,
-          command: 'ffmpeg ' + args.join(' ')
-        } as LogContext);
-        this.handleExit(code, signal);
-      });
+        // Handle successful connection
+        this.ffmpeg.stderr?.on('data', (data: Buffer) => {
+          const output = data.toString();
+          if (output.includes('Output #0, flv')) {
+            this.isConnected = true;
+            if (this.connectionTimeout) {
+              clearTimeout(this.connectionTimeout);
+              this.connectionTimeout = null;
+            }
+            logger.info('Encoder successfully connected to RTMP server');
+            resolve();
+          }
+        });
 
-      this.isStreaming = true;
-      this.restartAttempts = 0;
-      logger.info('Stream encoder started', {
-        streamUrl: this.config.streamUrl || 'rtmp://localhost:1935/live/test'
-      });
+        this.setupEventHandlers();
+        logger.info('Stream encoder started', { streamUrl: this.config.outputs[0] });
 
-    } catch (error) {
-      logger.error('Failed to start FFmpeg process', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      } as LogContext);
-      this.handleError(error as Error);
-    }
+      } catch (error) {
+        this.handleError(error as Error);
+        reject(error);
+      }
+    });
+  }
+
+  private setupEventHandlers(): void {
+    if (!this.ffmpeg) return;
+
+    this.ffmpeg.stderr?.on('data', (data: Buffer) => {
+      const output = data.toString();
+      if (output.includes('Error') || output.includes('error')) {
+        logger.error('FFmpeg error output', { output });
+      }
+    });
+
+    this.ffmpeg.on('error', this.handleError.bind(this));
+    this.ffmpeg.on('exit', this.handleExit.bind(this));
   }
 
   /**
@@ -412,103 +434,19 @@ export class StreamEncoder extends EventEmitter {
     });
   }
 
-  public sendFrame(buffer: Buffer): void {
-    if (!this.isStreaming || !this.ffmpeg || !this.ffmpeg.stdin?.writable) {
-      logger.warn('Cannot send frame - encoder not ready', {
-        isStreaming: this.isStreaming,
-        hasFfmpeg: !!this.ffmpeg,
-        isWritable: !!this.ffmpeg?.stdin?.writable
-      });
-      return;
-    }
-
-    const startTime = Date.now();
-    const currentLatency = this.lastFrameTime ? startTime - this.lastFrameTime : 0;
-
-    // Only log dropped frames if it's a significant number
-    if (this.config.pipeline?.dropThreshold && currentLatency > this.config.pipeline.dropThreshold) {
-      this.droppedFrames++;
-      if (this.droppedFrames % 30 === 0) { // Log every 30 dropped frames
-        logger.warn('High frame drop rate detected', {
-          latency: currentLatency,
-          threshold: this.config.pipeline.dropThreshold,
-          droppedFrames: this.droppedFrames
-        });
-      }
-      return;
+  public async sendFrame(buffer: Buffer): Promise<void> {
+    if (!this.isStreaming || !this.isConnected || !this.ffmpeg) {
+      throw new Error('Encoder not ready to receive frames');
     }
 
     try {
-      // Check if buffer size matches expected RGBA frame size
-      const expectedSize = this.config.width * this.config.height * 4; // 4 bytes per pixel (RGBA)
-      if (buffer.length !== expectedSize) {
-        logger.warn('Buffer size mismatch', {
-          actual: buffer.length,
-          expected: expectedSize,
-          width: this.config.width,
-          height: this.config.height
-        });
-        return;
-      }
-
-      // Use zero-copy write if enabled and buffer is properly aligned
-      if (this.config.pipeline?.zeroCopy) {
-        // Check if buffer is aligned and contiguous
-        if (buffer.byteOffset % 4 === 0 && buffer.buffer.byteLength >= buffer.byteOffset + buffer.length) {
-          // Create a view of the underlying ArrayBuffer without copying
-          const view = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.length);
-          this.ffmpeg.stdin.write(view);
-          
-          if (this.frameCount % 300 === 0) { // Log every 300 frames
-            logger.debug('Zero-copy write successful', {
-              byteOffset: buffer.byteOffset,
-              length: buffer.length,
-              alignment: buffer.byteOffset % 4
-            });
-          }
-        } else {
-          // Fall back to regular write if buffer is not properly aligned
-          logger.debug('Zero-copy disabled - buffer not aligned', {
-            byteOffset: buffer.byteOffset,
-            length: buffer.length,
-            alignment: buffer.byteOffset % 4
-          });
-          this.ffmpeg.stdin.write(buffer);
-        }
-      } else {
-        // Regular write with data copy
-        this.ffmpeg.stdin.write(buffer);
-      }
-      
-      // Update metrics less frequently
-      const now = Date.now();
-      this.frameLatency = now - startTime;
-      this.lastFrameTime = now;
-      this.frameCount++;
-
-      // Calculate FPS every 5 seconds instead of every second
-      if (now - this.lastFPSUpdate >= 5000) {
-        this.currentFPS = this.frameCount / 5; // Average over 5 seconds
-        this.frameCount = 0;
-        this.lastFPSUpdate = now;
-        
-        logger.info('Encoder metrics update', {
-          fps: this.currentFPS,
-          frameLatency: this.frameLatency,
-          droppedFrames: this.droppedFrames,
-          timestamp: now,
-          zeroCopyEnabled: this.config.pipeline?.zeroCopy
-        });
+      const canWrite = this.ffmpeg.stdin?.write(buffer);
+      if (!canWrite) {
+        await new Promise((resolve) => this.ffmpeg?.stdin?.once('drain', resolve));
       }
     } catch (error) {
-      logger.error('Failed to send frame to FFmpeg', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        latency: currentLatency,
-        droppedFrames: this.droppedFrames,
-        bufferSize: buffer.length,
-        zeroCopyEnabled: this.config.pipeline?.zeroCopy
-      });
       this.handleError(error as Error);
+      throw error;
     }
   }
 
@@ -528,6 +466,17 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private handleError(error: Error): void {
+    logger.error('Encoder error', {
+      error: error.message,
+      isStreaming: this.isStreaming,
+      isConnected: this.isConnected
+    });
+
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
     this.emit('error', error);
     
     if (this.restartAttempts < this.MAX_RESTART_ATTEMPTS) {
@@ -550,12 +499,22 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private handleExit(code: number | null, signal: NodeJS.Signals | null): void {
-    this.isStreaming = false;
-    this.emit('exit', { code, signal });
-
-    if (code !== 0 && this.restartAttempts < this.MAX_RESTART_ATTEMPTS) {
-      this.handleError(new Error(`FFmpeg exited with code ${code}`));
+    const command = this.buildFFmpegArgs().join(' ');
+    
+    if (code === 0 || signal === 'SIGTERM') {
+      logger.info('FFmpeg process exited normally', { code, signal, command });
+      return;
     }
+
+    let error: Error;
+    if (code === 145) {
+      error = new Error('FFmpeg connection refused - RTMP server may not be ready');
+    } else {
+      error = new Error(`FFmpeg process exited with code ${code}`);
+    }
+
+    logger.error('FFmpeg process exited unexpectedly', { code, signal, command });
+    this.handleError(error);
   }
 
   public getMetrics(): {
@@ -570,5 +529,21 @@ export class StreamEncoder extends EventEmitter {
       bitrate: this.config.bitrate,
       restartAttempts: this.restartAttempts
     };
+  }
+
+  public getCurrentFPS(): number {
+    return this.currentFPS;
+  }
+
+  public getBitrate(): number {
+    return this.config.bitrate;
+  }
+
+  public getRestartAttempts(): number {
+    return this.restartAttempts;
+  }
+
+  public isActive(): boolean {
+    return this.isStreaming && this.isConnected;
   }
 } 

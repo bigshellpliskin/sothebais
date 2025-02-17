@@ -2,112 +2,130 @@
 
 This directory contains the core streaming functionality for the Stream Manager service, including RTMP server implementation and FFmpeg encoding with direct RTMP output.
 
-## Architecture Overview
-
-```mermaid
-graph TD
-    subgraph Input ["Sharp Rendering Pipeline"]
-        Composition[Composition Engine]
-        SharpRenderer[Sharp Renderer]
-        FrameBuffer[Frame Buffer]
-    end
-
-    subgraph Processing ["Frame Processing"]
-        Pipeline[Frame Pipeline]
-        
-        subgraph Workers ["Worker Pool"]
-            WorkerPool[Worker Manager]
-            Worker1[Worker 1]
-            Worker2[Worker 2]
-            WorkerN[Worker N]
-            
-            WorkerPool -->|"Distribute Tasks"| Worker1
-            WorkerPool -->|"Distribute Tasks"| Worker2
-            WorkerPool -->|"Distribute Tasks"| WorkerN
-        end
-        
-        Process[Frame Processing]
-        Queue[Frame Queue]
-        Pool[Buffer Pool]
-        
-        Pipeline -->|"Raw Frame"| Queue
-        Queue -->|"Queued Frame"| WorkerPool
-        Worker1 & Worker2 & WorkerN -->|"Processed Frame"| Process
-        Pool -->|"Reusable Buffer"| Process
-        Process -->|"Return Buffer"| Pool
-    end
-
-    subgraph Output ["Output Components"]
-        subgraph Encoder ["FFmpeg Encoder"]
-            EncodeProcess[FFmpeg Process]
-            HWAccel[Hardware Acceleration]
-            RTMPOutput[RTMP Output]
-            
-            Process -->|"Frame Buffer"| EncodeProcess
-            HWAccel -->|"GPU/Hardware Support"| EncodeProcess
-            EncodeProcess -->|"Encoded Stream"| RTMPOutput
-        end
-
-        subgraph RTMP ["RTMP Server"]
-            RTMPServer[Node Media Server]
-            StreamKeys[Stream Key Manager]
-            
-            RTMPOutput -->|"RTMP Stream"| RTMPServer
-            StreamKeys -->|"Validate"| RTMPServer
-        end
-    end
-
-    subgraph Destinations ["Output Destinations"]
-        Platforms[Streaming Platforms]
-        Preview[Preview Clients]
-        Recording[File Recording]
-        
-        RTMPServer -->|"RTMP Stream"| Platforms
-        RTMPServer -->|"Preview Stream"| Preview
-        RTMPServer -->|"Record Stream"| Recording
-    end
-
-    Composition --> SharpRenderer
-    SharpRenderer --> FrameBuffer
-    FrameBuffer --> Pipeline
-```
-
 ## Directory Structure
 
 ```
 streaming/
-├── rtmp/                  # RTMP server implementation
-│   ├── server.ts         # RTMP server core
-│   └── events.ts         # RTMP event handlers
-├── output/               # Output handling
-│   ├── pipeline.ts       # Sharp frame pipeline
-│   └── encoder.ts        # FFmpeg encoding with RTMP output
-└── websocket.ts         # WebSocket communication
+├── stream-manager.ts     # Main streaming orchestrator
+├── rtmp/                 # RTMP server implementation
+│   ├── server.ts        # RTMP server core
+│   ├── stream-key.ts    # Stream key management
+│   └── events.ts        # RTMP event handlers
+└── output/              # Output handling
+    ├── pipeline.ts      # Frame pipeline
+    └── encoder.ts       # FFmpeg encoding with RTMP output
 ```
 
-## Streaming Components
+## Component Overview
 
-The streaming system consists of the following components:
+### Stream Manager (`stream-manager.ts`)
+The main orchestrator for all streaming functionality:
+- Coordinates frame generation and streaming pipeline
+- Manages RTMP server and encoder initialization
+- Handles stream key validation and management
+- Coordinates with state management for stream status
+- Manages frame timing and performance metrics
+- Interfaces with core components (Scene, Asset, Composition)
 
-### Frame Pipeline
-- Processes raw frames using Sharp
-- Handles resizing, format conversion
-- Manages memory with buffer pooling
-- Provides quality settings
-
-### FFmpeg Encoder
-- Uses FFmpeg for H264/VP8/VP9 encoding
-- Outputs directly to RTMP server
-- Supports hardware acceleration
-- Handles frame rate control
-- Manages audio mixing and muxing
-- Provides direct RTMP output
-
-### RTMP Server
-- Manages RTMP connections
-- Handles stream keys and authentication
+### RTMP Components (`rtmp/`)
+#### RTMP Server (`server.ts`)
+- Handles incoming RTMP connections
+- Manages stream key validation
+- Controls stream output
+- Manages viewer connections
 - Provides metrics and monitoring
-- Supports multiple clients
+- Implements connection security
+
+#### Stream Key Service (`stream-key.ts`)
+- Secure stream key generation and validation
+- Redis-based key storage and persistence
+- Key expiration management
+- IP restriction capabilities
+- Alias system for persistent endpoints
+
+#### Event Handlers (`events.ts`)
+- RTMP event processing
+- Connection lifecycle management
+- Stream publishing controls
+- Error handling and logging
+
+### Output Components (`output/`)
+#### Frame Pipeline (`pipeline.ts`)
+- Frame processing and optimization
+- Buffer management and pooling
+- Frame timing control
+- Frame dropping logic
+- Quality/performance balancing
+- Memory usage optimization
+
+#### Stream Encoder (`encoder.ts`)
+- FFmpeg-based frame encoding
+- Bitrate and quality management
+- Hardware acceleration support
+- Multiple output format support
+- Encoding performance optimization
+- Stream health monitoring
+
+```mermaid
+graph TD
+    subgraph StreamManager ["Stream Manager"]
+        SM[Stream Manager Service]
+        State[State Management]
+        Events[Event System]
+    end
+
+    subgraph RTMP ["RTMP Components"]
+        Server[RTMP Server]
+        KeyService[Stream Key Service]
+        RTMPEvents[RTMP Events]
+        Redis[(Redis)]
+    end
+
+    subgraph Output ["Output Pipeline"]
+        Pipeline[Frame Pipeline]
+        Encoder[Stream Encoder]
+        Buffer[Buffer Pool]
+    end
+
+    subgraph Core ["Core Integration"]
+        Scene[Scene Manager]
+        Assets[Asset Manager]
+        Compose[Composition Engine]
+    end
+
+    %% Stream Manager relationships
+    SM -->|"Coordinates"| Server
+    SM -->|"Controls"| Pipeline
+    SM -->|"Manages"| Encoder
+    SM -->|"Updates"| State
+    SM -->|"Emits"| Events
+
+    %% RTMP relationships
+    Server -->|"Validates"| KeyService
+    KeyService -->|"Stores"| Redis
+    Server -->|"Triggers"| RTMPEvents
+    RTMPEvents -->|"Updates"| State
+
+    %% Output relationships
+    Pipeline -->|"Optimizes"| Buffer
+    Pipeline -->|"Feeds"| Encoder
+    Encoder -->|"Streams to"| Server
+
+    %% Core relationships
+    Scene -->|"Provides frames"| Pipeline
+    Assets -->|"Resources"| Scene
+    Compose -->|"Renders"| Scene
+
+    classDef manager fill:#e3f2fd,stroke:#1565c0;
+    classDef rtmp fill:#e8f5e9,stroke:#2e7d32;
+    classDef output fill:#fce4ec,stroke:#c2185b;
+    classDef core fill:#fff3e0,stroke:#ef6c00;
+
+    class SM,State,Events manager;
+    class Server,KeyService,RTMPEvents,Redis rtmp;
+    class Pipeline,Encoder,Buffer output;
+    class Scene,Assets,Compose core;
+```
 
 ## Example Usage
 
@@ -211,108 +229,6 @@ The streaming components expose the following Prometheus metrics:
    - Bandwidth management
    - GOP cache settings
 
-## CPU Optimization
-
-The streaming service is optimized for our specific hardware configuration:
-
-### Hardware Configuration
-- **CPU**: AMD EPYC 9354P 32-Core Processor
-- **Allocated Cores**: 2 cores
-- **Available Instructions**: SSE4.2, AVX, AVX2
-- **Environment**: VPS/Cloud Environment
-
-### FFmpeg Optimizations
-1. **Thread Management**
-   - Dedicated thread allocation (2 cores)
-   - Frame-based threading for parallel processing
-   - Optimized thread distribution between encoding and lookahead
-
-2. **x264 Parameters**
-   ```
-   threads=2
-   lookahead_threads=1
-   sliced_threads=1
-   sync-lookahead=0
-   rc-lookahead=10
-   aq-mode=2
-   direct=auto
-   me=hex
-   subme=6
-   trellis=1
-   deblock=1,1
-   psy-rd=0.8,0.8
-   aq-strength=0.9
-   ref=1
-   ```
-
-3. **Pipeline Optimizations**
-   - Zero-copy buffer handling
-   - Adaptive frame dropping (>500ms latency)
-   - Maximum latency threshold: 1000ms
-   - CPU instruction set utilization (SSE4.2, AVX, AVX2)
-   - Direct RTMP output with minimal buffering
-
-4. **Quality/Performance Balance**
-   - High profile, Level 5.1
-   - CBR (Constant Bitrate) encoding
-   - Psychovisual optimizations
-   - Adaptive quantization for visual quality
-   - Minimal reference frames for low latency
-
-### Monitoring
-- Frame encoding time
-- Current FPS
-- Bitrate stability
-- Frame drop rate
-- Pipeline latency
-- RTMP output latency
-
-### VP8/VP9 Specific Settings
-- Single tile column (optimized for 2 cores)
-- Frame-parallel encoding enabled
-- Real-time deadline
-- CPU usage level 4
-- Error resilience enabled
-
-## Development
-
-### Prerequisites
-- Node.js 18+
-- FFmpeg with required codecs
-- Node-Media-Server
-- Redis for state management
-
-### Setup
-1. Install dependencies
-2. Configure environment
-3. Start services
-4. Monitor metrics
-
-### Testing
-- Unit tests for components
-- Integration tests
-- Performance testing
-- Load testing
-
-## Next Steps
-
-1. **Core Implementation**
-   - Enhance RTMP server
-   - Optimize encoder pipeline
-   - Improve error recovery
-
-2. **Advanced Features**
-   - Multiple quality variants
-   - Adaptive bitrate
-   - Recording system
-   - Preview delivery
-
-3. **Monitoring**
-   - Detailed metrics
-   - Performance profiling
-   - Error tracking
-   - Health checks
-
 ## Stream Key Management
 
 The RTMP server includes a secure stream key validation system:
@@ -345,4 +261,174 @@ const activeStreams = rtmpServer.getActiveStreams();
 - Stream key validation before accepting streams
 - Protection against unauthorized streaming
 - Active stream monitoring
-- Comprehensive logging of streaming activities 
+- Comprehensive logging of streaming activities
+
+## Stream Key Service Integration
+
+The stream key system is built around `stream-key.ts` which provides secure key management through Redis:
+
+### Core Functionality
+- Generates cryptographically secure 32-byte stream keys
+- Stores hashed keys in Redis with metadata
+- Manages key lifecycle (creation, validation, revocation)
+- Supports IP restrictions and expiration times
+- Provides human-readable aliases for easier debugging
+
+### Integration with RTMP Server
+```typescript
+// In server.ts
+class RTMPServer {
+  private streamKeyService: StreamKeyService;
+
+  constructor() {
+    // Get singleton instance
+    this.streamKeyService = StreamKeyService.getInstance();
+  }
+
+  // Called during stream publish attempts
+  async handlePrePublish(id: string, StreamPath: string) {
+    const keyOrAlias = StreamPath.split('/').pop();
+    
+    // Check if it's an alias first
+    const streamKey = await this.streamKeyService.getKeyByAlias(keyOrAlias) 
+      || keyOrAlias;
+    
+    // Validate with optional IP check
+    if (!await this.streamKeyService.validateKey(streamKey, args.ip)) {
+      // Reject the stream
+      session.reject();
+    }
+  }
+}
+```
+
+### Key Types and Usage
+1. **Regular Keys**
+   - Generated for specific users/streams
+   - Default 30-day expiration
+   - Optional IP restrictions
+   - Full validation and tracking
+
+2. **Alias Keys**
+   - Human-readable identifiers
+   - Maps to regular stream keys
+   - Useful for development/testing
+   - Example: `preview` -> actual stream key
+
+3. **Development Keys**
+   - Generated during initialization
+   - Short expiration (24 hours)
+   - No IP restrictions
+   - Used for testing/development
+
+### Redis Storage Structure
+```
+stream:key:<hashed_key>   -> StreamKeyInfo JSON
+stream:alias:<alias_name> -> actual_stream_key
+```
+
+## RTMP Events System
+
+The RTMP event system (`events.ts`) provides a structured way to handle RTMP server events:
+
+### Event Flow
+1. **Connection Events**
+   ```
+   preConnect -> postConnect -> (streaming) -> doneConnect
+   ```
+
+2. **Publishing Events**
+   ```
+   prePublish -> postPublish -> (streaming) -> donePublish
+   ```
+
+3. **Playback Events**
+   ```
+   prePlay -> postPlay -> (viewing) -> donePlay
+   ```
+
+### Event Handlers
+```typescript
+// In server.ts
+private setupEventHandlers(): void {
+  // Connection lifecycle
+  this.server.on('preConnect', async (id, StreamPath, args) => {
+    // Track new connection attempt
+    // Validate connection parameters
+  });
+
+  this.server.on('postConnect', (id, args) => {
+    // Connection established
+    // Update metrics
+    // Emit events
+  });
+
+  // Publishing lifecycle
+  this.server.on('prePublish', async (id, StreamPath, args) => {
+    // Validate stream key
+    // Check permissions
+    // Setup stream resources
+  });
+
+  // ... other handlers
+}
+```
+
+### Metrics and Monitoring
+Each event type has associated Prometheus metrics:
+```typescript
+// Connection metrics
+const connectionCounter = new Counter({
+  name: 'rtmp_connection_attempts_total',
+  labelNames: ['status']
+});
+
+// Publishing metrics
+const publishCounter = new Counter({
+  name: 'rtmp_publish_attempts_total',
+  labelNames: ['status']
+});
+```
+
+### Connection States
+Connections are tracked through different states:
+```typescript
+enum ConnectionType {
+  PENDING,    // Initial connection
+  PUBLISHER,  // Publishing stream
+  PLAYER      // Viewing stream
+}
+```
+
+### Event Payloads
+Events emit standardized payloads:
+```typescript
+interface RTMPEventPayload {
+  clientId: string;
+  connectionType: ConnectionType;
+  streamPath?: string;
+  timestamp: number;
+  duration?: number;
+}
+```
+
+### Integration Points
+1. **State Management**
+   - Events trigger state updates
+   - State changes are broadcast via WebSocket
+   - Metrics are updated
+
+2. **Stream Key Service**
+   - Events trigger key validation
+   - Key usage is tracked
+   - Failed attempts are logged
+
+3. **Monitoring**
+   - Events update Prometheus metrics
+   - Connection states are tracked
+   - Bandwidth usage is monitored
+
+4. **Error Handling**
+   - Events can trigger error responses
+   - Failed attempts are logged
+   - Cleanup is performed 

@@ -78,6 +78,7 @@ export class RTMPServer extends EventEmitter {
   private connections: Map<string, Connection> = new Map();
   private isRunning: boolean = false;
   private streamKeyService: StreamKeyService;
+  private isReady: boolean = false;
 
   private constructor(config: RTMPConfig) {
     super();
@@ -105,12 +106,33 @@ export class RTMPServer extends EventEmitter {
       this.isRunning = true;
       this.startMetricsCollection();
       
-      logger.info('RTMP server initialized and running', {
+      // Wait for RTMP server to be actually ready
+      // @ts-ignore - accessing internal property
+      const rtmpServer = this.server.nms.rtmpServer;
+      
+      if (rtmpServer) {
+        rtmpServer.on('listening', () => {
+          this.isReady = true;
+          logger.info('RTMP server bound to port and ready', {
+            port: this.config.port
+          });
+          this.emit('rtmp:ready');
+        });
+
+        rtmpServer.on('error', (error: Error) => {
+          if (error.message.includes('EADDRINUSE')) {
+            logger.error('RTMP port already in use', {
+              port: this.config.port,
+              error: error.message
+            });
+          }
+          this.emit('error', error);
+        });
+      }
+
+      logger.info('RTMP server initialized and starting up', {
         config: this.config
       });
-      
-      // Emit ready event since server is now running
-      this.emit('rtmp:ready');
     } catch (error) {
       logger.error('Failed to initialize RTMP server', {
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -344,33 +366,31 @@ export class RTMPServer extends EventEmitter {
   public start(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isRunning) {
-        logger.warn('RTMP server is already running');
-        resolve();
+        if (this.isReady) {
+          logger.info('RTMP server is already running and ready');
+          resolve();
+        } else {
+          logger.info('RTMP server is running but waiting for ready state');
+          this.once('rtmp:ready', () => {
+            this.isReady = true;
+            resolve();
+          });
+
+          // Add timeout in case server fails to become ready
+          setTimeout(() => {
+            if (!this.isReady) {
+              const error = new Error('RTMP server failed to become ready within timeout');
+              logger.error('RTMP server ready state timeout', { error });
+              reject(error);
+            }
+          }, 5000);
+        }
         return;
       }
 
-      try {
-        // Server is already running from constructor, just wait for ready event
-        this.once('rtmp:ready', () => {
-          logger.info('Starting RTMP ready...');
-          resolve();
-        });
-
-        // Add timeout in case server fails to start
-        setTimeout(() => {
-          if (!this.isRunning) {
-            const error = new Error('RTMP server failed to start within timeout');
-            logger.error('RTMP server startup timeout', { error });
-            reject(error);
-          }
-        }, 5000);
-
-      } catch (error) {
-        logger.error('Failed to start RTMP server', {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-        reject(error);
-      }
+      // This should never happen since server is created in constructor
+      logger.error('RTMP server not running - this should never happen');
+      reject(new Error('RTMP server not running'));
     });
   }
 

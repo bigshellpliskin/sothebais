@@ -178,6 +178,18 @@ export class FramePipeline extends EventEmitter {
     logger.info('Frame pipeline cleaned up');
   }
 
+  public isReady(): boolean {
+    return this.frameQueue.length < this.config.maxQueueSize && !this.isProcessing;
+  }
+
+  public getQueueSize(): number {
+    return this.frameQueue.length;
+  }
+
+  public getAverageProcessingTime(): number {
+    return this.lastProcessingTime;
+  }
+
   public getMetrics(): {
     queueSize: number;
     processingTime: number;
