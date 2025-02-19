@@ -30,7 +30,8 @@ export interface StreamConfig {
   width: number;
   height: number;
   fps: number;
-  bitrate: number;
+  bitrate: string; // Keep as string for FFmpeg
+  bitrateNumeric: number; // Add numeric value for metrics
   codec: 'h264' | 'h264rgb' | 'vp8' | 'vp9';
   preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium';
   streamUrl?: string;
@@ -69,7 +70,7 @@ export class StreamEncoder extends EventEmitter {
   private lastReportedFPS: number = 0;
   private isConnected: boolean = false;
   private connectionTimeout: NodeJS.Timeout | null = null;
-  private readonly CONNECTION_TIMEOUT = 5000;
+  private readonly CONNECTION_TIMEOUT = 10000;
 
   private constructor(config: StreamConfig) {
     super();
@@ -106,7 +107,8 @@ export class StreamEncoder extends EventEmitter {
 
   private startMetricsCollection(): void {
     setInterval(() => {
-      streamBitrateGauge.set(this.config.bitrate);
+      // Use numeric bitrate for metrics
+      streamBitrateGauge.set(this.config.bitrateNumeric / 1000); // Convert to kbps
       streamFPSGauge.set(this.currentFPS);
     }, 1000);
   }
@@ -179,95 +181,43 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private buildFFmpegArgs(): string[] {
-    // Global options
+    // Global options - simplified
     const globalArgs: string[] = [
       '-hide_banner',
       '-nostats',
-      '-loglevel', 'info',
-      '-thread_queue_size', '1024',  // Increased queue size
-      '-vsync', 'cfr'  // Constant frame rate
+      '-loglevel', 'debug'
     ];
 
-    // Input options with explicit RGBA format
+    // Input options - keeping RGBA format
     const inputArgs: string[] = [
       '-f', 'rawvideo',
-      '-pix_fmt', 'rgba',  // Always use RGBA
+      '-pix_fmt', 'rgba',
       '-s', `${this.config.width}x${this.config.height}`,
       '-r', this.config.fps.toString(),
-      '-i', 'pipe:0' 
+      '-i', 'pipe:0'
     ];
 
-    // Add format conversion for h264 with explicit parameters
-    const pixelFormatArgs = [
-      '-vf', [
-        'format=rgba',  // Ensure RGBA format
-        `scale=${this.config.width}:${this.config.height}:force_original_aspect_ratio=decrease`,
-        'format=yuv420p'  // Convert to yuv420p for h264 encoding
-      ].join(','),
-      '-g', '30',
-      '-keyint_min', '30',
-      '-sc_threshold', '0',
-      '-sws_flags', 'bilinear',
-      '-force_key_frames', 'expr:gte(t,n_forced*1)'  // Force keyframe every second
-    ];
-
-    // Audio input (silent)
-    const audioArgs = [
-      '-f', 'lavfi',
-      '-i', 'anullsrc=r=44100:cl=stereo',
-      '-shortest'
-    ];
-
-    // Codec options with explicit settings
-    const codecArgs = [
+    // Basic video processing - simplified
+    const videoArgs = [
+      '-vf', 'format=yuv420p',  // Just convert to yuv420p for h264
+      '-g', '30',  // Keyframe every 30 frames
       '-c:v', 'libx264',
       '-preset', this.config.preset,
       '-tune', 'zerolatency',
-      '-b:v', `${this.config.bitrate}k`,
-      '-maxrate', `${this.config.bitrate * 1.5}k`,
-      '-bufsize', `${this.config.bitrate * 2}k`,
-      '-profile:v', 'baseline',
-      '-level', '3.1',
-      '-x264-params', [
-        'nal-hrd=cbr',
-        'force-cfr=1',
-        `threads=${this.config.pipeline?.threads || '2'}`,
-        'rc-lookahead=10',
-        'ref=1',
-        'bframes=0',
-        'intra-refresh=1',
-        'slice-max-size=1500',
-        'sync-lookahead=0',  // Reduce latency
-        'subme=0',  // Speed up encoding
-        'trellis=0',  // Speed up encoding
-        'direct-pred=spatial'  // Better for streaming
-      ].join(':')
+      '-b:v', this.config.bitrate,  // Use raw string with 'k' suffix
+      '-x264-params', 'nal-hrd=cbr:force-cfr=1'  // Basic CBR settings
     ];
 
-    // Audio codec (minimal settings)
-    const audioCodecArgs = [
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-ar', '44100',
-      '-ac', '2'
-    ];
-
-    // Output options optimized for RTMP
+    // Output options - simplified
     const outputArgs = [
       '-f', 'flv',
-      '-flvflags', '+no_duration_filesize',
-      '-movflags', '+faststart+frag_keyframe+empty_moov+default_base_moof',
-      '-max_interleave_delta', '0',  // Minimize interleaving delay
-      this.config.streamUrl || 'rtmp://localhost:1935/live/test'
+      this.config.outputs[0]  // Use the first output URL
     ];
 
     const args = [
       ...globalArgs,
       ...inputArgs,
-      ...audioArgs,
-      ...pixelFormatArgs,
-      ...codecArgs,
-      ...audioCodecArgs,
+      ...videoArgs,
       ...outputArgs
     ];
 
@@ -328,53 +278,77 @@ export class StreamEncoder extends EventEmitter {
    */
   public start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.isStreaming) {
-        logger.info('Encoder is already running');
+      if (this.ffmpeg) {
+        logger.info('Encoder process already exists');
         resolve();
         return;
       }
 
       try {
         const args = this.buildFFmpegArgs();
-        logger.info('FFmpeg command configuration', {
+        logger.info('Attempting to spawn FFmpeg process', {
           command: args.join(' '),
-          inputFormat: this.config.pipeline?.inputFormat || 'rgba',
-          resolution: `${this.config.width}x${this.config.height}`,
-          fps: this.config.fps,
-          preset: this.config.preset,
-          bitrate: this.config.bitrate
+          config: {
+            inputFormat: this.config.pipeline?.inputFormat || 'rgba',
+            resolution: `${this.config.width}x${this.config.height}`,
+            fps: this.config.fps
+          }
         });
 
         this.ffmpeg = spawn('ffmpeg', args);
-        this.isStreaming = true;
-
-        // Set up connection timeout
-        this.connectionTimeout = setTimeout(() => {
-          if (!this.isConnected) {
-            const error = new Error('Encoder failed to establish connection within timeout');
-            this.handleError(error);
-            reject(error);
-          }
-        }, this.CONNECTION_TIMEOUT);
-
-        // Handle successful connection
-        this.ffmpeg.stderr?.on('data', (data: Buffer) => {
-          const output = data.toString();
-          if (output.includes('Output #0, flv')) {
-            this.isConnected = true;
-            if (this.connectionTimeout) {
-              clearTimeout(this.connectionTimeout);
-              this.connectionTimeout = null;
-            }
-            logger.info('Encoder successfully connected to RTMP server');
-            resolve();
-          }
-        });
+        
+        if (!this.ffmpeg.pid) {
+          throw new Error('Failed to spawn FFmpeg process');
+        }
 
         this.setupEventHandlers();
-        logger.info('Stream encoder started', { streamUrl: this.config.outputs[0] });
+        
+        logger.info('FFmpeg process spawned successfully', {
+          pid: this.ffmpeg.pid,
+          spawnArgs: this.ffmpeg.spawnargs
+        });
+
+        // Modified connection retry logic
+        const attemptConnection = () => {
+          if (this.isConnected) {
+            clearTimeout(this.connectionTimeout!);
+            return;
+          }
+
+          logger.info('Attempting RTMP connection...', {
+            attempt: this.restartAttempts + 1,
+            streamUrl: this.config.outputs[0]
+          });
+
+          this.restartAttempts++;
+          this.connectionTimeout = setTimeout(attemptConnection, 5000); // Retry every 2 seconds
+        };
+
+        // Start connection attempts
+        attemptConnection();
+
+        // Wait for both pipeline and RTMP readiness
+        Promise.all([
+          new Promise<void>((pipelineResolve) => {
+            this.once('pipeline_ready', pipelineResolve);
+          }),
+          new Promise<void>((rtmpResolve) => {
+            this.once('connected', rtmpResolve);
+          })
+        ]).then(() => {
+          this.isStreaming = true;
+          logger.info('Encoder fully initialized and streaming', {
+            streamUrl: this.config.outputs[0],
+            pid: this.ffmpeg?.pid
+          });
+          resolve();
+        }).catch(reject);
 
       } catch (error) {
+        logger.error('Failed to start encoder', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
         this.handleError(error as Error);
         reject(error);
       }
@@ -382,17 +356,135 @@ export class StreamEncoder extends EventEmitter {
   }
 
   private setupEventHandlers(): void {
-    if (!this.ffmpeg) return;
+    if (!this.ffmpeg) {
+      logger.warn('Attempted to setup handlers but FFmpeg process does not exist');
+      return;
+    }
 
-    this.ffmpeg.stderr?.on('data', (data: Buffer) => {
+    // Clear any existing handlers
+    this.removeAllListeners();
+    
+    // Check if we have stderr stream
+    if (!this.ffmpeg.stderr) {
+      logger.error('FFmpeg process has no stderr stream');
+      return;
+    }
+
+    this.ffmpeg.stderr.on('data', (data: Buffer) => {
       const output = data.toString();
+      const timestamp = new Date().toISOString();
+      
+      // Log raw output first
+      logger.info('FFmpeg raw stderr output', {
+        timestamp,
+        output,
+        pid: this.ffmpeg?.pid
+      });
+
+      // Then process line by line
+      output.split('\n').filter(line => line.trim()).forEach(line => {
+        logger.info('FFmpeg line output', { 
+          timestamp,
+          line,
+          state: {
+            isConnected: this.isConnected,
+            isStreaming: this.isStreaming,
+            hasFFmpeg: !!this.ffmpeg,
+            pid: this.ffmpeg?.pid
+          }
+        });
+      });
+
+      // Detailed connection logging
+      if (output.includes('Opening') || output.includes('open')) {
+        logger.info('FFmpeg connection attempt', { timestamp, output });
+      }
+      
+      if (output.includes('TCP') || output.includes('connection')) {
+        logger.info('FFmpeg network activity', { timestamp, output });
+      }
+
+      if (output.includes('RTMP') || output.includes('rtmp')) {
+        logger.info('FFmpeg RTMP activity', { timestamp, output });
+      }
+
+      if (output.includes('handshake') || output.includes('connect')) {
+        logger.info('FFmpeg handshake/connect activity', { timestamp, output });
+      }
+
+      // Original connection check with more context
+      if (output.includes('Output #0, flv')) {
+        logger.info('FFmpeg FLV output initialized', { 
+          timestamp, 
+          output,
+          state: {
+            isConnected: this.isConnected,
+            isStreaming: this.isStreaming
+          }
+        });
+        this.isConnected = true;
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        logger.info('Encoder connected to RTMP server', { timestamp });
+        this.emit('connected');
+      }
+
+      // Enhanced error logging
+      if (output.includes('Warning') || output.includes('warning')) {
+        logger.warn('FFmpeg warning', { timestamp, output });
+      }
+
       if (output.includes('Error') || output.includes('error')) {
-        logger.error('FFmpeg error output', { output });
+        logger.error('FFmpeg error', { 
+          timestamp, 
+          output,
+          state: {
+            isConnected: this.isConnected,
+            isStreaming: this.isStreaming,
+            hasFFmpeg: !!this.ffmpeg,
+            pid: this.ffmpeg?.pid
+          }
+        });
       }
     });
 
-    this.ffmpeg.on('error', this.handleError.bind(this));
-    this.ffmpeg.on('exit', this.handleExit.bind(this));
+    // Add process state logging
+    this.ffmpeg.on('spawn', () => {
+      logger.info('FFmpeg process spawned', {
+        timestamp: new Date().toISOString(),
+        pid: this.ffmpeg?.pid
+      });
+    });
+
+    // Handle first frame from pipeline
+    this.ffmpeg.stdin?.once('pipe', () => {
+      logger.info('Received first frame from pipeline', {
+        timestamp: new Date().toISOString(),
+        pid: this.ffmpeg?.pid
+      });
+      this.emit('pipeline_ready');
+    });
+
+    this.ffmpeg.on('error', (error: Error) => {
+      logger.error('FFmpeg process error', {
+        timestamp: new Date().toISOString(),
+        error: error.message,
+        pid: this.ffmpeg?.pid
+      });
+      this.handleError(error);
+    });
+
+    this.ffmpeg.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+      logger.info('FFmpeg process exit', {
+        timestamp: new Date().toISOString(),
+        code,
+        signal,
+        pid: this.ffmpeg?.pid
+      });
+      this.handleExit(code, signal);
+    });
   }
 
   /**
@@ -520,13 +612,13 @@ export class StreamEncoder extends EventEmitter {
   public getMetrics(): {
     isStreaming: boolean;
     currentFPS: number;
-    bitrate: number;
+    bitrate: number;  // Return numeric bitrate
     restartAttempts: number;
   } {
     return {
       isStreaming: this.isStreaming,
       currentFPS: this.currentFPS,
-      bitrate: this.config.bitrate,
+      bitrate: this.config.bitrateNumeric,  // Use numeric value
       restartAttempts: this.restartAttempts
     };
   }
@@ -535,7 +627,7 @@ export class StreamEncoder extends EventEmitter {
     return this.currentFPS;
   }
 
-  public getBitrate(): number {
+  public getBitrate(): string {
     return this.config.bitrate;
   }
 

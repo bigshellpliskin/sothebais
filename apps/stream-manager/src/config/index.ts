@@ -50,11 +50,6 @@ export async function loadConfig(): Promise<Config> {
     BUFFER_CLEANUP_INTERVAL: process.env.BUFFER_CLEANUP_INTERVAL ? parseInt(process.env.BUFFER_CLEANUP_INTERVAL) : undefined,
     BUFFER_REUSE_ENABLED: process.env.BUFFER_REUSE_ENABLED === 'true',
 
-    // Worker Configuration
-    WORKER_POOL_SIZE: process.env.WORKER_POOL_SIZE ? parseInt(process.env.WORKER_POOL_SIZE) : undefined,
-    WORKER_QUEUE_SIZE: process.env.WORKER_QUEUE_SIZE ? parseInt(process.env.WORKER_QUEUE_SIZE) : undefined,
-    WORKER_TASK_TIMEOUT: process.env.WORKER_TASK_TIMEOUT ? parseInt(process.env.WORKER_TASK_TIMEOUT) : undefined,
-
     // Core Settings
     VIEWPORT_WIDTH: process.env.VIEWPORT_WIDTH ? parseInt(process.env.VIEWPORT_WIDTH) : undefined,
     VIEWPORT_HEIGHT: process.env.VIEWPORT_HEIGHT ? parseInt(process.env.VIEWPORT_HEIGHT) : undefined,

@@ -13,7 +13,13 @@ export const configSchema = z.object({
   // Stream settings
   STREAM_RESOLUTION: z.string().default('1280x720'),
   TARGET_FPS: z.number().default(30),
-  STREAM_BITRATE: z.string().default('6000k'),
+  STREAM_BITRATE: z.string()
+    .regex(/^\d+k$/, 'Bitrate must be a number followed by "k" (e.g., "2k", "6k")')
+    .default('2k')
+    .transform((val) => ({
+      raw: val,                           // Original string with 'k' suffix for FFmpeg
+      numeric: parseInt(val.slice(0, -1)) * 1000  // Numeric value in bits per second
+    })),
   ENABLE_HARDWARE_ACCELERATION: z.boolean().default(false),
   STREAM_URL: z.string().default('rtmp://localhost/live/stream'),
 

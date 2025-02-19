@@ -18,6 +18,7 @@ interface StreamManagerDependencies {
   currentScene: Scene;
 }
 
+// High level class that manages the stream
 export class StreamManager extends EventEmitter {
   private static instance: StreamManager | null = null;
   private pipeline: FramePipeline | null = null;
@@ -56,6 +57,7 @@ export class StreamManager extends EventEmitter {
     try {
       logger.info('Initializing stream manager');
       this.config = config;
+      logger.info('Stream manager config', { config });
 
       // Initialize state manager first
       await this.stateManager.initialize(config);
@@ -108,16 +110,23 @@ export class StreamManager extends EventEmitter {
         expiresAt: keyInfo.expiresAt
       });
 
-      // Initialize encoder with validated key
-      logger.info('Initializing encoder with stream key', { streamKey });
+      // Log config values before encoder init
+      logger.info('Initializing encoder with config', { 
+        streamKey,
+        configBitrate: config.STREAM_BITRATE,
+        rawConfig: config, // Add full config
+        envBitrate: process.env.STREAM_BITRATE // Add env var directly
+      });
+      
       this.encoder = await StreamEncoder.initialize({
         width,
         height,
         fps: config.TARGET_FPS,
-        bitrate: parseInt(config.STREAM_BITRATE.replace('k', '000')),
+        bitrate: config.STREAM_BITRATE.raw,        // Pass raw string for FFmpeg
+        bitrateNumeric: config.STREAM_BITRATE.numeric,  // Pass numeric value for metrics
         codec: 'h264',
         preset: 'veryfast',
-        outputs: [`rtmp://stream-manager:${config.RTMP_PORT}/live/${streamKey}`]
+        outputs: [`rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`]
       });
 
       // Setup event handlers
