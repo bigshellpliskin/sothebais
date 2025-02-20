@@ -185,7 +185,7 @@ export class StreamEncoder extends EventEmitter {
     const globalArgs: string[] = [
       '-hide_banner',
       '-nostats',
-      '-loglevel', 'debug'
+      '-loglevel', 'warning',
     ];
 
     // Input options - keeping RGBA format
@@ -374,68 +374,7 @@ export class StreamEncoder extends EventEmitter {
       const output = data.toString();
       const timestamp = new Date().toISOString();
       
-      // Log raw output first
-      logger.info('FFmpeg raw stderr output', {
-        timestamp,
-        output,
-        pid: this.ffmpeg?.pid
-      });
-
-      // Then process line by line
-      output.split('\n').filter(line => line.trim()).forEach(line => {
-        logger.info('FFmpeg line output', { 
-          timestamp,
-          line,
-          state: {
-            isConnected: this.isConnected,
-            isStreaming: this.isStreaming,
-            hasFFmpeg: !!this.ffmpeg,
-            pid: this.ffmpeg?.pid
-          }
-        });
-      });
-
-      // Detailed connection logging
-      if (output.includes('Opening') || output.includes('open')) {
-        logger.info('FFmpeg connection attempt', { timestamp, output });
-      }
-      
-      if (output.includes('TCP') || output.includes('connection')) {
-        logger.info('FFmpeg network activity', { timestamp, output });
-      }
-
-      if (output.includes('RTMP') || output.includes('rtmp')) {
-        logger.info('FFmpeg RTMP activity', { timestamp, output });
-      }
-
-      if (output.includes('handshake') || output.includes('connect')) {
-        logger.info('FFmpeg handshake/connect activity', { timestamp, output });
-      }
-
-      // Original connection check with more context
-      if (output.includes('Output #0, flv')) {
-        logger.info('FFmpeg FLV output initialized', { 
-          timestamp, 
-          output,
-          state: {
-            isConnected: this.isConnected,
-            isStreaming: this.isStreaming
-          }
-        });
-        this.isConnected = true;
-        if (this.connectionTimeout) {
-          clearTimeout(this.connectionTimeout);
-          this.connectionTimeout = null;
-        }
-        logger.info('Encoder connected to RTMP server', { timestamp });
-        this.emit('connected');
-      }
-
-      // Enhanced error logging
-      if (output.includes('Warning') || output.includes('warning')) {
-        logger.warn('FFmpeg warning', { timestamp, output });
-      }
-
+      // Only log important messages
       if (output.includes('Error') || output.includes('error')) {
         logger.error('FFmpeg error', { 
           timestamp, 
@@ -447,6 +386,17 @@ export class StreamEncoder extends EventEmitter {
             pid: this.ffmpeg?.pid
           }
         });
+      }
+
+      // Keep connection success logging
+      if (output.includes('Output #0, flv')) {
+        logger.info('FFmpeg connected to RTMP server', { timestamp });
+        this.isConnected = true;
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        this.emit('connected');
       }
     });
 

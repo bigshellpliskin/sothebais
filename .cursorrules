@@ -1,7 +1,7 @@
 # .cursorrules
 
 Docker
-- Use `docker compose` to control the services
+- Use `docker compose` to control the services.
 - Name of docker compose file: `compose.yaml`
 
 File & Folder Names

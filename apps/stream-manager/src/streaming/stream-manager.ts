@@ -114,8 +114,6 @@ export class StreamManager extends EventEmitter {
       logger.info('Initializing encoder with config', { 
         streamKey,
         configBitrate: config.STREAM_BITRATE,
-        rawConfig: config, // Add full config
-        envBitrate: process.env.STREAM_BITRATE // Add env var directly
       });
       
       this.encoder = await StreamEncoder.initialize({
