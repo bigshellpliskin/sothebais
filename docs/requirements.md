@@ -76,46 +76,6 @@ Visual Components
 - Docker for containerization
 - Prometheus/Grafana for monitoring
 
-##### Network Configuration
-- Service Ports:
-  - Admin Frontend: 3000-3099
-    - Next.js App: http://localhost:3000
-    - API Routes: http://localhost:3000/api/*
-  - Shape L2: 4000-4099
-    - Main API: http://localhost:4000
-    - Metrics: http://localhost:4090
-    - Health: http://localhost:4091
-  - Auction Manager: 4100-4199
-    - Main API: http://localhost:4100
-    - Metrics: http://localhost:4190
-    - Health: http://localhost:4191
-  - Stream Manager: 4200-4299
-    - Main API: http://localhost:4200
-    - WebSocket: http://localhost:4201
-    - Metrics: http://localhost:4290
-    - Health: http://localhost:4291
-  - Event Handler: 4300-4399
-    - Main API: http://localhost:4300
-    - Websocket/Event Stream: http://localhost:4301
-    - Metrics: http://localhost:4390
-    - Health: http://localhost:4391
-  - ElizaOS: 4400-4499
-    - Main API: http://localhost:4400
-    - WebSocket: http://localhost:4401
-    - Metrics: http://localhost:4490
-    - Health: http://localhost:4491
-
-##### Port Conventions
-- Main service port ends in 00 (e.g., 4200)
-- WebSocket/Event Stream ends in 01 (e.g., 4201)
-- Metrics endpoint ends in 90 (e.g., 4290)
-- Health check ends in 91 (e.g., 4291)
-
-##### Infrastructure Services
-- Redis: http://localhost:6379 (standard Redis port)
-- Prometheus: http://localhost:9090 (metrics collection)
-- Node Exporter: http://localhost:9100 (system metrics)
-
 #### 1.3.2. System Components
 
 - Admin Frontend
@@ -125,15 +85,22 @@ Visual Components
 - Eliza
 - Shared
 
-
-
 ## 2. Functional Requirements
 What the system should do.
 ### 2.1. User Features
 
+Livestream Feed
 - User should be able to watch the livestream on twitter/X.
-- User should be able to deposit crypto intoan escrow wallet, tweet the transaction orwallet address in a speific format to placea bid. 
-- User should be able to see the auctionprogress live on the livestream.
+    - User should see and hear the auction host.
+    - User should be able to see basic auction info progress live on the livestream.
+    - User should be able to see the art item being auctioned.
+
+Auction Interaction
+- User should be able to deposit crypto into an escrow wallet.
+- User should be able to tweet the transaction or wallet address in a specific format to place a bid. 
+
+
+
 
 ### 2.2. System Functions
 - System should be able to accept bids via twitter/X.
@@ -143,8 +110,15 @@ What the system should do.
 - System should interact with Ethereum, Polygon, Base, Shape and other EVM chains.
 
 ### 2.3. Data Management
+
+Auction Data
 - System should be able to store the bids in a database.
 - System should be able to store the auction data in a database.
+
+User Data
+- System should be able to store the user data in a database.
+- System should be able to store the user's twitter handle in a database.   
+- System should be able to store the user's wallet address in a database.
 
 ### 2.4. Scene Management
 - System should support quadrant-based scene composition:

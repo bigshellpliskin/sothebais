@@ -93,9 +93,7 @@ export class StreamManager extends EventEmitter {
       });
 
       // Generate test stream key for development
-      const streamKey = await streamKeyService.generateKey('test-user', 'test-stream', {
-        expiresIn: 86400 // 24 hours
-      });
+      const streamKey = await streamKeyService.getOrCreateAlias('preview', 'test-user', 'test-stream');
 
       // Validate the stream key before using it
       const keyInfo = await streamKeyService.getKeyInfo(streamKey);
@@ -107,7 +105,8 @@ export class StreamManager extends EventEmitter {
         streamKey,
         userId: keyInfo.userId,
         streamId: keyInfo.streamId,
-        expiresAt: keyInfo.expiresAt
+        expiresAt: keyInfo.expiresAt,
+        alias: 'preview'
       });
 
       // Log config values before encoder init
@@ -124,7 +123,7 @@ export class StreamManager extends EventEmitter {
         bitrateNumeric: config.STREAM_BITRATE.numeric,  // Pass numeric value for metrics
         codec: 'h264',
         preset: 'veryfast',
-        outputs: [`rtmp://localhost:${config.RTMP_PORT}/live/${streamKey}`]
+        outputs: [`rtmp://stream-manager:${config.RTMP_PORT}/live/${streamKey}?role=encoder`]
       });
 
       // Setup event handlers
@@ -199,10 +198,10 @@ export class StreamManager extends EventEmitter {
     try {
       logger.info('Starting stream');
 
-      // Wait for RTMP server to be ready
-      logger.info('Waiting for RTMP server to be ready...');
+      // Start RTMP server
+      logger.info('Starting RTMP server...');
       await this.rtmpServer?.start();
-      logger.info('RTMP server ready');
+      logger.info('RTMP server started');
 
       // Initialize and start encoder
       logger.info('Starting encoder...');

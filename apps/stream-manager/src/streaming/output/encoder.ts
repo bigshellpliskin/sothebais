@@ -308,41 +308,15 @@ export class StreamEncoder extends EventEmitter {
           spawnArgs: this.ffmpeg.spawnargs
         });
 
-        // Modified connection retry logic
-        const attemptConnection = () => {
-          if (this.isConnected) {
-            clearTimeout(this.connectionTimeout!);
-            return;
-          }
-
-          logger.info('Attempting RTMP connection...', {
-            attempt: this.restartAttempts + 1,
-            streamUrl: this.config.outputs[0]
-          });
-
-          this.restartAttempts++;
-          this.connectionTimeout = setTimeout(attemptConnection, 5000); // Retry every 2 seconds
-        };
-
-        // Start connection attempts
-        attemptConnection();
-
-        // Wait for both pipeline and RTMP readiness
-        Promise.all([
-          new Promise<void>((pipelineResolve) => {
-            this.once('pipeline_ready', pipelineResolve);
-          }),
-          new Promise<void>((rtmpResolve) => {
-            this.once('connected', rtmpResolve);
-          })
-        ]).then(() => {
+        // Wait for pipeline readiness
+        this.once('pipeline_ready', () => {
           this.isStreaming = true;
-          logger.info('Encoder fully initialized and streaming', {
+          logger.info('Encoder initialized and streaming', {
             streamUrl: this.config.outputs[0],
             pid: this.ffmpeg?.pid
           });
           resolve();
-        }).catch(reject);
+        });
 
       } catch (error) {
         logger.error('Failed to start encoder', {
@@ -380,7 +354,6 @@ export class StreamEncoder extends EventEmitter {
           timestamp, 
           output,
           state: {
-            isConnected: this.isConnected,
             isStreaming: this.isStreaming,
             hasFFmpeg: !!this.ffmpeg,
             pid: this.ffmpeg?.pid
@@ -392,11 +365,6 @@ export class StreamEncoder extends EventEmitter {
       if (output.includes('Output #0, flv')) {
         logger.info('FFmpeg connected to RTMP server', { timestamp });
         this.isConnected = true;
-        if (this.connectionTimeout) {
-          clearTimeout(this.connectionTimeout);
-          this.connectionTimeout = null;
-        }
-        this.emit('connected');
       }
     });
 

@@ -1,16 +1,49 @@
-import type { Scene, QuadrantId, Quadrant } from '../core/scene-manager.js';
+import type { Scene, QuadrantId, Quadrant, Asset } from '../core/scene-manager.js';
 import type { Config } from '../types/config.js';
+import path from 'path';
 
 export function createDefaultScene(config: Config): Scene {
   const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
   const halfWidth = width / 2;
   const halfHeight = height / 2;
 
+  // Create background asset
+  const backgroundAsset: Asset = {
+    id: 'default_bg',
+    type: 'image',
+    source: path.join(process.cwd(), 'assets', 'bgs', 'layoutFull-BG.png'),
+    position: { x: 0, y: 0 },
+    transform: {
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      anchor: { x: 0.5, y: 0.5 }
+    },
+    visible: true,
+    zIndex: 0
+  };
+
+  // Create character asset
+  const auctioneerAsset: Asset = {
+    id: 'auctioneer',
+    type: 'image',
+    source: path.join(process.cwd(), 'assets', 'characters', 'auctioneer.png'),
+    position: { x: halfWidth + 50, y: halfHeight + 50 },  // Position in bottom right quadrant
+    transform: {
+      scale: 0.8,
+      rotation: 0,
+      opacity: 1,
+      anchor: { x: 0.5, y: 0.5 }
+    },
+    visible: true,
+    zIndex: 1
+  };
+
   // Create a basic scene with 4 quadrants
   const scene: Scene = {
     id: `scene_${Date.now()}`,
     name: 'Default Scene',
-    background: [],  // Empty background initially
+    background: [backgroundAsset],  // Add background asset
     quadrants: new Map(),
     overlay: [],     // Empty overlay initially
     metadata: {
@@ -47,7 +80,7 @@ export function createDefaultScene(config: Config): Scene {
       name: 'Bottom Right',
       bounds: { left: halfWidth, top: halfHeight, right: width, bottom: height },
       padding: 20,
-      assets: []
+      assets: [auctioneerAsset]  // Add auctioneer to bottom right quadrant
     }]
   ];
 

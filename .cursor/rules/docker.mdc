@@ -1,0 +1,19 @@
+---
+description: How to use docker, docker compose and associated files
+globs: Dockerfile, compose.yaml
+---
+# Docker Rules
+This project uses docker and docker compose to run the different services/containers.
+
+### Basics
+- [compose.yaml](mdc:compose.yaml) is the main docker file
+- `apps` are the container directories
+- Each container has its own Docker file (eg: `apps/admin` has [Dockerfile](mdc:apps/admin/Dockerfile) )
+
+### Data and Persistence
+- Persistent data is stored in `data`
+
+### Networking
+- Networking between 
+
+
