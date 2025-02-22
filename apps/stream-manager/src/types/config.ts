@@ -1,5 +1,25 @@
 import { z } from 'zod';
 
+// Stream Configuration Types
+export interface StreamConfig {
+  resolution: {
+    width: number;
+    height: number;
+  };
+  fps: number;
+  bitrate: number;
+  codec: 'h264' | 'vp8' | 'vp9';
+  preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium' | 'slow' | 'slower' | 'veryslow';
+  quality: 'low' | 'medium' | 'high';
+}
+
+export interface AudioConfig {
+  codec: 'aac' | 'opus';
+  bitrate: number;
+  sampleRate: number;
+  channels: number;
+}
+
 export const configSchema = z.object({
   // Server ports
   PORT: z.number().default(4200),
@@ -72,6 +92,7 @@ export const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
+// Configuration Types
 export interface WorkerPoolConfig {
   poolSize: number;
   taskQueueSize: number;

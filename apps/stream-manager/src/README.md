@@ -332,47 +332,6 @@ interface Scene {
    });
    ```
 
-## Performance Optimization
-
-### Frame Processing
-- Efficient buffer management
-- Frame dropping when needed
-- Quality vs performance balancing
-- Hardware acceleration usage
-
-### State Management
-- Optimized state updates
-- Efficient persistence
-- Event batching
-- Cache management
-
-### Memory Management
-- Buffer pooling
-- Asset caching
-- Memory monitoring
-- Resource cleanup
-
-## Error Handling
-
-The service implements comprehensive error handling:
-- Component-level error boundaries
-- Graceful degradation
-- Automatic recovery
-- Detailed error logging
-
-## Development Guidelines
-
-### Code Style
-- Use TypeScript strict mode
-- Follow functional programming principles
-- Implement proper error handling
-- Add comprehensive logging
-
-### Testing Strategy
-- Unit tests for core logic
-- Integration tests for pipelines
-- Performance tests
-- Memory leak tests
 
 ### Performance Testing
 ```bash
@@ -396,23 +355,3 @@ DEBUG=stream:* npm run dev
 # Profile performance
 npm run dev:profile
 ```
-
-## Future Improvements
-
-1. **Performance**
-   - GPU acceleration
-   - Advanced buffer pooling
-   - Frame prediction
-   - Parallel processing
-
-2. **Features**
-   - Multiple quality variants
-   - Advanced transitions
-   - Custom effects
-   - Recording capability
-
-3. **Monitoring**
-   - Enhanced metrics
-   - Performance profiling
-   - Memory analysis
-   - Error tracking

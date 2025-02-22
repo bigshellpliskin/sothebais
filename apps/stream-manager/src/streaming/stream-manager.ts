@@ -6,10 +6,9 @@ import { RTMPServer } from './rtmp/server.js';
 import { StreamKeyService } from './rtmp/stream-key.js';
 import { stateManager } from '../state/state-manager.js';
 import { webSocketService } from '../server/websocket.js';
-import type { StateManagerImpl } from '../state/state-manager.js';
+import type { StateManager } from '../types/state.js';
 import type { Config } from '../types/config.js';
-import type { AssetManager, CompositionEngine } from '../types/core.js';
-import type { Scene } from '../core/scene-manager.js';
+import type { AssetManager, CompositionEngine, Scene } from '../types/core.js';
 import { EventType } from '../types/events.js';
 
 interface StreamManagerDependencies {
@@ -24,7 +23,7 @@ export class StreamManager extends EventEmitter {
   private pipeline: FramePipeline | null = null;
   private encoder: StreamEncoder | null = null;
   private rtmpServer: RTMPServer | null = null;
-  private stateManager: StateManagerImpl;
+  private stateManager: StateManager;
   private isInitialized: boolean = false;
   private frameInterval: NodeJS.Timeout | null = null;
   private frameCount: number = 0;

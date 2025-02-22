@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import sharp from 'sharp';
 import { logger } from '../utils/logger.js';
-import type { Asset, Position as ViewportPosition, Transform as ViewportTransform } from './scene-manager.js';
+import type { Asset, Position as ViewportPosition, Transform as ViewportTransform } from '../types/core.js';
 
 type AssetType = Asset['type'];
 
@@ -66,9 +66,9 @@ export class AssetManager extends EventEmitter {
           // TODO: Implement video frame extraction
           throw new Error('Video frame extraction not implemented');
 
-        case 'vtuber':
-          // TODO: Implement VTuber model loading
-          throw new Error('VTuber model loading not implemented');
+        case 'stream':
+          // TODO: Implement stream source loading
+          throw new Error('Stream source loading not implemented');
 
         case 'overlay':
           // TODO: Implement overlay loading

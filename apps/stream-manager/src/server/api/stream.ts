@@ -7,7 +7,6 @@ import { PreviewServer } from '../monitoring/preview.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { stateManager } from '../../state/state-manager.js';
-import type { LayerState } from '../../types/layers.js';
 
 // ESM replacement for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -15,30 +14,6 @@ const __dirname = path.dirname(__filename);
 
 // Get PreviewServer instance but don't initialize yet
 const previewServer = PreviewServer.getInstance();
-
-// Mock layers for initial implementation
-const defaultLayers = [
-  {
-    id: 'background',
-    name: 'Background',
-    visible: true,
-    content: {
-      type: 'color',
-      data: '#000000'
-    }
-  },
-  {
-    id: 'overlay',
-    name: 'Overlay',
-    visible: true,
-    content: {
-      type: 'image',
-      data: '/overlay.png'
-    }
-  }
-];
-
-let layers = [...defaultLayers];
 
 // Create a single router for all stream endpoints
 const streamRouter = express.Router();
@@ -167,141 +142,6 @@ streamRouter.post('/stop', async (_req: Request, res: Response) => {
       success: false,
       error: 'Failed to stop stream',
       details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Layer management endpoints
-streamRouter.get('/layers', (_req: Request, res: Response) => {
-  try {
-    const layerState = stateManager.getLayerState();
-    res.json({
-      success: true,
-      data: layerState.layers,
-      count: layerState.layers.length
-    });
-  } catch (error) {
-    logger.error('Failed to get layers', {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get layers'
-    });
-  }
-});
-
-streamRouter.post('/layers/:id/visibility', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { visible } = req.body;
-
-    if (typeof visible !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        error: 'Visibility must be a boolean'
-      });
-    }
-
-    const currentState = stateManager.getLayerState();
-    const layerIndex = currentState.layers.findIndex(layer => layer.id === id);
-
-    if (layerIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: 'Layer not found'
-      });
-    }
-
-    const updatedLayers = [...currentState.layers];
-    updatedLayers[layerIndex] = {
-      ...updatedLayers[layerIndex],
-      visible
-    };
-
-    await stateManager.updateLayerState({
-      ...currentState,
-      layers: updatedLayers
-    });
-
-    res.json({
-      success: true,
-      data: updatedLayers[layerIndex]
-    });
-  } catch (error) {
-    logger.error('Failed to update layer visibility', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      layerId: req.params.id
-    });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update layer visibility'
-    });
-  }
-});
-
-// Chat endpoints
-streamRouter.post('/chat', async (req: Request, res: Response) => {
-  try {
-    const { text, highlighted } = req.body;
-
-    if (!text || typeof text !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'Message text is required'
-      });
-    }
-
-    const currentState = stateManager.getLayerState();
-    const chatLayer = currentState.layers.find(layer => layer.type === 'chat');
-
-    if (!chatLayer) {
-      return res.status(404).json({
-        success: false,
-        error: 'Chat layer not found'
-      });
-    }
-
-    const message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      author: 'Admin',
-      text,
-      timestamp: Date.now(),
-      highlighted: !!highlighted
-    };
-
-    const updatedLayers = currentState.layers.map(layer => {
-      if (layer.type === 'chat') {
-        return {
-          ...layer,
-          content: {
-            ...layer.content,
-            messages: [
-              ...layer.content.messages,
-              message
-            ].slice(-layer.content.maxMessages)
-          }
-        };
-      }
-      return layer;
-    });
-
-    await stateManager.updateLayerState({
-      ...currentState,
-      layers: updatedLayers
-    });
-
-    res.json({
-      success: true,
-      data: message
-    });
-  } catch (error) {
-    logger.error('Failed to send chat message', {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to send chat message'
     });
   }
 });

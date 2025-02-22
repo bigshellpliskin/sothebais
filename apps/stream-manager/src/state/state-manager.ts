@@ -1,15 +1,19 @@
 import type { 
   StateManager,
-  AppState
-} from '../types/state-manager.js';
-import type { StreamState, StreamConfig, StreamMetrics } from '@shared/types/stream.js';
-import type { SceneState } from '../types/scene.js';
+  AppState,
+  StreamState,
+  SceneState,
+  PreviewClient,
+  StreamMetrics
+} from '../types/state.js';
 import { EventType, EventSource } from '../types/events.js';
 import type { 
   StreamEvent, 
   SceneEvent,
   StreamManagerEvent,
-  EventListener as StreamManagerEventListener 
+  EventListener as StreamManagerEventListener,
+  PreviewEvent,
+  StateEvent
 } from '../types/events.js';
 import { RedisService } from './redis-service.js';
 import { logger } from '../utils/logger.js';
@@ -44,7 +48,8 @@ export class StateManagerImpl implements StateManager {
   private constructor() {
     this.state = {
       stream: { ...DEFAULT_STREAM_STATE },
-      scene: { ...DEFAULT_SCENE_STATE }
+      scene: { ...DEFAULT_SCENE_STATE },
+      preview: {}
     };
     this.redisService = RedisService.getInstance();
   }
@@ -128,15 +133,13 @@ export class StateManagerImpl implements StateManager {
       await this.ensureRedisConnection();
       await this.redisService.saveStreamState(this.state.stream);
 
-      const event: StreamEvent = {
+      const event: StateEvent = {
         id: Date.now().toString(),
         timestamp: Date.now(),
         type: EventType.STATE_STREAM_UPDATE,
         source: EventSource.STATE_MANAGER,
         payload: {
-          previous: previousState,
-          current: this.state.stream,
-          changes
+          state: this.state.stream
         }
       };
 
@@ -184,15 +187,13 @@ export class StateManagerImpl implements StateManager {
       await this.redisService.saveSceneState(this.state.scene);
 
       // Create standardized event
-      const event: SceneEvent = {
+      const event: StateEvent = {
         id: Date.now().toString(),
         timestamp: Date.now(),
         type: EventType.STATE_SCENE_UPDATE,
         source: EventSource.STATE_MANAGER,
         payload: {
-          previous: previousState,
-          current: this.getSceneState(),
-          changes
+          state: this.state.scene
         }
       };
 
@@ -293,6 +294,43 @@ export class StateManagerImpl implements StateManager {
 
   public once(type: EventType, listener: StreamManagerEventListener): void {
     eventEmitter.once(type, listener);
+  }
+
+  // Preview client methods
+  public getPreviewClients(): Record<string, PreviewClient> {
+    return { ...this.state.preview };
+  }
+
+  public updatePreviewClient(clientId: string, update: Partial<PreviewClient>): void {
+    const currentClient = this.state.preview[clientId] || {
+      id: clientId,
+      quality: 'medium',
+      lastPing: Date.now(),
+      connected: true
+    };
+
+    this.state.preview[clientId] = {
+      ...currentClient,
+      ...update
+    };
+
+    // Emit preview client update event
+    const event: PreviewEvent = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      type: update.connected === false ? EventType.PREVIEW_DISCONNECT : 
+            update.quality ? EventType.PREVIEW_QUALITY_CHANGE : 
+            EventType.PREVIEW_CONNECT,
+      source: EventSource.STATE_MANAGER,
+      payload: {
+        clientId,
+        client: this.state.preview[clientId],
+        quality: update.quality
+      }
+    };
+
+    eventEmitter.emit(event);
+    webSocketService.broadcastStateUpdate(event);
   }
 }
 

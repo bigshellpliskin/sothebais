@@ -1,4 +1,4 @@
-import type { Scene, QuadrantId, Quadrant, Asset } from '../core/scene-manager.js';
+import type { Scene, QuadrantId, Quadrant, Asset } from '../types/core.js';
 import type { Config } from '../types/config.js';
 import path from 'path';
 

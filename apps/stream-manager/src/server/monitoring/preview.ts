@@ -4,10 +4,10 @@ import { CompositionEngine } from '../../core/composition.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { stateManager } from '../../state/state-manager.js';
-import type { PreviewClientState } from '../../types/state-manager.js';
-import type { Scene } from '../../core/scene-manager.js';
-import type { StreamState } from '../../types/stream.js';
+import type { Scene } from '../../types/core.js';
+import type { StreamState, PreviewClient } from '../../types/state.js';
 import { EventType, type StreamEvent } from '../../types/events.js';
+import { Router } from 'express';
 
 interface PreviewMessage {
   type: 'config' | 'frame' | 'quality' | 'ping' | 'pong';
@@ -29,12 +29,14 @@ export class PreviewServer extends EventEmitter {
 
     // Listen for state updates using EventEmitter
     stateManager.on(EventType.STATE_STREAM_UPDATE, (event: StreamEvent) => {
-      const streamState = event.payload.current;
-      this.handleStreamStateUpdate(streamState);
-      
-      // Update current scene if provided in state update
-      if ('currentScene' in streamState && streamState.currentScene) {
-        this.currentScene = streamState.currentScene;
+      const streamState = event.payload.state;
+      if (streamState) {
+        this.handleStreamStateUpdate(streamState);
+        
+        // Update current scene if provided in state update
+        if ('currentScene' in streamState && streamState.currentScene) {
+          this.currentScene = streamState.currentScene;
+        }
       }
     });
   }

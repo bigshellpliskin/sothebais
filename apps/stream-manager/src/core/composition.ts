@@ -6,7 +6,7 @@ import type {
   Quadrant,
   QuadrantId,
   Position
-} from './scene-manager.js';
+} from '../types/core.js';
 import { logger } from '../utils/logger.js';
 import type { Config } from '../types/config.js';
 
@@ -33,8 +33,8 @@ export class CompositionEngine extends EventEmitter {
 
   private constructor() {
     super();
-    const width = CompositionEngine.config?.VIEWPORT_WIDTH || 1920;
-    const height = CompositionEngine.config?.VIEWPORT_HEIGHT || 1080;
+    const width = CompositionEngine.config?.VIEWPORT_WIDTH || 1280;
+    const height = CompositionEngine.config?.VIEWPORT_HEIGHT || 720;
     
     this.canvas = {
       width,
@@ -204,8 +204,8 @@ export class CompositionEngine extends EventEmitter {
           // TODO: Implement video frame extraction
           return null;
 
-        case 'vtuber':
-          // TODO: Implement VTuber model rendering
+        case 'stream':
+          // TODO: Implement stream source rendering
           return null;
 
         case 'overlay':
