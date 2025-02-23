@@ -1,12 +1,12 @@
 # SothebAIs Architecture
 
-## Overview
+## 1. Overview
 
 SothebAIs is a real-time NFT auction platform that enables social interaction through Twitter/X livestreams. The system is designed to handle concurrent auctions, real-time bidding, and dynamic stream composition while maintaining high reliability and performance.
 
-## Core Services
+## 2. Core Services
 
-### 1. Traefik (Reverse Proxy/Load Balancer)
+### 2.1. Traefik (Reverse Proxy/Load Balancer)
 - **Purpose**: Edge routing, load balancing, and SSL termination
 - **Key Features**:
   - WebSocket support for real-time communication
@@ -21,7 +21,7 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Error rates
   - Built-in dashboard (`:8080`)
 
-### 2. Admin Frontend (Next.js)
+### 2.2. Admin Frontend (Next.js)
 - **Purpose**: Administration dashboard and auction management interface
 - **Key Features**:
   - Auction configuration and monitoring
@@ -37,7 +37,7 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Build analytics
   - Custom system dashboard
 
-### 3. Stream Manager
+### 2.3. Stream Manager
 - **Purpose**: Handle stream composition, RTMP ingestion, and real-time updates
 - **Key Features**:
   - RTMP server (port 1935)
@@ -53,7 +53,60 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Error rates
   - Connected viewers
 
-### 4. Auction Engine
+### 2.3.4. State Management
+- **Campaign State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Campaign ID | Redis | `campaign:123` |
+  | Start Date | Redis | `2024-06-01` |
+  | End Date | Redis | `2024-08-31` |
+  | Status | Redis | `ACTIVE` |
+  | Current Day | Redis | `15` |
+  | Project Info | PostgreSQL | `{ name: "Yuga Labs", ... }` |
+  | Collection Info | PostgreSQL | `{ name: "CryptoPunks", ... }` |
+
+- **Auction State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Auction ID | Redis | `auction:123` |
+  | Status | Redis | `ACTIVE` |
+  | Current Price | Redis | `2.5 ETH` |
+  | Highest Bid | Redis | `{ amount: 2.5, bidder: "@user", timestamp: "..." }` |
+  | Start Time | Redis | `2024-06-01 14:00 EST` |
+  | End Time | Redis | `2024-06-01 16:00 EST` |
+  | Art Item | PostgreSQL | `{ id: "CP1234", metadata: {...} }` |
+  | Bid History | PostgreSQL | `[{ amount: 2.5, bidder: "@user", timestamp: "..." }, ...]` |
+
+- **Stream State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Stream ID | Redis | `stream:123` |
+  | Status | Redis | `LIVE` |
+  | Scene Layout | Redis | `{ quadrants: [...], overlays: [...] }` |
+  | Viewer Count | Redis | `1234` |
+  | Quality Metrics | Redis | `{ fps: 30, bitrate: 4000 }` |
+  | Assets | Docker Volume | `/stream_assets/{backgrounds,overlays,nfts}/` |
+
+- **User State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | User ID | PostgreSQL | `user:123` |
+  | Twitter Handle | PostgreSQL | `@crypto_collector` |
+  | Wallet Address | PostgreSQL | `0x123...` |
+  | Bid History | PostgreSQL | `[{ auctionId: "123", amount: 2.5, ... }, ...]` |
+  | Preferences | PostgreSQL | `{ notifications: true, ... }` |
+
+- **Agent State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Character ID | Redis | `character:123` |
+  | Mood | Redis | `EXCITED` |
+  | Context | Redis | `{ lastInteraction: "...", topic: "..." }` |
+  | Active Scene | Redis | `{ background: "...", expression: "..." }` |
+  | Memory | PostgreSQL | `{ pastInteractions: [...], preferences: {...} }` |
+  | Assets | Docker Volume | `/character_assets/{expressions,backgrounds}/` |
+
+### 2.4. Auction Engine
 - **Purpose**: Core auction business logic and bid processing
 - **Key Features**:
   - Bid validation and processing
@@ -69,7 +122,7 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Twitter API usage
   - Event processing latency
 
-### 5. Redis
+### 2.5. Redis
 - **Purpose**: Real-time data store and message broker
 - **Key Features**:
   - In-memory data storage
@@ -84,7 +137,7 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Cache hit/miss ratio
   - Channel subscription stats
 
-### 6. Event Handler
+### 2.6. Event Handler
 - **Purpose**: Manage system-wide event distribution and processing
 - **Key Features**:
   - Event validation and routing
@@ -100,14 +153,13 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Dead letter queue size
   - Channel statistics
 
-### 7. Agent Service (ElizaOS)
+### 2.7. Agent Service (ElizaOS)
 - **Purpose**: Manage AI-driven social interactions and stream personality
 - **Key Features**:
   - Twitter/X message monitoring
   - LLM-based response generation
-  - Personality/Character management
-  - Asset selection for responses
-  - Stream state management
+  - Character/Personality management
+  - Character asset selection for responses
   - Contextual memory
 - **Metrics & Monitoring**:
   - Response latency
@@ -116,13 +168,13 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Social engagement metrics
   - LLM token usage
 
-## Port Hierarchy
+## 3. Port Configuration
 
-### System Ports (0-1023)
+### 3.1. System Ports (0-1023)
 - **80**: HTTP (Traefik)
 - **443**: HTTPS (Traefik)
 
-### User Ports (1024-49151)
+### 3.2. User Ports (1024-9999)
 - **1935**: RTMP Streaming (Stream Manager)
 - **3000**: Admin Frontend
   - **3001**: Admin WebSocket (Stream Preview)
@@ -156,7 +208,7 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
 - **6379**: Redis
 - **8080**: Traefik Dashboard
 
-### Port Patterns
+### 3.3. Port Patterns
 - **Service Block**: 100 ports per service (x00-x99)
 - **Base Service Port**: Block start (e.g., 4200, 4300)
 - **WebSocket Port**: Base + 1 (e.g., 4201, 4301)
@@ -164,7 +216,7 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
 - **Health Port**: Base + 91 (e.g., 4291, 4391)
 - **Additional Ports**: Base + 2 through Base + 89 (reserved for service-specific needs)
 
-### Environment Variables
+### 3.4. Environment Variables
 ```env
 # Traefik Ports
 TRAEFIK_HTTP_PORT=80
@@ -206,7 +258,7 @@ AGENT_SERVICE_HEALTH_PORT=4591
 REDIS_PORT=6379
 ```
 
-### Port Exposure
+### 3.5. Port Exposure
 - **Public Ports**: 
   - 80 (HTTP)
   - 443 (HTTPS)
@@ -219,9 +271,9 @@ REDIS_PORT=6379
   - 8080 (Traefik Dashboard) - Development only
   - WebSocket ports - Through Traefik reverse proxy
 
-## Data Storage Strategy
+## 4. Data Storage Strategy
 
-### 1. Redis (Real-time Data)
+### 4.1. Redis (Real-time Data)
 - **Purpose**: Fast, in-memory data store and message broker
 - **Use Cases**:
   - Real-time state (auction status, bids)
@@ -236,7 +288,7 @@ REDIS_PORT=6379
   - Hit/miss ratios
   - Pub/sub stats
 
-### 2. Local File System (Docker Volumes)
+### 4.2. Local File System (Docker Volumes)
 - **Purpose**: Persistent storage for local assets and logs
 - **Use Cases**:
   - Stream assets (overlays, backgrounds)
@@ -247,7 +299,7 @@ REDIS_PORT=6379
   - `stream_storage`: Stream-related assets
   - `assets_storage`: General assets
 
-### 3. PostgreSQL (Structured Data)
+### 4.3. PostgreSQL (Structured Data)
 - **Purpose**: Persistent storage for business data
 - **Use Cases**:
   - Auction data
@@ -256,17 +308,9 @@ REDIS_PORT=6379
   - Analytics
   - Relationships between entities
 
-### 4. Object Storage (MinIO/S3)
-- **Purpose**: Large file storage
-- **Use Cases**:
-  - NFT assets
-  - Stream recordings
-  - Large media files
-  - Backup data
+## 5. Inter-Service Communication
 
-## Inter-Service Communication
-
-### 1. Event-Driven Architecture
+### 5.1. Event-Driven Architecture
 - **Event Categories**:
   - System Events: Health checks, metrics, debugging
   - Business Events: Bids, auction state changes, winners
@@ -279,11 +323,71 @@ REDIS_PORT=6379
     - Stream state updates
     - Personality transitions
 
-- **Event Channels**:
-  - Dedicated channels per domain
-  - Separate debug channels per service
-  - System-wide notification channel
-  - Health check channel
+- **Event Channel Structure**:
+  ```typescript
+  // Base event interface
+  interface BaseEvent {
+    id: string;          // UUID
+    timestamp: number;   // Unix timestamp
+    type: EventType;     // Event type enum
+    source: EventSource; // Source service
+    version: string;     // Event schema version
+  }
+
+  // Event type categorization
+  enum EventType {
+    // Auction Events (auction:*)
+    AUCTION_START = 'auction:start',
+    AUCTION_END = 'auction:end',
+    BID_PLACED = 'auction:bid:placed',
+    BID_ACCEPTED = 'auction:bid:accepted',
+    BID_REJECTED = 'auction:bid:rejected',
+    WINNER_DETERMINED = 'auction:winner',
+
+    // Stream Events (stream:*)
+    STREAM_START = 'stream:start',
+    STREAM_END = 'stream:end',
+    STREAM_ERROR = 'stream:error',
+    STREAM_QUALITY = 'stream:quality',
+    SCENE_UPDATE = 'stream:scene:update',
+    ASSET_LOADED = 'stream:asset:loaded',
+
+    // Agent Events (agent:*)
+    AGENT_MESSAGE = 'agent:message',
+    AGENT_MOOD = 'agent:mood',
+    AGENT_INTERACTION = 'agent:interaction',
+    AGENT_ASSET = 'agent:asset:request',
+    AGENT_MEMORY = 'agent:memory:update',
+
+    // User Events (user:*)
+    USER_CONNECT = 'user:connect',
+    USER_DISCONNECT = 'user:disconnect',
+    USER_ACTION = 'user:action',
+    USER_PREFERENCE = 'user:preference',
+
+    // System Events (system:*)
+    SYSTEM_HEALTH = 'system:health',
+    SYSTEM_METRIC = 'system:metric',
+    SYSTEM_ERROR = 'system:error',
+    SYSTEM_CONFIG = 'system:config'
+  }
+
+  // Event source identification
+  enum EventSource {
+    AUCTION_ENGINE = 'auction-engine',
+    STREAM_MANAGER = 'stream-manager',
+    AGENT_SERVICE = 'agent-service',
+    EVENT_HANDLER = 'event-handler',
+    ADMIN_FRONTEND = 'admin-frontend'
+  }
+  ```
+
+- **Event Flow**:
+  1. Service emits event to Redis pub/sub channel
+  2. Event Handler receives and validates event
+  3. Event is persisted to event store if needed
+  4. Event is routed to relevant subscribers
+  5. Subscribers process event and may emit new events
 
 - **Event Patterns**:
   - Command events (requesting actions)
@@ -291,35 +395,25 @@ REDIS_PORT=6379
   - Error events (system issues)
   - Metric events (monitoring)
 
-- **Event Flow**:
-  1. Twitter messages monitored by Agent Service
-  2. Agent processes messages through LLM
-  3. Agent emits events for:
-     - Response generation
-     - Asset selection
-     - Stream state updates
-  4. Stream Manager updates composition
-  5. Admin Frontend reflects changes
-
-### 2. Redis Pub/Sub (Low-latency, non-critical)
+### 5.2. Redis Pub/Sub
 - Real-time updates
 - Temporary state changes
 - Metrics updates
 - Debug messages
 
-### 3. HTTP/REST
+### 5.3. HTTP/REST
 - Service-to-service API calls
 - Admin operations
 - Data queries
 - Health checks
 
-### 4. WebSocket
+### 5.4. WebSocket
 - Real-time bidirectional communication
 - Stream updates
 - Live metrics
 - User notifications
 
-### 5. Agent-Stream Integration
+### 5.5. Agent-Stream Integration
 - **Character State Management**:
   - Personality selection
   - Mood transitions
@@ -341,15 +435,164 @@ REDIS_PORT=6379
   6. Stream state modified
   7. Visual feedback rendered
 
-## System Monitoring
+## 6. External APIs & Dependencies
 
-### Health Checks
+### 6.1. Twitter/X API
+- **Purpose**: Social media integration and livestream management
+- **Package**: Twitter API v2 SDK
+- **Key Features**:
+  - Stream management (create, update, delete)
+  - Tweet monitoring and interaction
+  - User engagement tracking
+  - Media upload and management
+- **Authentication**: OAuth 2.0
+- **Rate Limits**: Managed through Redis-based rate limiter
+
+### 6.2. Blockchain Data Providers
+- **Purpose**: NFT and transaction monitoring
+- **Packages**: 
+  - Alchemy SDK
+  - Infura SDK
+- **Key Features**:
+  - NFT ownership verification
+  - Transaction monitoring
+  - Wallet balance checks
+  - Historical data access
+- **Authentication**: API Key
+- **Caching**: Redis-based with configurable TTL
+
+### 6.3. Redis
+- **Purpose**: State management and caching
+- **Package**: ioredis
+- **Key Features**:
+  - Pub/Sub messaging
+  - State caching
+  - Rate limiting
+  - Session management
+- **Configuration**: Cluster-ready setup
+
+### 6.4. PostgreSQL
+- **Purpose**: Persistent data storage
+- **Package**: Prisma ORM
+- **Key Features**:
+  - User data management
+  - Auction history
+  - Analytics storage
+  - Relationship management
+
+## 7. Internal APIs
+
+### 7.1. Stream Manager API
+- **Base URL**: `/api/stream`
+- **Transport**: HTTP & WebSocket
+- **Endpoints**:
+  ```typescript
+  // HTTP Endpoints
+  GET    /status           // Stream status
+  POST   /playback        // Control stream
+  GET    /layers          // Get layer states
+  POST   /layers/:id      // Update layer
+  POST   /assets/upload   // Upload assets
+  
+  // WebSocket Events
+  stream:state   // Stream state updates
+  stream:frame   // New frame available
+  stream:quality // Quality updates
+  stream:layer   // Layer updates
+  ```
+
+### 7.2. Event Handler API
+- **Base URL**: `/api/events`
+- **Transport**: HTTP & Redis Pub/Sub
+- **Endpoints**:
+  ```typescript
+  // HTTP Endpoints
+  POST   /:type          // Emit event
+  GET    /:type/history  // Get event history
+  
+  // Redis Channels
+  events:system    // System events
+  events:auction   // Auction events
+  events:stream    // Stream events
+  events:user      // User events
+  ```
+
+### 7.3. Auction Engine API
+- **Base URL**: `/api/auction`
+- **Transport**: HTTP & WebSocket
+- **Endpoints**:
+  ```typescript
+  // HTTP Endpoints
+  GET    /status         // Auction status
+  POST   /bid           // Place bid
+  GET    /history       // Bid history
+  
+  // WebSocket Events
+  auction:state    // Auction state
+  auction:bid      // New bid
+  auction:result   // Auction result
+  ```
+
+### 7.4. Agent Service API
+- **Base URL**: `/api/agent`
+- **Transport**: HTTP & WebSocket
+- **Endpoints**:
+  ```typescript
+  // HTTP Endpoints
+  GET    /state          // Agent state
+  POST   /interact       // User interaction
+  GET    /memory        // Agent memory
+  
+  // WebSocket Events
+  agent:state     // Agent state
+  agent:message   // Agent messages
+  agent:mood      // Mood updates
+  ```
+
+### 7.5. Admin API
+- **Base URL**: `/api/admin`
+- **Transport**: HTTP
+- **Endpoints**:
+  ```typescript
+  // Service Management
+  GET    /services/status   // Service health
+  GET    /services/metrics  // Service metrics
+  
+  // System Management
+  POST   /config           // Update config
+  GET    /logs            // System logs
+  POST   /maintenance     // Maintenance tasks
+  ```
+
+### 7.6. API Standards
+- **Authentication**: JWT-based with role permissions
+- **Rate Limiting**: Redis-based per endpoint/user
+- **Response Format**:
+  ```typescript
+  interface ApiResponse<T> {
+    success: boolean;
+    data?: T;
+    error?: {
+      code: string;
+      message: string;
+      details?: any;
+    };
+  }
+  ```
+- **Error Handling**: Standardized error codes and messages
+- **Validation**: Schema-based request validation
+- **Documentation**: OpenAPI/Swagger specs
+- **Monitoring**: Prometheus metrics for all endpoints
+
+## 8. System Monitoring
+
+### 8.1. Health Checks
 - Each service implements health endpoints
 - Traefik monitors service health
 - Automatic recovery procedures
 - Health status in admin dashboard
 
-### Metrics Collection
+### 8.2. Metrics Collection
 - **Stream Metrics**:
   - Active streams
   - Bandwidth usage
@@ -371,26 +614,22 @@ REDIS_PORT=6379
   - Success rates
   - Revenue stats
 
-### Monitoring Dashboard
+### 8.3. Monitoring Dashboard
 - Integrated into Admin Frontend
 - Real-time updates via WebSocket
 - Custom metrics visualization
 - Alert configuration
 - Historical data view
 
-## Stream State Management
+## 9. Stream State Management
 
-### Character-Driven Composition
+### 9.1. Character-Driven Composition
 - **Visual Elements**:
   - Character expressions
-  - Mood indicators
-  - Interaction feedback
-  - Social context display
 
 - **State Machine**:
   - Character mood states
   - Interaction modes
-  - Energy levels
   - Engagement patterns
 
 - **Asset Management**:
@@ -399,7 +638,7 @@ REDIS_PORT=6379
   - Interactive overlays
   - Transition effects
 
-### Social Integration
+### 9.2. Social Integration
 - **Twitter Integration**:
   - Message monitoring
   - Bid detection
@@ -418,36 +657,36 @@ REDIS_PORT=6379
   - Interaction visualization
   - Audience feedback display
 
-## Security
+## 10. Security
 
-### Edge Security
+### 10.1. Edge Security
 - SSL/TLS termination at Traefik
 - Rate limiting
 - IP filtering
 - DDoS protection
 
-### Application Security
+### 10.2. Application Security
 - Authentication via Clerk
 - Role-based access control
 - Input validation
 - XSS protection
 - CSRF protection
 
-### Data Security
+### 10.3. Data Security
 - Encrypted storage
 - Secure communication
 - Access logging
 - Audit trails
 
-## Deployment
+## 11. Deployment
 
-### Development
+### 11.1. Development
 - Docker Compose
 - Local volumes
 - Hot reloading
 - Debug logging
 
-### Production
+### 11.2. Production
 - Docker Compose/Swarm
 - Cloud object storage
 - SSL certificates

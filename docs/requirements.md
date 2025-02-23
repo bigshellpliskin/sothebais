@@ -9,27 +9,55 @@ SothebAIs is a system that allows users to socially interact with NFT auctions a
 
 #### 1.1.2. Scope
 
-The system will be a collection of services that can be hosted on hardware powerful enough to handle livestreaming.
+The system will be a collection of services that can be hosted on hardware powerful enough to handle livestreaming. Should be something relatively simple. 
 
 ### 1.2. Definitions
 
 #### 1.2.1. Entities
-- **Viewer**
-    - A twitter/X account that is watching the livestream.
-- **Bidder**
-    - A twitter/X account with an assocated wallet address and at least one bid.
-- **Auction Host**
-    - The twitter/X account and associated character that is hosting the auction.
-- **Campaign**
-    - A series of regularly scheduled Auctions to sell a collection of art items.
-- **Project**
-    - The group behind/associated with the art items to be auctioned.
-- **Collection**
-    - The set/collection of art items to be auctioned.
-- **Art Item**
-    - A single item from the collection that is being auctioned.
+
+Entities are the main elements and participants in the auction, the characters in the stream and the people behind the auction.
+- **Viewer**: A twitter/X account that is watching the livestream.
+- **Bidder**: A twitter/X account with an assocated wallet address and at least one bid.
+- **Auction Host**: The twitter/X account and associated character that is hosting the auction.
+- **Campaign**: A series of regularly scheduled Auctions to sell a collection of art items.
+- **Project**: The group behind/associated with the art items to be auctioned.
+- **Collection**: The set/collection of art items to be auctioned.
+- **Artwork**: A single item from the collection that is being auctioned.
+- **Admin**: A user with privileged access to manage auctions, streams, and system configuration.
+
 
 #### 1.2.2. Events
+
+Events detail the different phases of the campaign and auction. Includes the parameters associated with them.
+
+```mermaid
+graph LR
+    subgraph Campaign
+        subgraph Day1["Day 1"]
+            P1[Pre-Auction<br>00:00-14:00] --> A1[Auction<br>14:00-16:00] --> PA1[Post-Auction<br>16:00-23:59]
+        end
+        subgraph Day2["Day 2"]
+            P2[Pre-Auction<br>00:00-14:00] --> A2[Auction<br>14:00-16:00] --> PA2[Post-Auction<br>16:00-23:59]
+        end
+        subgraph Dayn["Day n"]
+            Pn[Pre-Auction<br>00:00-14:00] --> An[Auction<br>14:00-16:00] --> PAn[Post-Auction<br>16:00-23:59]
+        end
+        
+        Day1 --> Day2
+        Day2 --> dots[". . ."] --> Dayn
+
+        style P1 fill:#f9f,stroke:#333,stroke-width:2px
+        style A1 fill:#bbf,stroke:#333,stroke-width:2px
+        style PA1 fill:#bfb,stroke:#333,stroke-width:2px
+        style P2 fill:#f9f,stroke:#333,stroke-width:2px
+        style A2 fill:#bbf,stroke:#333,stroke-width:2px
+        style PA2 fill:#bfb,stroke:#333,stroke-width:2px
+        style Pn fill:#f9f,stroke:#333,stroke-width:2px
+        style An fill:#bbf,stroke:#333,stroke-width:2px
+        style PAn fill:#bfb,stroke:#333,stroke-width:2px
+    end
+```
+
 - **Campaign**
     - A series of regularly scheduled Auctions.
 
@@ -38,31 +66,52 @@ The system will be a collection of services that can be hosted on hardware power
     | Name         | Summer NFT Series   |
     | Start Date   | 2024-06-01         |
     | End Date     | 2024-08-31         |
+    | Duration     | 60 days            |
     | Auction Interval | 2 hours        |
-    | Project      | Digital Art Collection |
+    | Project      | Yuga Labs          |
+    | Collection   | CryptoPunks        |
 - **Pre-Auction**
     - Section of the campaign that occurs before the auction starts.
     - Used to send announcements and publicize the auction.
+    - Begins at 12:00 AM EST on the day of the auction.
+
+    | Parameters    | Example                |
+    |:-------------|:--------------------|
+    | Start Time   | 2024-06-01 00:00 EST|
+    | End Time     | 2024-06-01 14:00 EST|
 - **Auction**
     - A timed-event held on a livestream that at least one art items that are being auctioned.
     
     | Parameters     | Example                |
     |:--------------|:--------------------|
     | Name          | Genesis #1          |
-    | Start Time    | 2024-06-01 14:00 UTC|
-    | End Time      | 2024-06-01 16:00 UTC|
+    | Start Time    | 2024-06-01 14:00 EST|
+    | End Time      | 2024-06-01 16:00 EST|
     | Art Item      | CryptoPunk #1234    |
     | Starting Price| 1 ETH               |
     | Current Price | 2.5 ETH             |
     | Highest Bidder| @crypto_collector   |
+
+- **Post-Auction**
+    - Section of the campaign that occurs after the auction ends.
+    - Settle the winning bid and transfer the NFT to the winner.
+    - Send notifications to the winner and the runner up.
+    - Announce the end of the auction.
+    - Ends at 11:59 PM EST on the day of the auction.
+
+    | Parameters    | Example                |
+    |:-------------|:--------------------|
+    | Start Time   | 2024-06-01 16:00 EST|
+    | End Time     | 2024-06-01 23:59 EST|
+
 - **Livestream**
     - A livestream that is being hosted on X/Twitter.
     
     | Parameters    | Example                |
     |:-------------|:--------------------|
     | Name         | Genesis Auction #1   |
-    | Start Time   | 2024-06-01 13:45 UTC|
-    | End Time     | 2024-06-01 16:15 UTC|
+    | Start Time   | 2024-06-01 13:45 EST|
+    | End Time     | 2024-06-01 16:15 EST|
     | Auction      | Genesis #1          |
 
 #### 1.2.3. Visual Components
@@ -82,7 +131,22 @@ The system will be a collection of services that can be hosted on hardware power
     - The stream that is generated from the ffmpeg process.
     - Image to Video.
 - **Stream**
-    - The stream that is send from the RTMP server to the livestreaming platform.
+    - The stream that is send from the RTMP server to X/Twitter.
+
+```mermaid
+flowchart LR
+    A[Assets] -->|Position & Layer| S[Scene]
+    S -->|Render| C[Composition]
+    C -->|Encode| F[Feed]
+    F -->|Broadcast| ST[Stream]
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style S fill:#bbf,stroke:#333,stroke-width:2px
+    style C fill:#bfb,stroke:#333,stroke-width:2px
+    style F fill:#fbf,stroke:#333,stroke-width:2px
+    style ST fill:#fbb,stroke:#333,stroke-width:2px
+```
+
 
 ## 2. Functional Requirements
 What the system should do.
@@ -105,14 +169,23 @@ Features that users directly interact with or experience.
   - Bid acceptance
   - Being outbid
   - Winning an auction
-  - Auction ending soon
 - View personal bidding history
 - Set up alerts for upcoming auctions
 
 #### 2.1.3. Social Interaction
-- Interact with auction host
-- Receive automated announcements about auctions
-- Follow campaign progress
+The idea is that an agent is behind the twitter account and the auction. The agent is also the one hosting the livestream. It will interact in the form of tweets and the livestream. We will split up the interaction into the places it occurs:
+- **Livestream:**
+    - The Auction Host will interact with the viewers.
+    - The Auction Host will react to the state of the stream and auction.
+- **Twitter:**
+    - The Auction Host will make tweets prior, during and after the auction.
+    - The Auction Host will react to the state of the stream and auction.
+
+At the same time, the agent is supposed to be consistent, persist beyond the livestream/auction and follow the progress of the campaign. .It should be aware of the following:
+- The campaign details.
+- The current day
+- The daily auction details
+
 
 #### 2.1.4. Admin Features
 - **Stream Preview & Control**
@@ -155,19 +228,23 @@ Core system capabilities and backend functionality.
 - Handle campaign scheduling
 
 #### 2.2.3. Blockchain Operations
-- Interact with EVM chains (Ethereum, Polygon, Base, Shape)
-- Verify transaction authenticity
-- Manage smart contracts for:
-  - Escrow management
-  - NFT transfers
-  - Payment processing
-  - Bid verification
+- Integrate with third-party blockchain data providers (e.g., Alchemy, Infura)
+- Monitor wallet addresses and transactions
+- Verify transaction authenticity and finality through API calls
+- Track NFT ownership and transfers
+- Maintain low-latency blockchain data access
+- Cache frequently accessed blockchain data
 
-#### 2.2.4. Stream Technical Management
+#### 2.2.4. State Management
+- Keep track of users tweets, bids, and other interactions.
+- Keep track of the auction state.
+- Keep track of the stream state.
+- Keep track of the campaign state.
+
+#### 2.2.5. Stream Technical Management
 - Control stream quality and performance
 - Handle auction transitions
 - Manage dynamic overlay updates
-- Control automated camera switching
 - Maintain stream stability
 
 ### 2.3. Data Management
@@ -202,6 +279,58 @@ Data storage, persistence, and analytics functionality.
   - Campaign performance
   - User activity
   - Financial transactions
+
+#### 2.3.4. State Management
+- **Campaign State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Campaign ID | Redis | `campaign:123` |
+  | Start Date | Redis | `2024-06-01` |
+  | End Date | Redis | `2024-08-31` |
+  | Status | Redis | `ACTIVE` |
+  | Current Day | Redis | `15` |
+  | Project Info | PostgreSQL | `{ name: "Yuga Labs", ... }` |
+  | Collection Info | PostgreSQL | `{ name: "CryptoPunks", ... }` |
+
+- **Auction State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Auction ID | Redis | `auction:123` |
+  | Status | Redis | `ACTIVE` |
+  | Current Price | Redis | `2.5 ETH` |
+  | Highest Bid | Redis | `{ amount: 2.5, bidder: "@user", timestamp: "..." }` |
+  | Start Time | Redis | `2024-06-01 14:00 EST` |
+  | End Time | Redis | `2024-06-01 16:00 EST` |
+  | Art Item | PostgreSQL | `{ id: "CP1234", metadata: {...} }` |
+  | Bid History | PostgreSQL | `[{ amount: 2.5, bidder: "@user", timestamp: "..." }, ...]` |
+
+- **Stream State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Stream ID | Redis | `stream:123` |
+  | Status | Redis | `LIVE` |
+  | Scene Layout | Redis | `{ quadrants: [...], overlays: [...] }` |
+  | Viewer Count | Redis | `1234` |
+  | Quality Metrics | Redis | `{ fps: 30, bitrate: 4000 }` |
+  | Assets | MinIO/S3 | `backgrounds/, overlays/, nfts/` |
+
+- **User State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | User ID | PostgreSQL | `user:123` |
+  | Twitter Handle | PostgreSQL | `@crypto_collector` |
+  | Wallet Address | PostgreSQL | `0x123...` |
+  | Bid History | PostgreSQL | `[{ auctionId: "123", amount: 2.5, ... }, ...]` |
+  | Preferences | PostgreSQL | `{ notifications: true, ... }` |
+
+- **Agent State**
+  | Component | Storage | Example |
+  |:----------|:--------|:---------|
+  | Character ID | Redis | `character:123` |
+  | Mood | Redis | `EXCITED` |
+  | Context | Redis | `{ lastInteraction: "...", topic: "..." }` |
+  | Active Scene | Redis | `{ background: "...", expression: "..." }` |
+  | Memory | PostgreSQL | `{ pastInteractions: [...], preferences: {...} }` |
 
 ### 2.4. Scene Management
 Visual composition and real-time rendering capabilities.
@@ -244,6 +373,12 @@ How the system should perform.
     - User Interface Updates: < 500ms
     - Notification Delivery: < 5 seconds
 
+- Time Management
+    - All internal event scheduling uses EST (Eastern Standard Time)
+    - System must handle daylight savings transitions gracefully
+    - All timestamps must be stored with timezone information
+    - User-facing times should be converted to local timezone when displayed
+
 - Concurrent Users
     - Support minimum 1000 simultaneous viewers
     - Handle 100 active bidders per auction
@@ -259,7 +394,6 @@ How the system should perform.
 - Data Protection
     - Encryption at rest for user data
     - Secure communication channels (HTTPS/WSS)
-    - Regular security audits
     - Compliance with crypto wallet standards
 
 - Access Control
@@ -345,10 +479,11 @@ How the system should perform.
   - Bid monitoring
   - Stream delivery
   - User interactions
-- Must integrate with blockchain networks for:
-  - NFT transfers
-  - Payment processing
-  - Smart contract interactions
+- Must integrate with blockchain data providers for:
+  - Transaction monitoring
+  - NFT ownership verification
+  - Wallet balance checks
+  - Historical data access
 - Must support asset management for:
   - NFT artwork
   - Stream overlays
@@ -410,17 +545,84 @@ How the system should perform.
     - Mac Mini:
         - CPU: Apple M4 (Base)
         - RAM: 16GB
-- Using ffmpeg to encode the stream.
 
 ### 5.2. Budget
+#### 5.2.1. Cloud/Rental Hardware Option
 - X/Twitter Premium Subscription: $10/month
+- Cloud Server Requirements (Monthly Estimates):
+    - High-Performance Instance with GPU: $500-800
+    - Data Transfer Costs (streaming): $200-400
+    - Storage (100GB SSD): $20-40
+    - Load Balancer: $30-50
+    - Total Monthly: **$760-1,300**
+
+#### 5.2.2. Dedicated Hardware Option
+- One-time Costs:
+    - PC Hardware: $1,500
+        - Link: https://pcpartpicker.com/list/K9QtLc
+    - Network Equipment: $500
+    - UPS System: $250
+    - **Total: $2,250**
+- Recurring Costs:
+    - X/Twitter Premium Subscription: $10/month
+    - Power Consumption: $50-100/month
+    - Internet (Business Class): $100-200/month
+    - Total Monthly: **$160-310**
 
 ### 5.3. Time
-- I have a limited time to work on this project.
+- Project timeline has exceeded initial estimation of 2-4 weeks
+- Development is ongoing with no fixed completion date
+- Critical features need to be prioritized for initial release
+- Subsequent features can be implemented in future iterations
+- Time allocation must account for:
+    - Development and testing
+    - Infrastructure setup
+    - Documentation
+    - Security auditing
+    - Performance optimization
+
+### 5.4. Personnel
+- Single developer handling all aspects:
+    - Development
+    - Testing
+    - Documentation
+    - Deployment
+    - Maintenance
+- Limited capacity for parallel development
+- Need to prioritize tasks effectively
+- No immediate backup for critical issues
+- Knowledge concentration risk
+
+### 5.5. Operational
+- Limited redundancy due to single-person operation
+- Maintenance windows need careful planning
+- No 24/7 support availability
+- Incident response limited by single-person coverage
+- Need for automated monitoring and alerting systems
+- Backup and recovery procedures must be automated
 
 ## 6. Assumptions & Dependencies
-- Livestream will be hosted on X/Twitter.
-- I will be using rented server hardware or 
+
+### 6.1 Assumptions
+Livestream will be hosted on X/Twitter.
+
+### 6.2 Dependencies
+Tech Stack
+#### 6.2.1 Hardware
+- Using either rented hardware or a custom server.
+- Use of NVIDIA GPU with NVENC for encoding.
+
+#### 6.2.2 Software
+- Use of ffmpeg for encoding.
+- Use of RTMP for streaming.
+- Use of PostgreSQL for database.
+- Use of Redis for caching.
+
+#### 6.2.3 APIs
+- Third party API to access the X/Twitter API.
+    - TODO: Find 3rd party API to access the X/Twitter API.
+- Third party API to access the blockchain data.
+    - TODO: Find 3rd party API to access the blockchain data.
 
 ## 7. Acceptance Criteria
 ### 7.1. Success Metrics
@@ -441,6 +643,9 @@ Test-Run
 
 ## 9. Testing & Validation
 
+### 9.1 Debugging
+
+- The system should be debugged using the logs and the monitoring tools.
 ## 10. Deployment & Maintenance Plan
 
 ### 10.1. Deployment Strategy
