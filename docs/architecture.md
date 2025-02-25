@@ -114,12 +114,22 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Real-time price updates
   - Winner determination
   - Campaign scheduling
+  - Auction rules enforcement
+  - Minimum bid increments
+  - Reserve price management
+  - Time extension logic
+  - Concurrent auction support
+  - Auction state transitions
+  - Bid history management
 - **Metrics & Monitoring**:
   - Active auctions
   - Bid processing rate
   - Contract interaction stats
   - Twitter API usage
   - Event processing latency
+  - Auction completion rate
+  - Average bid processing time
+  - Rule violation attempts
 
 ### 2.5. Redis
 - **Purpose**: Real-time data store and message broker
@@ -160,12 +170,20 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Character/Personality management
   - Character asset selection for responses
   - Contextual memory
+  - Mood transitions based on auction events
+  - Personality consistency across campaign
+  - Multi-modal response generation (text and visual)
+  - Audience engagement tracking
+  - Bid-related interactions (confirmations, congratulations)
 - **Metrics & Monitoring**:
   - Response latency
   - Message queue size
   - Character state transitions
   - Social engagement metrics
   - LLM token usage
+  - Interaction success rate
+  - Mood transition frequency
+  - Memory utilization
 
 ## 3. Port Configuration
 
@@ -269,6 +287,20 @@ REDIS_PORT=6379
 - **Conditional Exposure**:
   - 8080 (Traefik Dashboard) - Development only
   - WebSocket ports - Through Traefik reverse proxy
+
+### 3.5. Time Management
+- **Purpose**: Ensure consistent time handling across the system
+- **Key Features**:
+  - Standardized timezone (EST) for internal operations
+  - Timezone conversion for user-facing displays
+  - Daylight savings handling
+  - Auction scheduling with timezone awareness
+  - Time synchronization across services
+- **Implementation**:
+  - NTP for server time synchronization
+  - DateTime objects with timezone information
+  - Timezone conversion utilities
+  - Schedule validation with timezone checks
 
 ## 4. Data Storage Strategy
 
@@ -457,8 +489,15 @@ REDIS_PORT=6379
   - Transaction monitoring
   - Wallet balance checks
   - Historical data access
+  - Transaction validation
+  - Bid verification
+  - Smart contract interaction
+  - Multi-chain support
 - **Authentication**: API Key
 - **Caching**: Redis-based with configurable TTL
+- **Redundancy**: Primary and fallback providers
+- **Rate Limiting**: Managed through Redis-based rate limiter
+- **Error Handling**: Exponential backoff for transient errors
 
 ### 6.3. Redis
 - **Purpose**: State management and caching
@@ -528,8 +567,8 @@ REDIS_PORT=6379
   
   // WebSocket Events
   auction:state    // Auction state
-  auction:bid      // New bid
-  auction:result   // Auction result
+  auction:bid       // New bid
+  auction:result    // Auction result
   ```
 
 ### 7.4. Agent Service API
@@ -540,7 +579,7 @@ REDIS_PORT=6379
   // HTTP Endpoints
   GET    /state          // Agent state
   POST   /interact       // User interaction
-  GET    /memory        // Agent memory
+  GET    /memory         // Agent memory
   
   // WebSocket Events
   agent:state     // Agent state
@@ -663,6 +702,9 @@ REDIS_PORT=6379
 - Rate limiting
 - IP filtering
 - DDoS protection
+- Web Application Firewall rules
+- Request validation
+- HTTP security headers
 
 ### 10.2. Application Security
 - Authentication via Clerk
@@ -670,12 +712,18 @@ REDIS_PORT=6379
 - Input validation
 - XSS protection
 - CSRF protection
+- SQL injection prevention
+- Secure dependency management
+- Regular security updates
 
 ### 10.3. Data Security
 - Encrypted storage
 - Secure communication
 - Access logging
 - Audit trails
+- Data minimization
+- Retention policies
+- Secure deletion procedures
 
 ## 11. Deployment
 
@@ -737,120 +785,6 @@ REDIS_PORT=6379
   - Stream assets: `./data/assets:/app/assets`
   - Logs: `./data/logs:/app/logs`
 
-### 12.5. Docker Compose Configuration
-```yaml
-version: '3.8'
-
-services:
-  traefik:
-    image: traefik:v2.9
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-    ports:
-      - "${TRAEFIK_HTTP_PORT:-80}:80"
-      - "${TRAEFIK_HTTPS_PORT:-443}:443"
-      - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - sothebais-network
-
-  admin:
-    build: ./apps/admin
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=Host(`admin.sothebais.local`)"
-      - "traefik.http.services.admin.loadbalancer.server.port=${ADMIN_PORT:-3000}"
-    environment:
-      - PORT=${ADMIN_PORT:-3000}
-      - WS_PORT=${ADMIN_WS_PORT:-3001}
-    networks:
-      - sothebais-network
-    depends_on:
-      - redis
-      - postgres
-
-  stream-manager:
-    build: ./apps/stream-manager
-    ports:
-      - "${STREAM_MANAGER_RTMP_PORT:-1935}:1935"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.stream.rule=Host(`stream.sothebais.local`)"
-      - "traefik.http.services.stream.loadbalancer.server.port=${STREAM_MANAGER_PORT:-4200}"
-    volumes:
-      - ./data/assets:/app/assets
-    networks:
-      - sothebais-network
-    depends_on:
-      - redis
-
-  auction-engine:
-    build: ./apps/auction-engine
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.auction.rule=Host(`auction.sothebais.local`)"
-      - "traefik.http.services.auction.loadbalancer.server.port=${AUCTION_ENGINE_PORT:-4400}"
-    networks:
-      - sothebais-network
-    depends_on:
-      - redis
-      - postgres
-      - event-handler
-
-  event-handler:
-    build: ./apps/event-handler
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.events.rule=Host(`events.sothebais.local`)"
-      - "traefik.http.services.events.loadbalancer.server.port=${EVENT_HANDLER_PORT:-4300}"
-    networks:
-      - sothebais-network
-    depends_on:
-      - redis
-      - postgres
-
-  agent-service:
-    build: ./apps/agent-service
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.agent.rule=Host(`agent.sothebais.local`)"
-      - "traefik.http.services.agent.loadbalancer.server.port=${AGENT_SERVICE_PORT:-4500}"
-    networks:
-      - sothebais-network
-    depends_on:
-      - redis
-      - postgres
-      - event-handler
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - ./data/redis:/data
-    networks:
-      - sothebais-network
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_DB=sothebais
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-    networks:
-      - sothebais-network
-
-networks:
-  sothebais-network:
-    driver: bridge
-```
 
 ## 13. Architectural Diagrams
 
