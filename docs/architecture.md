@@ -47,7 +47,6 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - FFmpeg pipeline management
   - Twitter/X stream integration
 - **Metrics & Monitoring**:
-  - Active streams
   - Bandwidth usage
   - FPS metrics
   - Error rates
@@ -691,3 +690,662 @@ REDIS_PORT=6379
 - Cloud object storage
 - SSL certificates
 - Production logging
+
+## 12. Docker Implementation
+
+### 12.1. Containerization Strategy
+- **Service Containers**:
+  - Each service runs in its own container
+  - Containers are defined in individual Dockerfiles
+  - Services are orchestrated via Docker Compose
+  - Container health checks for automatic recovery
+
+### 12.2. Container Structure
+- **Base Directory Structure**:
+  ```
+  /
+  ├── apps/                  # Application services
+  │   ├── admin/             # Admin Frontend
+  │   │   └── Dockerfile     # Admin container definition
+  │   ├── stream-manager/    # Stream Manager
+  │   │   └── Dockerfile     # Stream Manager container definition
+  │   ├── auction-engine/    # Auction Engine
+  │   │   └── Dockerfile     # Auction Engine container definition
+  │   ├── event-handler/     # Event Handler
+  │   │   └── Dockerfile     # Event Handler container definition
+  │   └── agent-service/     # Agent Service
+  │       └── Dockerfile     # Agent Service container definition
+  ├── data/                  # Persistent data storage
+  │   ├── postgres/          # PostgreSQL data
+  │   ├── redis/             # Redis data
+  │   └── assets/            # Shared assets
+  ├── compose.yaml           # Main Docker Compose file
+  └── .env                   # Environment variables
+  ```
+
+### 12.3. Container Networking
+- **Network Isolation**:
+  - Services communicate over internal Docker network
+  - Only necessary ports exposed to host
+  - Traefik handles external traffic routing
+  - Internal service discovery via Docker DNS
+
+### 12.4. Data Persistence
+- **Volume Mapping**:
+  - PostgreSQL data: `./data/postgres:/var/lib/postgresql/data`
+  - Redis data: `./data/redis:/data`
+  - Stream assets: `./data/assets:/app/assets`
+  - Logs: `./data/logs:/app/logs`
+
+### 12.5. Docker Compose Configuration
+```yaml
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.9
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"
+      - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - sothebais-network
+
+  admin:
+    build: ./apps/admin
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin.rule=Host(`admin.sothebais.local`)"
+      - "traefik.http.services.admin.loadbalancer.server.port=${ADMIN_PORT:-3000}"
+    environment:
+      - PORT=${ADMIN_PORT:-3000}
+      - WS_PORT=${ADMIN_WS_PORT:-3001}
+    networks:
+      - sothebais-network
+    depends_on:
+      - redis
+      - postgres
+
+  stream-manager:
+    build: ./apps/stream-manager
+    ports:
+      - "${STREAM_MANAGER_RTMP_PORT:-1935}:1935"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.stream.rule=Host(`stream.sothebais.local`)"
+      - "traefik.http.services.stream.loadbalancer.server.port=${STREAM_MANAGER_PORT:-4200}"
+    volumes:
+      - ./data/assets:/app/assets
+    networks:
+      - sothebais-network
+    depends_on:
+      - redis
+
+  auction-engine:
+    build: ./apps/auction-engine
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auction.rule=Host(`auction.sothebais.local`)"
+      - "traefik.http.services.auction.loadbalancer.server.port=${AUCTION_ENGINE_PORT:-4400}"
+    networks:
+      - sothebais-network
+    depends_on:
+      - redis
+      - postgres
+      - event-handler
+
+  event-handler:
+    build: ./apps/event-handler
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.events.rule=Host(`events.sothebais.local`)"
+      - "traefik.http.services.events.loadbalancer.server.port=${EVENT_HANDLER_PORT:-4300}"
+    networks:
+      - sothebais-network
+    depends_on:
+      - redis
+      - postgres
+
+  agent-service:
+    build: ./apps/agent-service
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.agent.rule=Host(`agent.sothebais.local`)"
+      - "traefik.http.services.agent.loadbalancer.server.port=${AGENT_SERVICE_PORT:-4500}"
+    networks:
+      - sothebais-network
+    depends_on:
+      - redis
+      - postgres
+      - event-handler
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - sothebais-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=sothebais
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - sothebais-network
+
+networks:
+  sothebais-network:
+    driver: bridge
+```
+
+## 13. Architectural Diagrams
+
+### 13.1. System Architecture Overview
+
+```mermaid
+flowchart TB
+    %% Client Layer
+    subgraph ClientLayer["Client Layer"]
+        TwitterViewers["Twitter/X Viewers"]
+        AdminUsers["Admin Users"]
+        BlockchainWallets["Blockchain Wallets"]
+    end
+
+    %% Edge Layer
+    subgraph EdgeLayer["Edge Layer"]
+        subgraph TraefikProxy["Traefik Proxy"]
+            HTTP["HTTP/HTTPS"]
+            RTMP["RTMP"]
+            WS["WebSockets"]
+        end
+    end
+
+    %% Service Layer
+    subgraph ServiceLayer["Service Layer"]
+        subgraph CoreServices["Core Services"]
+            AdminFrontend["Admin Frontend\n(Next.js)"]
+            StreamManager["Stream Manager\n(RTMP Server)"]
+            AuctionEngine["Auction Engine"]
+            EventHandler["Event Handler"]
+            AgentService["Agent Service\n(ElizaOS)"]
+        end
+        
+        subgraph IntegrationServices["Integration Services"]
+            TwitterIntegration["Twitter/X Integration"]
+            BlockchainIntegration["Blockchain Integration"]
+        end
+    end
+
+    %% Data Layer
+    subgraph DataLayer["Data Layer"]
+        Redis["Redis\n(Real-time State)"]
+        PostgreSQL["PostgreSQL\n(Persistent Data)"]
+        FileStorage["File Storage\n(Assets)"]
+    end
+
+    %% Connections - Client to Edge
+    TwitterViewers --> HTTP
+    TwitterViewers --> RTMP
+    AdminUsers --> HTTP
+    AdminUsers --> WS
+    BlockchainWallets --> BlockchainIntegration
+
+    %% Connections - Edge to Services
+    HTTP --> AdminFrontend
+    HTTP --> AuctionEngine
+    HTTP --> EventHandler
+    HTTP --> AgentService
+    RTMP --> StreamManager
+    WS --> AdminFrontend
+    WS --> StreamManager
+    WS --> AuctionEngine
+    WS --> EventHandler
+    WS --> AgentService
+
+    %% Service Interconnections
+    AdminFrontend <--> EventHandler
+    StreamManager <--> EventHandler
+    AuctionEngine <--> EventHandler
+    AgentService <--> EventHandler
+    TwitterIntegration <--> AgentService
+    TwitterIntegration <--> AuctionEngine
+    BlockchainIntegration <--> AuctionEngine
+
+    %% Services to Data
+    AdminFrontend --> Redis
+    AdminFrontend --> PostgreSQL
+    StreamManager --> Redis
+    StreamManager --> FileStorage
+    AuctionEngine --> Redis
+    AuctionEngine --> PostgreSQL
+    EventHandler --> Redis
+    EventHandler --> PostgreSQL
+    AgentService --> Redis
+    AgentService --> PostgreSQL
+    AgentService --> FileStorage
+
+    %% Styling
+    classDef clientLayer fill:#f9f,stroke:#333,stroke-width:1px
+    classDef edgeLayer fill:#bbf,stroke:#333,stroke-width:1px
+    classDef serviceLayer fill:#bfb,stroke:#333,stroke-width:1px
+    classDef dataLayer fill:#fbb,stroke:#333,stroke-width:1px
+    
+    class ClientLayer clientLayer
+    class EdgeLayer edgeLayer
+    class CoreServices,IntegrationServices serviceLayer
+    class DataLayer dataLayer
+```
+
+### 13.2. Event Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Twitter as Twitter/X
+    participant AuctionEngine as Auction Engine
+    participant EventHandler as Event Handler
+    participant StreamManager as Stream Manager
+    participant AgentService as Agent Service
+    participant Redis as Redis
+    participant PostgreSQL as PostgreSQL
+
+    Twitter->>AuctionEngine: Bid Tweet
+    AuctionEngine->>BlockchainIntegration: Verify Transaction
+    BlockchainIntegration-->>AuctionEngine: Transaction Valid
+    
+    AuctionEngine->>Redis: Update Auction State
+    AuctionEngine->>EventHandler: Emit Bid Event
+    
+    EventHandler->>Redis: Publish Event
+    EventHandler->>PostgreSQL: Store Bid Record
+    
+    Redis-->>StreamManager: Receive Event
+    StreamManager->>StreamManager: Update Scene
+    
+    Redis-->>AgentService: Receive Event
+    AgentService->>AgentService: Update Character State
+    AgentService->>Twitter: Send Confirmation Reply
+    
+    StreamManager->>Twitter: Update Stream Display
+```
+
+### 13.3. Data Flow Diagram
+
+```mermaid
+flowchart TD
+    %% External Systems
+    Twitter["Twitter/X Platform"]
+    Blockchain["Blockchain Networks"]
+    
+    %% Core Data Entities
+    subgraph Entities["SothebAIs Data Entities"]
+        Users["Users\n(Viewers/Bidders)"]
+        Campaigns["Campaigns"]
+        Auctions["Auctions"]
+        NFTs["NFTs/Artworks"]
+        Bids["Bids"]
+        Characters["Characters"]
+    end
+    
+    %% Data Stores
+    subgraph DataStores["Data Stores"]
+        Redis["Redis\n(Real-time)"]
+        PostgreSQL["PostgreSQL\n(Persistent)"]
+        FileSystem["File System\n(Assets)"]
+    end
+    
+    %% Data Flows
+    Twitter <--> Users
+    Users --> Bids
+    Bids --> Auctions
+    Campaigns --> Auctions
+    Auctions --> NFTs
+    Characters --> Twitter
+    
+    %% Storage Relationships
+    Users -.-> PostgreSQL
+    Campaigns -.-> PostgreSQL
+    Auctions -.-> PostgreSQL
+    Auctions -.-> Redis
+    NFTs -.-> PostgreSQL
+    NFTs -.-> FileSystem
+    Bids -.-> PostgreSQL
+    Bids -.-> Redis
+    Characters -.-> PostgreSQL
+    Characters -.-> Redis
+    Characters -.-> FileSystem
+    
+    Blockchain <--> NFTs
+    Blockchain <--> Bids
+    
+    %% Styling
+    classDef external fill:#f9f,stroke:#333,stroke-width:1px
+    classDef entities fill:#bfb,stroke:#333,stroke-width:1px
+    classDef dataStores fill:#bbf,stroke:#333,stroke-width:1px
+    
+    class Twitter,Blockchain external
+    class Entities entities
+    class DataStores dataStores
+```
+
+### 13.4. Stream Composition Architecture
+
+```mermaid
+flowchart TD
+    %% Input Sources
+    Assets["Asset Repository"]
+    AuctionState["Auction State"]
+    CharacterState["Character State"]
+    
+    %% Processing Components
+    subgraph SceneComposition["Scene Composition"]
+        LayoutManager["Layout Manager"]
+        QuadrantManager["Quadrant Manager"]
+        OverlayManager["Overlay Manager"]
+        AssetRenderer["Asset Renderer"]
+    end
+    
+    subgraph EncodingPipeline["Encoding Pipeline"]
+        Compositor["Compositor"]
+        FFmpeg["FFmpeg"]
+        RTMPServer["RTMP Server"]
+    end
+    
+    %% Output
+    TwitterStream["Twitter/X Stream"]
+    
+    %% Flow
+    Assets --> AssetRenderer
+    AuctionState --> OverlayManager
+    CharacterState --> QuadrantManager
+    
+    LayoutManager --> Compositor
+    QuadrantManager --> Compositor
+    OverlayManager --> Compositor
+    AssetRenderer --> Compositor
+    
+    Compositor --> FFmpeg
+    FFmpeg --> RTMPServer
+    RTMPServer --> TwitterStream
+    
+    %% Styling
+    classDef input fill:#f9f,stroke:#333,stroke-width:1px
+    classDef processing fill:#bfb,stroke:#333,stroke-width:1px
+    classDef output fill:#bbf,stroke:#333,stroke-width:1px
+    
+    class Assets,AuctionState,CharacterState input
+    class SceneComposition,EncodingPipeline processing
+    class TwitterStream output
+```
+
+## 14. Testing Architecture
+
+### 14.1. Testing Layers
+
+- **Unit Testing**:
+  - Individual service components
+  - Isolated from external dependencies
+  - Mock interfaces for dependencies
+  - Focus on business logic validation
+
+- **Integration Testing**:
+  - Service-to-service communication
+  - Redis pub/sub validation
+  - API contract testing
+  - Database interaction testing
+
+- **System Testing**:
+  - End-to-end auction flow
+  - Stream generation and delivery
+  - Twitter integration testing
+  - Blockchain verification testing
+
+- **Performance Testing**:
+  - Load testing for concurrent users
+  - Stream performance under load
+  - Database query performance
+  - Event processing throughput
+
+### 14.2. Testing Tools
+
+- **Unit Testing**:
+  - Jest for JavaScript/TypeScript
+  - Pytest for Python components
+  - Mock frameworks for dependency isolation
+
+- **Integration Testing**:
+  - Docker Compose for local environment
+  - API testing with Supertest/Postman
+  - Database testing with test containers
+
+- **System Testing**:
+  - End-to-end testing framework
+  - Selenium for UI testing
+  - Twitter API test accounts
+  - Test blockchain networks (testnets)
+
+- **Performance Testing**:
+  - k6 for load testing
+  - Prometheus for metrics collection
+  - Grafana for visualization
+  - Custom stream load generators
+
+### 14.3. Testing Environments
+
+- **Development**:
+  - Local Docker environment
+  - Mock external services
+  - Development database
+  - Fast feedback loop
+
+- **Staging**:
+  - Mirror of production environment
+  - Test data sets
+  - Integration with test APIs
+  - Performance testing environment
+
+- **Production**:
+  - Monitoring and observability
+  - Canary deployments
+  - Feature flags
+  - Rollback capability
+
+## 15. Implementation Phases Alignment
+
+This section maps the architecture components to the implementation phases defined in the requirements document.
+
+### 15.1. Phase 1: Foundation (2-3 weeks)
+
+- **Core Infrastructure**:
+  - Docker Compose setup
+  - Basic Traefik configuration
+  - Redis and PostgreSQL setup
+  - Simple RTMP server configuration
+
+- **Stream Manager (Minimal)**:
+  - Static stream composition
+  - Basic RTMP ingestion
+  - Fixed quadrant layout
+  - Simple asset display
+
+- **Admin Frontend (Basic)**:
+  - Simple configuration interface
+  - Manual auction controls
+  - Basic stream preview
+
+- **Data Layer**:
+  - Initial database schema
+  - Basic Redis state management
+  - Asset storage structure
+
+### 15.2. Phase 2: Core Functionality (2-3 weeks)
+
+- **Auction Engine**:
+  - Bid processing logic
+  - Twitter bid monitoring
+  - Basic blockchain verification
+  - Auction state management
+
+- **Stream Manager (Enhanced)**:
+  - Dynamic stream updates
+  - Real-time bid display
+  - Countdown timer
+  - Basic transitions
+
+- **Event Handler**:
+  - Core event processing
+  - Event routing
+  - State synchronization
+  - Basic error handling
+
+- **Admin Frontend (Enhanced)**:
+  - Real-time auction monitoring
+  - Bid history display
+  - Basic analytics
+
+### 15.3. Phase 3: Refinement (2-3 weeks)
+
+- **Agent Service**:
+  - Basic character interactions
+  - Twitter reply functionality
+  - Simple mood transitions
+  - Context awareness
+
+- **Notification System**:
+  - Bid confirmations
+  - Outbid notifications
+  - Auction results
+  - Error notifications
+
+- **System Monitoring**:
+  - Health check endpoints
+  - Basic metrics collection
+  - Performance monitoring
+  - Error tracking
+
+- **Security Enhancements**:
+  - Input validation
+  - Rate limiting
+  - Authentication improvements
+  - Secure configuration
+
+## 16. Disaster Recovery and Business Continuity
+
+### 16.1. Backup Strategy
+
+- **Database Backups**:
+  - Automated daily PostgreSQL backups
+  - Point-in-time recovery capability
+  - Backup verification process
+  - Off-site backup storage
+
+- **State Backups**:
+  - Redis persistence configuration (RDB/AOF)
+  - Regular Redis snapshot exports
+  - State reconstruction procedures
+
+- **Asset Backups**:
+  - Regular asset directory backups
+  - Version control for critical assets
+  - Asset integrity verification
+
+### 16.2. Recovery Procedures
+
+- **Service Recovery**:
+  - Automated container restart on failure
+  - Health check-based recovery
+  - Manual intervention procedures
+  - Service dependency management
+
+- **Data Recovery**:
+  - Database restoration procedures
+  - Redis state reconstruction
+  - Data consistency verification
+  - Partial recovery options
+
+- **Stream Recovery**:
+  - Stream interruption handling
+  - Automatic reconnection logic
+  - Fallback stream configurations
+  - Manual stream restart procedures
+
+### 16.3. Business Continuity
+
+- **Auction Continuity**:
+  - Auction state persistence
+  - Bid history preservation
+  - Manual auction resumption
+  - Auction rescheduling options
+
+- **Communication Plan**:
+  - User notification templates
+  - Status page integration
+  - Social media communication
+  - Admin alert procedures
+
+## 17. Error Handling Strategy
+
+### 17.1. Error Categorization
+
+- **Transient Errors**:
+  - Network timeouts
+  - Temporary service unavailability
+  - Rate limiting
+  - Handling: Automatic retry with exponential backoff
+
+- **Persistent Errors**:
+  - Configuration issues
+  - Resource exhaustion
+  - Dependency failures
+  - Handling: Alert, fallback to degraded mode, manual intervention
+
+- **Business Logic Errors**:
+  - Invalid bids
+  - Auction rule violations
+  - Data inconsistencies
+  - Handling: Validation, clear user feedback, logging
+
+- **Critical Errors**:
+  - Data corruption
+  - Security breaches
+  - System-wide failures
+  - Handling: Immediate alerts, automatic safeguards, emergency procedures
+
+### 17.2. Error Handling Patterns
+
+- **Circuit Breaker Pattern**:
+  - Prevent cascading failures
+  - Automatic service isolation
+  - Gradual recovery testing
+  - Applied to: External API calls, database operations
+
+- **Bulkhead Pattern**:
+  - Isolate system components
+  - Resource allocation per component
+  - Failure containment
+  - Applied to: Service containers, connection pools
+
+- **Retry Pattern**:
+  - Automatic retry for transient failures
+  - Exponential backoff
+  - Maximum retry limits
+  - Applied to: Network requests, message processing
+
+- **Fallback Pattern**:
+  - Degraded functionality options
+  - Alternative data sources
+  - Cached results
+  - Applied to: External dependencies, non-critical features
