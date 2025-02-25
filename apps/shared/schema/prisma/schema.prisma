@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and wallet information
+model User {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  email         String?  @unique
+  twitterHandle String?  @unique
+  walletAddress String?  @unique
+  name          String?
+  avatarUrl     String?
+  isAdmin       Boolean  @default(false)
+  
+  // Relationships
+  bids          Bid[]
+  preferences   UserPreference?
+  
+  @@map("users")
+}
+
+// User preferences for notifications and display settings
+model UserPreference {
+  id                 String  @id @default(uuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationsEnabled Boolean @default(true)
+  bidConfirmations   Boolean @default(true)
+  outbidAlerts       Boolean @default(true)
+  auctionReminders   Boolean @default(true)
+  theme              String  @default("system") // system, light, dark
+  
+  @@map("user_preferences")
+}
+
+// Campaign represents a collection of auctions for a project
+model Campaign {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("DRAFT") // DRAFT, SCHEDULED, ACTIVE, COMPLETED, CANCELLED
+  
+  // Relationships
+  collection  Collection? @relation(fields: [collectionId], references: [id])
+  collectionId String?
+  auctions    Auction[]
+  
+  @@map("campaigns")
+}
+
+// Collection represents an NFT collection
+model Collection {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String?
+  projectName String?
+  imageUrl    String?
+  contractAddress String?
+  blockchain  String?  // ethereum, polygon, solana, etc.
+  
+  // Relationships
+  campaigns   Campaign[]
+  artItems    ArtItem[]
+  
+  @@map("collections")
+}
+
+// ArtItem represents an NFT or artwork being auctioned
+model ArtItem {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tokenId     String?
+  name        String
+  description String?
+  imageUrl    String
+  animationUrl String?
+  metadata    Json?
+  
+  // Relationships
+  collection  Collection? @relation(fields: [collectionId], references: [id])
+  collectionId String?
+  auctions    Auction[]
+  
+  @@map("art_items")
+}
+
+// Auction represents a single auction event
+model Auction {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  startTime   DateTime
+  endTime     DateTime
+  reservePrice Decimal? @db.Decimal(20, 8)
+  minBidIncrement Decimal? @db.Decimal(20, 8)
+  currency    String   @default("ETH")
+  status      String   @default("SCHEDULED") // SCHEDULED, ACTIVE, ENDED, SETTLED, CANCELLED
+  
+  // Relationships
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+  campaignId  String?
+  artItem     ArtItem @relation(fields: [artItemId], references: [id])
+  artItemId   String
+  bids        Bid[]
+  winningBid  Bid?     @relation("WinningBid", fields: [winningBidId], references: [id])
+  winningBidId String?  @unique
+  
+  @@map("auctions")
+}
+
+// Bid represents a bid placed on an auction
+model Bid {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  amount      Decimal  @db.Decimal(20, 8)
+  currency    String   @default("ETH")
+  status      String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, WINNING
+  source      String   @default("TWITTER") // TWITTER, WEBSITE, API
+  transactionHash String?
+  
+  // Relationships
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  auction     Auction  @relation(fields: [auctionId], references: [id])
+  auctionId   String
+  wonAuction  Auction? @relation("WinningBid")
+  
+  @@map("bids")
+}
+
+// Character represents an AI character/agent for the stream
+model Character {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String?
+  personality String?
+  voiceId     String?
+  
+  // Character assets
+  defaultExpression String?
+  expressions Json?   // Array of expression image paths
+  backgrounds Json?   // Array of background image paths
+  
+  // Memory and state
+  memory      Json?   // Persistent memory for the character
+  
+  @@map("characters")
+}
+
+// StreamAsset represents assets used in the stream
+model StreamAsset {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  type        String   // BACKGROUND, OVERLAY, NFT, CHARACTER, EXPRESSION
+  path        String   // Path to the asset file
+  metadata    Json?    // Additional metadata
+  
+  @@map("stream_assets")
+}
+
+// Event log for system events
+model EventLog {
+  id          String   @id @default(uuid())
+  timestamp   DateTime @default(now())
+  type        String   // Event type (auction:start, bid:placed, etc.)
+  source      String   // Source service
+  data        Json     // Event data
+  
+  @@map("event_logs")
+} 

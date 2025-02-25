@@ -135,7 +135,8 @@ graph LR
     | Project      | Yuga Labs          |
     | Collection   | CryptoPunks        |
 - **Auction Session**: A day of the campaign that has a pre-bidding, bidding and   post-bidding phase.
-    - Auction Session is made up of:
+    - The Auction Session is assiated with a stream-key internally to be generated daily. 
+    - The Auction Session has three stages:
     - **Pre-Auction**:
         - Section of the campaign that occurs before the auction starts.
         - Used to send announcements and publicize the auction.

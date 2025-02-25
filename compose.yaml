@@ -186,127 +186,123 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Exporter - Commented out for now
-  # redis-exporter:
-  #   image: oliver006/redis_exporter:v1.55.0
-  #   environment:
-  #     - REDIS_ADDR=redis://redis:6379
-  #     - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
-  #   ports:
-  #     - "${REDIS_METRICS_PORT:-9121}:${REDIS_METRICS_PORT:-9121}"
-  #   networks:
-  #     - auction_net
-  #   depends_on:
-  #     - redis
-  #   restart: unless-stopped
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.redis-metrics.rule=PathPrefix(`/metrics/redis`)"
-  #     - "traefik.http.routers.redis-metrics.service=redis-metrics"
-  #     - "traefik.http.services.redis-metrics.loadbalancer.server.port=${REDIS_METRICS_PORT:-9121}"
-  #     - "traefik.http.routers.redis-metrics.entrypoints=metrics"
+  event-handler:
+    build:
+      context: ./apps/event-handler
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - PORT=${EVENT_HANDLER_PORT:-4300}
+      - EVENT_STREAM_PORT=${EVENT_HANDLER_STREAM_PORT:-4301}
+      - METRICS_PORT=${EVENT_HANDLER_METRICS_PORT:-4390}
+      - HEALTH_PORT=${EVENT_HANDLER_HEALTH_PORT:-4391}
+      - FRONTEND_URL=http://localhost:3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./apps/event-handler/src:/app/src:ro
+      - ./apps/event-handler/package.json:/app/package.json:ro
+      - ./data/event-handler:/app/storage:rw
+    # In development, expose ports directly
+    ports:
+      - "${EVENT_HANDLER_PORT:-4300}:${EVENT_HANDLER_PORT:-4300}" # Main API
+      - "${EVENT_HANDLER_STREAM_PORT:-4301}:${EVENT_HANDLER_STREAM_PORT:-4301}" # Event Stream
+      - "${EVENT_HANDLER_METRICS_PORT:-4390}:${EVENT_HANDLER_METRICS_PORT:-4390}" # Metrics
+      - "${EVENT_HANDLER_HEALTH_PORT:-4391}:${EVENT_HANDLER_HEALTH_PORT:-4391}" # Health
+    networks:
+      - auction_net
+    labels:
+      - "traefik.enable=true"
+      # Main API endpoints including logs (only active in production)
+      - "traefik.http.routers.event-handler.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/events`)"
+      - "traefik.http.routers.event-handler.entrypoints=websecure"
+      - "traefik.http.routers.event-handler.tls.certresolver=letsencrypt"
+      - "traefik.http.services.event-handler.loadbalancer.server.port=${EVENT_HANDLER_PORT:-4300}"
+      # Metrics endpoint
+      - "traefik.http.routers.event-handler-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/events`)"
+      - "traefik.http.routers.event-handler-metrics.entrypoints=websecure"
+      - "traefik.http.services.event-handler-metrics.loadbalancer.server.port=${EVENT_HANDLER_METRICS_PORT:-4390}"
+      # Health check endpoint
+      - "traefik.http.routers.event-handler-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/events`)"
+      - "traefik.http.routers.event-handler-health.entrypoints=websecure"
+      - "traefik.http.services.event-handler-health.loadbalancer.server.port=${EVENT_HANDLER_HEALTH_PORT:-4391}"
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Prometheus - Commented out for now
-  # prometheus:
-  #   # Using LTS version (2.53.x branch) for extended support and stability
-  #   # See: https://prometheus.io/blog/2024/02/20/prometheus-releases-lts/
-  #   # Benefits:
-  #   # - Extended support period (1 year)
-  #   # - Stability focused
-  #   # - Security updates
-  #   # - Backported critical fixes
-  #   image: prom/prometheus:v2.53.3
-  #   command:
-  #     - '--config.file=/etc/prometheus/prometheus.yml'
-  #     - '--storage.tsdb.path=/prometheus'
-  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-  #     - '--web.console.templates=/usr/share/prometheus/consoles'
-  #     - '--web.enable-lifecycle'
-  #     - '--web.external-url=/prometheus'
-  #     - '--web.route-prefix=/prometheus'
-  #   volumes:
-  #     - ./monitoring/prometheus:/etc/prometheus:ro    # Config files
-  #     - prometheus_data:/prometheus                   # Actual data
-  #   ports:
-  #     - "${PROMETHEUS_PORT:-9090}:${PROMETHEUS_PORT:-9090}"
-  #   networks:
-  #     - auction_net
-  #   restart: unless-stopped
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.prometheus.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/prometheus`)"
-  #     - "traefik.http.routers.prometheus.entrypoints=websecure"
-  #     - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
-  #     - "traefik.http.services.prometheus.loadbalancer.server.port=${PROMETHEUS_PORT:-9090}"
-  #     - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
-  #     - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--spider", "http://localhost:9090/prometheus/-/healthy"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  
-  # Event Handler - Commented out for now
-  # event-handler:
-  #   build:
-  #     context: ./apps/event-handler
-  #     dockerfile: Dockerfile
-  #     target: ${NODE_ENV:-development}
-  #   environment:
-  #     - NODE_ENV=${NODE_ENV:-development}
-  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
-  #     - PORT=${EVENT_HANDLER_PORT:-4300}
-  #     - EVENT_STREAM_PORT=${EVENT_HANDLER_STREAM_PORT:-4301}
-  #     - METRICS_PORT=${EVENT_HANDLER_METRICS_PORT:-4390}
-  #     - HEALTH_PORT=${EVENT_HANDLER_HEALTH_PORT:-4391}
-  #     - FRONTEND_URL=http://localhost:3000
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #     - ./apps/event-handler/src:/app/src:ro
-  #     - ./apps/event-handler/package.json:/app/package.json:ro
-  #     - ./data/event-handler:/app/storage:rw
-  #   # In development, expose ports directly
-  #   ports:
-  #     - "${EVENT_HANDLER_PORT:-4300}:${EVENT_HANDLER_PORT:-4300}" # Main API
-  #     - "${EVENT_HANDLER_STREAM_PORT:-4301}:${EVENT_HANDLER_STREAM_PORT:-4301}" # Event Stream
-  #     - "${EVENT_HANDLER_METRICS_PORT:-4390}:${EVENT_HANDLER_METRICS_PORT:-4390}" # Metrics
-  #     - "${EVENT_HANDLER_HEALTH_PORT:-4391}:${EVENT_HANDLER_HEALTH_PORT:-4391}" # Health
-  #   networks:
-  #     - auction_net
-  #   labels:
-  #     - "traefik.enable=true"
-  #     # Main API endpoints including logs (only active in production)
-  #     - "traefik.http.routers.event-handler.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/events`)"
-  #     - "traefik.http.routers.event-handler.entrypoints=websecure"
-  #     - "traefik.http.routers.event-handler.tls.certresolver=letsencrypt"
-  #     - "traefik.http.services.event-handler.loadbalancer.server.port=${EVENT_HANDLER_PORT:-4300}"
-  #     # Metrics endpoint
-  #     - "traefik.http.routers.event-handler-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/events`)"
-  #     - "traefik.http.routers.event-handler-metrics.entrypoints=websecure"
-  #     - "traefik.http.services.event-handler-metrics.loadbalancer.server.port=${EVENT_HANDLER_METRICS_PORT:-4390}"
-  #     # Health check endpoint
-  #     - "traefik.http.routers.event-handler-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/events`)"
-  #     - "traefik.http.routers.event-handler-health.entrypoints=websecure"
-  #     - "traefik.http.services.event-handler-health.loadbalancer.server.port=${EVENT_HANDLER_HEALTH_PORT:-4391}"
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: ${RESOURCES_CPU:-0.5}
-  #         memory: ${RESOURCES_MEMORY:-512M}
-  #   command: npm run dev
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  # Auction Engine Service
+  auction-engine:
+    build:
+      context: ./apps/auction-engine
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}
+      - REDIS_HOST=redis
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+      - PORT=${AUCTION_ENGINE_PORT:-4400}
+      - METRICS_PORT=${AUCTION_ENGINE_METRICS_PORT:-4490}
+      - HEALTH_PORT=${AUCTION_ENGINE_HEALTH_PORT:-4491}
+      - LOG_LEVEL=debug
+      - LOG_PRETTY_PRINT=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./apps/auction-engine/src:/app/src:ro
+      - ./apps/auction-engine/package.json:/app/package.json:ro
+      - ./data/auction:/app/storage:rw
+    ports:
+      - "${AUCTION_ENGINE_PORT:-4400}:${AUCTION_ENGINE_PORT:-4400}"
+      - "${AUCTION_ENGINE_METRICS_PORT:-4490}:${AUCTION_ENGINE_METRICS_PORT:-4490}"
+      - "${AUCTION_ENGINE_HEALTH_PORT:-4491}:${AUCTION_ENGINE_HEALTH_PORT:-4491}"
+    networks:
+      - auction_net
+    labels:
+      - "traefik.enable=true"
+      # Main API endpoints
+      - "traefik.http.routers.auction-engine.rule=Host(`${DOMAIN}`) && PathPrefix(`/auction`)"
+      - "traefik.http.routers.auction-engine.entrypoints=web"
+      - "traefik.http.services.auction-engine.loadbalancer.server.port=${AUCTION_ENGINE_PORT:-4400}"
+      # Metrics endpoint
+      - "traefik.http.routers.auction-engine-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/auction`)"
+      - "traefik.http.routers.auction-engine-metrics.entrypoints=websecure"
+      - "traefik.http.services.auction-engine-metrics.loadbalancer.server.port=${AUCTION_ENGINE_METRICS_PORT:-4490}"
+      # Health check endpoint
+      - "traefik.http.routers.auction-engine-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/auction`)"
+      - "traefik.http.routers.auction-engine-health.entrypoints=websecure"
+      - "traefik.http.services.auction-engine-health.loadbalancer.server.port=${AUCTION_ENGINE_HEALTH_PORT:-4491}"
+    deploy:
+      resources:
+        limits:
+          cpus: ${RESOURCES_CPU:-0.5}
+          memory: ${RESOURCES_MEMORY:-512M}
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4491/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - redis
+      - traefik
 
 x-volumes:
-  dev.volumes.auction-manager: &dev-volumes
-    - ./apps/auction-manager/src:/app/src:ro
-    - ./apps/auction-manager/package.json:/app/package.json:ro
+  dev.volumes.auction-engine: &dev-volumes
+    - ./apps/auction-engine/src:/app/src:ro
+    - ./apps/auction-engine/package.json:/app/package.json:ro
     - ./data/auction:/app/storage:rw
   
-  prod.volumes.auction-manager:
+  prod.volumes.auction-engine:
     - ./data/auction:/app/storage:rw
 
   dev.volumes.stream-manager:
@@ -353,10 +349,10 @@ x-volumes:
     - ./data/event-handler:/app/storage:rw
 
 x-commands:
-  dev.command.auction-manager: &dev-command
+  dev.command.auction-engine: &dev-command
     npm run dev
   
-  prod.command.auction-manager:
+  prod.command.auction-engine:
     npm run start
 
   dev.command.event-handler: *dev-command
@@ -370,33 +366,3 @@ volumes:
 networks:
   auction_net:
     driver: ${NETWORK_DRIVER:-bridge}
-
-x-defaults: &defaults
-  # Traefik Ports
-  TRAEFIK_HTTP_PORT: 80
-  TRAEFIK_HTTPS_PORT: 443
-  TRAEFIK_DASHBOARD_PORT: 8080
-
-  # Admin Frontend Ports
-  ADMIN_PORT: 3000
-  ADMIN_METRICS_PORT: 3090
-  ADMIN_HEALTH_PORT: 3091
-
-  # Stream Manager Ports
-  STREAM_MANAGER_PORT: 4200
-  STREAM_MANAGER_WS_PORT: 4201
-  STREAM_MANAGER_METRICS_PORT: 4290
-  STREAM_MANAGER_RTMP_PORT: 1935
-
-  # Redis Ports
-  REDIS_PORT: 6379
-  REDIS_METRICS_PORT: 9121
-  
-  # Prometheus Ports
-  PROMETHEUS_PORT: 9090
-  
-  # Event Handler Ports
-  EVENT_HANDLER_PORT: 4300
-  EVENT_HANDLER_STREAM_PORT: 4301
-  EVENT_HANDLER_METRICS_PORT: 4390
-  EVENT_HANDLER_HEALTH_PORT: 4391
