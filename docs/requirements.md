@@ -54,6 +54,15 @@
     1. [Deployment Strategy](#121-deployment-strategy)
     2. [Maintenance Plan](#122-maintenance-plan)
 
+## Documentation Guide
+
+This requirements document outlines what the SothebAIs system should do and why. It serves as the foundation for the other documentation:
+
+- **Architecture Documentation**: The [architecture document](architecture.md) describes how the system is designed to meet these requirements
+- **Schema Documentation**: The [schema document](schema.md) details the data models needed to support these requirements
+- **API Documentation**: The [API documentation](api-documentation.md) specifies the interfaces for interacting with the system
+- **Project Structure**: The [project structure document](project-structure.md) shows how the codebase is organized
+- **Implementation Tasks**: The [TODO document](TODO.md) tracks implementation progress against these requirements
 
 ## 1. Introduction/Overview
 ### 1.1. Purpose and Scope

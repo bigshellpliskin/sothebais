@@ -1,6 +1,6 @@
 # SothebAIs Project Structure
 
-This document provides an overview of the SothebAIs project structure, explaining the organization of code and resources.
+This document provides a concise overview of the SothebAIs project's directory structure and codebase organization. For detailed system design, please refer to the [architecture documentation](architecture.md).
 
 ## Directory Structure
 
@@ -27,9 +27,12 @@ sothebais/
 │   ├── stream-manager/    # Stream manager data
 │   └── traefik/           # Traefik configuration and certificates
 ├── docs/                  # Project documentation
-│   ├── docker.md          # Docker setup documentation
+│   ├── requirements.md    # System requirements
+│   ├── architecture.md    # System architecture
+│   ├── schema.md          # Database schema documentation
+│   ├── api-documentation.md # API endpoints
 │   ├── project-structure.md # This file
-│   └── schema.md          # Schema documentation
+│   └── TODO.md            # Implementation tasks
 ├── .env                   # Environment variables (gitignored)
 ├── .env.example           # Example environment variables
 ├── compose.yaml           # Docker Compose configuration
@@ -40,8 +43,10 @@ sothebais/
 
 ### Application Services (`apps/`)
 
+Each service is implemented as a separate application with its own codebase and Docker container:
+
 - **admin**: Next.js admin dashboard for managing the system
-- **auction-engine**: Handles auction logic, bid processing, and NFT lifecycle
+- **auction-engine**: Handles auction logic and bid processing
 - **eliza**: VTuber character system and visual output
 - **event-handler**: Processes system events and orchestrates communication
 - **stream-manager**: Manages live streams and WebSocket connections
@@ -49,71 +54,30 @@ sothebais/
 
 ### Shared Code (`apps/shared/`)
 
-The shared directory contains code that is used by multiple services:
+Contains code that is used by multiple services:
 
-#### Schema (`apps/shared/schema/`)
-
-Contains database schema definitions:
-
-- **prisma**: PostgreSQL schema using Prisma ORM
-- **redis**: Redis schema definitions including key patterns and data structures
-
-#### Types (`apps/shared/types/`)
-
-Contains TypeScript type definitions:
-
-- **events.ts**: Defines event types used throughout the system
-- **models.ts**: Defines model interfaces for database entities
-- **stream.ts**: Defines stream configuration and state types
+- **schema/**: Database schema definitions (see [schema.md](schema.md) for details)
+- **types/**: TypeScript type definitions for development-time type checking
 
 ### Data Storage (`data/`)
 
-Contains persistent data for various services:
+Contains persistent data for various services (see [architecture.md](architecture.md) for storage strategy).
 
-- **event-handler**: Data stored by the event handler service
-- **stream-manager**: Data stored by the stream manager service
-- **traefik**: Traefik configuration and SSL/TLS certificates
+## Documentation Map
 
-### Documentation (`docs/`)
+For more detailed information, please refer to:
 
-Contains project documentation:
+- [Requirements](requirements.md): System requirements and user stories
+- [Architecture](architecture.md): System design and component interactions
+- [Schema](schema.md): Database models and data structures
+- [API Documentation](api-documentation.md): Service endpoints and interfaces
+- [TODO](TODO.md): Implementation tasks and progress tracking
 
-- **docker.md**: Docker setup and usage documentation
-- **project-structure.md**: This file, explaining the project structure
-- **schema.md**: Documentation for database schemas and data models
+## Development Quick Start
 
-## Code Organization Principles
+1. Clone the repository
+2. Copy `.env.example` to `.env` and configure environment variables
+3. Run `docker-compose up` to start the development environment
+4. Access the admin dashboard at `http://localhost:3000`
 
-### Microservices Architecture
-
-The project follows a microservices architecture, with each service having its own:
-- Codebase
-- Dockerfile
-- API endpoints
-- Responsibility domain
-
-### Shared Code Strategy
-
-To avoid duplication, common code is placed in the `shared` directory:
-- **Types**: TypeScript interfaces for type checking during development
-- **Schemas**: Database schema definitions for runtime data validation
-- **Utilities**: Helper functions and common logic
-
-### Separation of Concerns
-
-- **Types vs. Schemas**: Types are for development-time checking, schemas define runtime data structure
-- **Service Boundaries**: Each service has a clear responsibility and API contract
-- **Data Flow**: Events are used for communication between services
-
-## Development Workflow
-
-1. Make changes to service code in the appropriate `apps/` directory
-2. Update shared types/schemas if needed
-3. Use Docker Compose to build and run the affected services
-4. Test changes locally
-5. Deploy to staging/production
-
-## Further Reading
-
-- [Docker Setup](docker.md): Details on Docker configuration
-- [Schema Documentation](schema.md): Information about data models and schemas 
+For Docker setup details, see the [architecture documentation](architecture.md#12-docker-implementation). 

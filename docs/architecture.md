@@ -1,5 +1,85 @@
 # SothebAIs Architecture
 
+## Table of Contents
+- [1. Overview](#1-overview)
+- [2. Core Services](#2-core-services)
+  - [2.1. Traefik (Reverse Proxy/Load Balancer)](#21-traefik-reverse-proxyload-balancer)
+  - [2.2. Admin Frontend (Next.js)](#22-admin-frontend-nextjs)
+  - [2.3. Stream Manager](#23-stream-manager)
+  - [2.3.4. State Management](#234-state-management)
+  - [2.4. Auction Engine](#24-auction-engine)
+  - [2.5. Redis](#25-redis)
+  - [2.6. Event Handler](#26-event-handler)
+  - [2.7. Agent Service (ElizaOS)](#27-agent-service-elizaos)
+- [3. Port Configuration](#3-port-configuration)
+  - [3.1. System Ports (0-1023)](#31-system-ports-0-1023)
+  - [3.2. User Ports (1024-9999)](#32-user-ports-1024-9999)
+  - [3.3. Port Patterns](#33-port-patterns)
+  - [3.4. Environment Variables](#34-environment-variables)
+  - [3.5. Port Exposure](#35-port-exposure)
+  - [3.5. Time Management](#35-time-management)
+- [4. Data Storage Strategy](#4-data-storage-strategy)
+  - [4.1. Redis (Real-time Data)](#41-redis-real-time-data)
+  - [4.2. Local File System (Docker Volumes)](#42-local-file-system-docker-volumes)
+  - [4.3. PostgreSQL (Structured Data)](#43-postgresql-structured-data)
+- [5. Inter-Service Communication](#5-inter-service-communication)
+  - [5.1. Event-Driven Architecture](#51-event-driven-architecture)
+  - [5.2. Redis Pub/Sub](#52-redis-pubsub)
+  - [5.3. HTTP/REST](#53-httprest)
+  - [5.4. WebSocket](#54-websocket)
+  - [5.5. Agent-Stream Integration](#55-agent-stream-integration)
+- [6. External APIs & Dependencies](#6-external-apis--dependencies)
+  - [6.1. Twitter/X API](#61-twitterx-api)
+  - [6.2. Blockchain Data Providers](#62-blockchain-data-providers)
+  - [6.3. Redis](#63-redis)
+  - [6.4. PostgreSQL](#64-postgresql)
+- [7. Internal APIs](#7-internal-apis)
+  - [7.1. Stream Manager API](#71-stream-manager-api)
+  - [7.2. Event Handler API](#72-event-handler-api)
+  - [7.3. Auction Engine API](#73-auction-engine-api)
+  - [7.4. Agent Service API](#74-agent-service-api)
+  - [7.5. Admin API](#75-admin-api)
+  - [7.6. API Standards](#76-api-standards)
+- [8. System Monitoring](#8-system-monitoring)
+  - [8.1. Health Checks](#81-health-checks)
+  - [8.2. Metrics Collection](#82-metrics-collection)
+  - [8.3. Monitoring Dashboard](#83-monitoring-dashboard)
+- [9. Stream State Management](#9-stream-state-management)
+  - [9.1. Character-Driven Composition](#91-character-driven-composition)
+  - [9.2. Social Integration](#92-social-integration)
+- [10. Security](#10-security)
+  - [10.1. Edge Security](#101-edge-security)
+  - [10.2. Application Security](#102-application-security)
+  - [10.3. Data Security](#103-data-security)
+- [11. Deployment](#11-deployment)
+  - [11.1. Development](#111-development)
+  - [11.2. Production](#112-production)
+- [12. Docker Implementation](#12-docker-implementation)
+  - [12.1. Containerization Strategy](#121-containerization-strategy)
+  - [12.2. Container Structure](#122-container-structure)
+  - [12.3. Container Networking](#123-container-networking)
+  - [12.4. Data Persistence](#124-data-persistence)
+- [13. Architectural Diagrams](#13-architectural-diagrams)
+  - [13.1. System Architecture Overview](#131-system-architecture-overview)
+  - [13.2. Event Flow Diagram](#132-event-flow-diagram)
+  - [13.3. Data Flow Diagram](#133-data-flow-diagram)
+  - [13.4. Stream Composition Architecture](#134-stream-composition-architecture)
+- [14. Testing Architecture](#14-testing-architecture)
+  - [14.1. Testing Layers](#141-testing-layers)
+  - [14.2. Testing Tools](#142-testing-tools)
+  - [14.3. Testing Environments](#143-testing-environments)
+- [15. Implementation Phases Alignment](#15-implementation-phases-alignment)
+  - [15.1. Phase 1: Foundation (2-3 weeks)](#151-phase-1-foundation-2-3-weeks)
+  - [15.2. Phase 2: Core Functionality (2-3 weeks)](#152-phase-2-core-functionality-2-3-weeks)
+  - [15.3. Phase 3: Refinement (2-3 weeks)](#153-phase-3-refinement-2-3-weeks)
+- [16. Disaster Recovery and Business Continuity](#16-disaster-recovery-and-business-continuity)
+  - [16.1. Backup Strategy](#161-backup-strategy)
+  - [16.2. Recovery Procedures](#162-recovery-procedures)
+  - [16.3. Business Continuity](#163-business-continuity)
+- [17. Error Handling Strategy](#17-error-handling-strategy)
+  - [17.1. Error Categorization](#171-error-categorization)
+  - [17.2. Error Handling Patterns](#172-error-handling-patterns)
+
 ## 1. Overview
 
 SothebAIs is a real-time NFT auction platform that enables social interaction through Twitter/X livestreams. The system is designed to handle concurrent auctions, real-time bidding, and dynamic stream composition while maintaining high reliability and performance.
@@ -53,57 +133,16 @@ SothebAIs is a real-time NFT auction platform that enables social interaction th
   - Connected viewers
 
 ### 2.3.4. State Management
-- **Campaign State**
-  | Component | Storage | Example |
-  |:----------|:--------|:---------|
-  | Campaign ID | Redis | `campaign:123` |
-  | Start Date | Redis | `2024-06-01` |
-  | End Date | Redis | `2024-08-31` |
-  | Status | Redis | `ACTIVE` |
-  | Current Day | Redis | `15` |
-  | Project Info | PostgreSQL | `{ name: "Yuga Labs", ... }` |
-  | Collection Info | PostgreSQL | `{ name: "CryptoPunks", ... }` |
+- **Purpose**: Maintain system state across services
+- **Implementation**: Uses Redis for real-time state and PostgreSQL for persistent data
+- **Key State Types**:
+  - Campaign State
+  - Auction State
+  - Stream State
+  - User State
+  - Agent State
 
-- **Auction State**
-  | Component | Storage | Example |
-  |:----------|:--------|:---------|
-  | Auction ID | Redis | `auction:123` |
-  | Status | Redis | `ACTIVE` |
-  | Current Price | Redis | `2.5 ETH` |
-  | Highest Bid | Redis | `{ amount: 2.5, bidder: "@user", timestamp: "..." }` |
-  | Start Time | Redis | `2024-06-01 14:00 EST` |
-  | End Time | Redis | `2024-06-01 16:00 EST` |
-  | Art Item | PostgreSQL | `{ id: "CP1234", metadata: {...} }` |
-  | Bid History | PostgreSQL | `[{ amount: 2.5, bidder: "@user", timestamp: "..." }, ...]` |
-
-- **Stream State**
-  | Component | Storage | Example |
-  |:----------|:--------|:---------|
-  | Stream ID | Redis | `stream:123` |
-  | Status | Redis | `LIVE` |
-  | Scene Layout | Redis | `{ quadrants: [...], overlays: [...] }` |
-  | Viewer Count | Redis | `1234` |
-  | Quality Metrics | Redis | `{ fps: 30, bitrate: 4000 }` |
-  | Assets | Docker Volume | `/stream_assets/{backgrounds,overlays,nfts}/` |
-
-- **User State**
-  | Component | Storage | Example |
-  |:----------|:--------|:---------|
-  | User ID | PostgreSQL | `user:123` |
-  | Twitter Handle | PostgreSQL | `@crypto_collector` |
-  | Wallet Address | PostgreSQL | `0x123...` |
-  | Bid History | PostgreSQL | `[{ auctionId: "123", amount: 2.5, ... }, ...]` |
-  | Preferences | PostgreSQL | `{ notifications: true, ... }` |
-
-- **Agent State**
-  | Component | Storage | Example |
-  |:----------|:--------|:---------|
-  | Character ID | Redis | `character:123` |
-  | Mood | Redis | `EXCITED` |
-  | Context | Redis | `{ lastInteraction: "...", topic: "..." }` |
-  | Active Scene | Redis | `{ background: "...", expression: "..." }` |
-  | Memory | PostgreSQL | `{ pastInteractions: [...], preferences: {...} }` |
-  | Assets | Docker Volume | `/character_assets/{expressions,backgrounds}/` |
+For detailed schema information on each state type, including fields, data types, and storage mechanisms, please refer to the [Schema Documentation](schema.md).
 
 ### 2.4. Auction Engine
 - **Purpose**: Core auction business logic and bid processing
