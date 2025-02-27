@@ -57,7 +57,7 @@ model Campaign {
   // Relationships
   collection  Collection? @relation(fields: [collectionId], references: [id])
   collectionId String?
-  auctions    Auction[]
+  auctionSessions AuctionSession[]
   
   @@map("campaigns")
 }
@@ -101,7 +101,30 @@ model ArtItem {
   @@map("art_items")
 }
 
-// Auction represents a single auction event
+// AuctionSession represents a day's auction event with pre, main, and post stages
+model AuctionSession {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sessionDate DateTime
+  preAuctionStartTime DateTime
+  preAuctionEndTime   DateTime
+  auctionStartTime    DateTime
+  auctionEndTime      DateTime
+  postAuctionStartTime DateTime
+  postAuctionEndTime   DateTime
+  status      String   @default("SCHEDULED") // SCHEDULED, ACTIVE, COMPLETED, CANCELLED
+  streamKey   String?
+  
+  // Relationships
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  campaignId  String
+  lots        Auction[]
+  
+  @@map("auction_sessions")
+}
+
+// Auction represents a single lot (item) being auctioned
 model Auction {
   id          String   @id @default(uuid())
   createdAt   DateTime @default(now())
@@ -112,10 +135,11 @@ model Auction {
   minBidIncrement Decimal? @db.Decimal(20, 8)
   currency    String   @default("ETH")
   status      String   @default("SCHEDULED") // SCHEDULED, ACTIVE, ENDED, SETTLED, CANCELLED
+  lotOrder    Int      @default(1) // Order in which this lot appears in the session
   
   // Relationships
-  campaign    Campaign? @relation(fields: [campaignId], references: [id])
-  campaignId  String?
+  auctionSession AuctionSession? @relation(fields: [auctionSessionId], references: [id])
+  auctionSessionId String?
   artItem     ArtItem @relation(fields: [artItemId], references: [id])
   artItemId   String
   bids        Bid[]

@@ -80,6 +80,21 @@
   - [17.1. Error Categorization](#171-error-categorization)
   - [17.2. Error Handling Patterns](#172-error-handling-patterns)
 
+## Technical Stack
+
+### Hardware Requirements
+- **Development Server**:
+  - CPU: Intel i7-10750H
+  - GPU: NVIDIA RTX 2070 Super
+  - RAM: 32GB
+  - Storage: Local SSD for assets and database
+- **Client Testing**:
+  - Apple M4 Mac Mini
+  - 16GB RAM
+- **Network**:
+  - Standard residential internet connection
+  - Upload bandwidth considerations for streaming
+
 ## 1. Overview
 
 SothebAIs is a real-time NFT auction platform that enables social interaction through Twitter/X livestreams. The system is designed to handle concurrent auctions, real-time bidding, and dynamic stream composition while maintaining high reliability and performance.

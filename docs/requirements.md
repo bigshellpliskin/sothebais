@@ -3,13 +3,15 @@
 ### Table of Contents
 1. [Introduction/Overview](#1-introductionoverview)
    1. [Purpose and Scope](#11-purpose-and-scope)
-   2. [Definitions](#12-definitions)
-   3. [User Stories](#13-user-stories)
+   2. [Definitions and Terminology](#12-definitions-and-terminology)
+   3. [Auction Flow and Process](#13-auction-flow-and-process)
+   4. [User Stories](#14-user-stories)
 2. [Functional Requirements](#2-functional-requirements)
    1. [User Features](#21-user-features)
    2. [System Functions](#22-system-functions)
    3. [Data Management](#23-data-management)
    4. [Scene Management](#24-scene-management)
+   5. [Integrations](#25-integrations)
 3. [Non-functional Requirements](#3-non-functional-requirements)
    1. [Performance](#31-performance)
    2. [Security](#32-security)
@@ -17,42 +19,39 @@
    4. [Usability](#34-usability)
    5. [Maintainability](#35-maintainability)
    6. [Scalability](#36-scalability)
-4. [System Overview](#4-system-overview)
-   1. [System Requirements](#41-system-requirements)
-   2. [Component Requirements](#42-component-requirements)
-5. [Constraints](#5-constraints)
-   1. [Technical Constraints](#51-technical-constraints)
-   2. [Budget Constraints](#52-budget-constraints)
-   3. [Time Constraints](#53-time-constraints)
-   4. [Personnel Constraints](#54-personnel-constraints)
-   5. [Operational Constraints](#55-operational-constraints)
-6. [Assumptions & Dependencies](#6-assumptions--dependencies)
-   1. [Assumptions](#61-assumptions)
-   2. [Dependencies](#62-dependencies)
-   3. [Third-Party Services](#63-third-party-services)
-   4. [Technical Stack](#64-technical-stack)
-7. [Implementation Roadmap](#7-implementation-roadmap)
-   1. [Phase 1: Foundation ](#71-phase-1-foundation)
-   2. [Phase 2: Core Functionality ](#72-phase-2-core-functionality)
-   3. [Phase 3: Refinement](#73-phase-3-refinement)
-   4. [Future Enhancements (Post-MVP)](#74-future-enhancements-post-mvp)
-8. [Traceability Matrix](#8-traceability-matrix)
-   1. [User Stories to Requirements](#81-user-stories-to-requirements)
-9. [Acceptance Criteria](#9-acceptance-criteria)
-   1. [Success Metrics](#91-success-metrics)
-   2. [User Acceptance Criteria](#92-user-acceptance-criteria)
-10. [Risks & Mitigation](#10-risks--mitigation)
-    1. [Technical Risks](#101-technical-risks)
-    2. [External Dependency Risks](#102-external-dependency-risks)
-    3. [Performance Risks](#103-performance-risks)
-    4. [Security Risks](#104-security-risks)
-    5. [Operational Risks](#105-operational-risks)
-11. [Testing & Validation](#11-testing--validation)
-    1. [Testing Strategy](#111-testing-strategy)
-    2. [Debugging and Troubleshooting](#112-debugging-and-troubleshooting)
-12. [Deployment & Maintenance Plan](#12-deployment--maintenance-plan)
-    1. [Deployment Strategy](#121-deployment-strategy)
-    2. [Maintenance Plan](#122-maintenance-plan)
+4. [Constraints](#4-constraints)
+   1. [Technical Constraints](#41-technical-constraints)
+   2. [Budget Constraints](#42-budget-constraints)
+   3. [Time Constraints](#43-time-constraints)
+   4. [Personnel Constraints](#44-personnel-constraints)
+   5. [Operational Constraints](#45-operational-constraints)
+5. [Assumptions & Dependencies](#5-assumptions--dependencies)
+   1. [Assumptions](#51-assumptions)
+   2. [Dependencies](#52-dependencies)
+   3. [Third-Party Services](#53-third-party-services)
+   4. [Technical Stack](#54-technical-stack)
+6. [Implementation Roadmap](#6-implementation-roadmap)
+   1. [Phase 1: Foundation](#61-phase-1-foundation)
+   2. [Phase 2: Core Functionality](#62-phase-2-core-functionality)
+   3. [Phase 3: Refinement](#63-phase-3-refinement)
+   4. [Future Enhancements (Post-MVP)](#64-future-enhancements-post-mvp)
+7. [Traceability Matrix](#7-traceability-matrix)
+   1. [User Stories to Requirements](#71-user-stories-to-requirements)
+8. [Acceptance Criteria](#8-acceptance-criteria)
+   1. [Success Metrics](#81-success-metrics)
+   2. [User Acceptance Criteria](#82-user-acceptance-criteria)
+9. [Risks & Mitigation](#9-risks--mitigation)
+   1. [Technical Risks](#91-technical-risks)
+   2. [External Dependency Risks](#92-external-dependency-risks)
+   3. [Performance Risks](#93-performance-risks)
+   4. [Security Risks](#94-security-risks)
+   5. [Operational Risks](#95-operational-risks)
+10. [Testing & Validation](#10-testing--validation)
+    1. [Testing Strategy](#101-testing-strategy)
+    2. [Debugging and Troubleshooting](#102-debugging-and-troubleshooting)
+11. [Deployment & Maintenance Plan](#11-deployment--maintenance-plan)
+    1. [Deployment Strategy](#111-deployment-strategy)
+    2. [Maintenance Plan](#112-maintenance-plan)
 
 ## Documentation Guide
 
@@ -65,6 +64,7 @@ This requirements document outlines what the SothebAIs system should do and why.
 - **Implementation Tasks**: The [TODO document](TODO.md) tracks implementation progress against these requirements
 
 ## 1. Introduction/Overview
+
 ### 1.1. Purpose and Scope
 
 #### 1.1.1. Purpose
@@ -77,13 +77,11 @@ SothebAI's elevates the auction experience by:
 
 #### 1.1.2. Scope
 
-The system will be a collection of services that can be hosted on hardware powerful enough to handle livestreaming. Should be something relatively simple. 
+The system will be a collection of services that can be hosted on hardware powerful enough to handle livestreaming. Should be something relatively simple.
 
-### 1.2. Definitions
+### 1.2. Definitions and Terminology
 
 #### 1.2.1. Entities
-
-Entities are the main elements and participants in the auction, the characters in the stream and the people behind the auction.
 - **Viewer**: A twitter/X account that is watching the livestream.
 - **Bidder**: A twitter/X account with an assocated wallet address and at least one bid.
 - **Auction Host**: The twitter/X account and associated character that is hosting the auction.
@@ -93,16 +91,18 @@ Entities are the main elements and participants in the auction, the characters i
 - **Artwork**: A single item from the collection that is being auctioned.
 - **Admin**: A user with privileged access to manage auctions, streams, and system configuration.
 
-#### 1.2.2. Standard Terms
-- **Wallet**: A cryptocurrency wallet that holds digital assets and is used to place bids.
-- **Smart Contract**: Self-executing code on the blockchain that enforces auction rules and handles transactions.
-- **Transaction**: A record of cryptocurrency transfer on the blockchain, used to validate bids.
-- **NFT (Non-Fungible Token)**: A unique digital asset represented on the blockchain that proves ownership of the artwork.
+#### 1.2.2. Auction Hierarchy
+- **Campaign**: A series of regularly scheduled auction events spanning multiple days.
+- **Auction Session**: A day of the campaign that has pre-auction, auction, and post-auction stages.
+- **Auction Stage**: The main bidding period within an auction session (typically 14:00-16:00 EST).
+- **Lot**: An individual item being auctioned within the auction stage. Multiple lots can be auctioned sequentially during a single auction stage.
+- **Bid**: An offer made by a participant to purchase a specific lot.
 
+### 1.3. Auction Flow and Process
 
-#### 1.2.3. Events
+Events detail the different phases of the campaign and auction, including the parameters associated with them.
 
-Events detail the different phases of the campaign and auction. Includes the parameters associated with them.
+#### 1.3.1. Campaign Flow
 
 ```mermaid
 graph LR
@@ -132,81 +132,67 @@ graph LR
     end
 ```
 
-- **Campaign**: A series of regularly scheduled Auctions.
+#### 1.3.2. Campaign Parameters
 
-    | Parameters    | Example                |
-    |:-------------|:--------------------|
-    | Name         | Summer NFT Series   |
-    | Start Date   | 2024-06-01         |
-    | End Date     | 2024-08-31         |
-    | Duration     | 60 days            |
-    | Auction Interval | 2 hours        |
-    | Project      | Yuga Labs          |
-    | Collection   | CryptoPunks        |
-- **Auction Session**: A day of the campaign that has a pre-bidding, bidding and   post-bidding phase.
-    - The Auction Session is assiated with a stream-key internally to be generated daily. 
-    - The Auction Session has three stages:
-    - **Pre-Auction**:
-        - Section of the campaign that occurs before the auction starts.
-        - Used to send announcements and publicize the auction.
-        - Begins at 12:00 AM EST on the day of the auction.
-        
-        | Parameters    | Example                |
-        |:-------------|:--------------------|
-        | Start Time   | 2024-06-01 00:00 EST|
-        | End Time     | 2024-06-01 14:00 EST|
-    - **Auction**: 
-        - A timed-event held on a livestream that at least one art  items     that are being auctioned.
-        
-        | Parameters     | Example                |
-        |:--------------|:--------------------|
-        | Name          | Genesis #1          |
-        | Start Time    | 2024-06-01 14:00 EST|
-        | End Time      | 2024-06-01 16:00 EST|
-        | Art Item      | CryptoPunk #1234    |
-        | Starting Price| 1 ETH               |
-        | Current Price | 2.5 ETH             |
-        | Highest Bidder| @crypto_collector   |
-    - **Post-Auction**:
-        - Section of the campaign that occurs after the auction ends.
-        - Settle the winning bid and transfer the NFT to the winner.
-        - Send notifications to the winner and the runner up.
-        - Announce the end of the auction.
-        - Ends at 11:59 PM EST on the day of the auction.
-        
-        | Parameters    | Example                |
-        |:-------------|:--------------------|
-        | Start Time   | 2024-06-01 16:00 EST|
-        | End Time     | 2024-06-01 23:59 EST|
+| Parameters    | Example                |
+|:-------------|:--------------------|
+| Name         | Summer NFT Series   |
+| Start Date   | 2024-06-01         |
+| End Date     | 2024-08-31         |
+| Duration     | 60 days            |
+| Auction Interval | 2 hours        |
+| Project      | Yuga Labs          |
+| Collection   | CryptoPunks        |
 
-- **Livestream**
-    - A livestream that is being hosted on X/Twitter and is a reflecting of the internal state of the system.
-    
-    | Parameters    | Example                |
-    |:-------------|:--------------------|
-    | Name         | Genesis Auction #1   |
-    | Start Time   | 2024-06-01 13:45 EST|
-    | End Time     | 2024-06-01 16:15 EST|
-    | Auction      | Genesis #1          |
+#### 1.3.3. Auction Session Stages
 
-#### 1.2.4. Visual Components
-- **Assets**
-    - Static assets stored locally or remotely that are used in the the Scene/Render.
-- **Scene**
-    - High level description of elements.
-    - Background, Quadrant, Overlay layers.
-    - Quadrant-based scene composition.
-    - Assets positioned relative to quadrant bounds.
-    - Z-index ordering within quadrants.
+The Auction Session is associated with a stream-key internally to be generated daily. Each session has three stages:
 
-- **Composition**
-    - Takes the scene data and renders it to an image.
-    - Internal data representation to image.
-- **Feed**
-    - The stream that is generated from the ffmpeg process.
-    - Image to Video.
-- **Stream**
-    - The stream that is send from the RTMP server to X/Twitter.
+- Pre-Auction
+  - Section of the campaign that occurs before the auction starts
+  - Used to send announcements and publicize the auction
+  - Begins at 12:00 AM EST on the day of the auction
+
+  | Parameters    | Example                |
+  |:-------------|:--------------------|
+  | Start Time   | 2024-06-01 00:00 EST|
+  | End Time     | 2024-06-01 14:00 EST|
+
+- Auction
+  - A timed-event held on a livestream with at least one art item being auctioned
+
+  | Parameters     | Example                |
+  |:--------------|:--------------------|
+  | Name          | Genesis #1          |
+  | Start Time    | 2024-06-01 14:00 EST|
+  | End Time      | 2024-06-01 16:00 EST|
+  | Art Item      | CryptoPunk #1234    |
+  | Starting Price| 1 ETH               |
+  | Current Price | 2.5 ETH             |
+  | Highest Bidder| @crypto_collector   |
+
+- Post-Auction
+  - Section of the campaign that occurs after the auction ends
+  - Settle the winning bid and transfer the NFT to the winner
+  - Send notifications to the winner and the runner up
+  - Announce the end of the auction
+  - Ends at 11:59 PM EST on the day of the auction
+
+  | Parameters    | Example                |
+  |:-------------|:--------------------|
+  | Start Time   | 2024-06-01 16:00 EST|
+  | End Time     | 2024-06-01 23:59 EST|
+
+#### 1.3.4. Livestream Details
+
+| Parameters    | Example                |
+|:-------------|:--------------------|
+| Name         | Genesis Auction #1   |
+| Start Time   | 2024-06-01 13:45 EST|
+| End Time     | 2024-06-01 16:15 EST|
+| Auction      | Genesis #1          |
+
+#### 1.3.5. Stream Components
 
 ```mermaid
 flowchart LR
@@ -222,16 +208,27 @@ flowchart LR
     style ST fill:#fbb,stroke:#333,stroke-width:2px
 ```
 
-### 1.3. User Stories
+- **Assets**: Static assets stored locally or remotely that are used in the Scene/Render
+- **Scene**: 
+  - High level description of elements
+  - Background, Quadrant, Overlay layers
+  - Quadrant-based scene composition
+  - Assets positioned relative to quadrant bounds
+  - Z-index ordering within quadrants
+- **Composition**: Takes the scene data and renders it to an image
+- **Feed**: The stream that is generated from the ffmpeg process
+- **Stream**: The stream that is sent from the RTMP server to X/Twitter
 
-#### 1.3.1. Viewer Stories
+### 1.4. User Stories
+
+#### 1.4.1. Viewer Stories
 - **As a viewer**, I want to watch NFT auctions in real-time on Twitter/X so that I can follow the market without actively participating.
 - **As a viewer**, I want to see the current bid amount and time remaining so that I can understand the auction's progress.
 - **As a viewer**, I want to see the artwork being auctioned in high quality so that I can appreciate its details.
 - **As a viewer**, I want to receive notifications about upcoming auctions so that I don't miss events I'm interested in.
 - **As a viewer**, I want to interact with the auction host through tweets so that I can ask questions and feel engaged.
 
-#### 1.3.2. Bidder Stories
+#### 1.4.2. Bidder Stories
 - **As a bidder**, I want to place bids via tweets so that I can participate in auctions without leaving Twitter/X.
 - **As a bidder**, I want to receive immediate confirmation of my bid so that I know it was processed correctly.
 - **As a bidder**, I want to be notified when I'm outbid so that I can decide whether to place a higher bid.
@@ -239,7 +236,7 @@ flowchart LR
 - **As a bidder**, I want to receive notifications when I win an auction so that I can complete the transaction.
 - **As a bidder**, I want to connect my crypto wallet to my Twitter/X account so that I can participate in auctions seamlessly.
 
-#### 1.3.3. Admin Stories
+#### 1.4.3. Admin Stories
 - **As an admin**, I want to configure auction parameters so that I can set up new auctions quickly.
 - **As an admin**, I want to monitor stream health in real-time so that I can address technical issues promptly.
 - **As an admin**, I want to preview the stream composition before going live so that I can ensure everything looks correct.
@@ -247,12 +244,11 @@ flowchart LR
 - **As an admin**, I want to upload and manage assets so that I can customize the visual appearance of auctions.
 - **As an admin**, I want to view system performance metrics so that I can optimize resource usage.
 
-#### 1.3.4. Project Owner Stories
+#### 1.4.4. Project Owner Stories
 - **As a project owner**, I want to schedule a campaign of auctions so that I can sell my NFT collection systematically.
 - **As a project owner**, I want to customize the auction host's personality so that it aligns with my brand.
 - **As a project owner**, I want to view analytics about auction performance so that I can understand market interest.
 - **As a project owner**, I want to receive reports on completed auctions so that I can track sales and revenue.
-
 
 ## 2. Functional Requirements
 What the system should do.
@@ -462,6 +458,24 @@ Visual composition and real-time rendering capabilities.
 - Support real-time updates (Priority: **HIGH**)
 - Ensure visual quality standards (Priority: **MEDIUM**)
 
+### 2.5. Integrations
+
+- Must integrate with Twitter/X API for:
+  - Bid monitoring (Priority: **CRITICAL**)
+  - Stream delivery (Priority: **CRITICAL**)
+  - User interactions (Priority: **HIGH**)
+- Must integrate with blockchain data providers for:
+  - Transaction monitoring (Priority: **CRITICAL**)
+  - NFT ownership verification (Priority: **HIGH**)
+  - Wallet balance checks (Priority: **HIGH**)
+  - Historical data access (Priority: **MEDIUM**)
+- Must support asset management for:
+  - NFT artwork (Priority: **CRITICAL**)
+  - Stream overlays (Priority: **HIGH**)
+  - Character assets (Priority: **MEDIUM**)
+
+For technical details on these integrations, see the [Architecture Documentation](architecture.md).
+
 ## 3. Non-functional Requirements
 How the system should perform.
 
@@ -649,9 +663,6 @@ How the system should perform.
 ## 5. Constraints
 
 ### 5.1. Technical Constraints
-- **Available Hardware**:
-  - Development Server: Laptop with Intel i7-10750H CPU, NVIDIA RTX 2070 Super GPU, 32GB RAM
-  - Client Testing: Apple M4 Mac Mini with 16GB RAM
 - **Network Limitations**:
   - Standard residential internet connection
   - Limited upload bandwidth for streaming
@@ -1604,4 +1615,5 @@ Before the first campaign or livestream marathon:
   - Configuration dependencies
 
 This comprehensive maintenance plan ensures the system remains reliable, secure, and performant throughout its lifecycle, with clear procedures for routine maintenance, incident response, and ongoing optimization.
+
 

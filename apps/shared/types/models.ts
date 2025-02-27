@@ -41,6 +41,40 @@ export interface Campaign {
   collectionId?: string;
 }
 
+// Auction Session Types
+export interface AuctionSession {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  sessionDate: Date;
+  preAuctionStartTime: Date;
+  preAuctionEndTime: Date;
+  auctionStartTime: Date;
+  auctionEndTime: Date;
+  postAuctionStartTime: Date;
+  postAuctionEndTime: Date;
+  status: 'SCHEDULED' | 'PRE_AUCTION' | 'AUCTION' | 'POST_AUCTION' | 'COMPLETED' | 'CANCELLED';
+  streamKey?: string;
+  campaignId: string;
+}
+
+// Auction (Lot) Types
+export interface Auction {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  startTime: Date;
+  endTime: Date;
+  reservePrice?: number;
+  minBidIncrement?: number;
+  currency: string;
+  status: 'SCHEDULED' | 'ACTIVE' | 'ENDED' | 'SETTLED' | 'CANCELLED';
+  auctionSessionId?: string;
+  artItemId: string;
+  winningBidId?: string;
+  lotOrder: number;
+}
+
 // Collection Types
 export interface Collection {
   id: string;
@@ -66,22 +100,6 @@ export interface ArtItem {
   animationUrl?: string;
   metadata?: Record<string, any>;
   collectionId?: string;
-}
-
-// Auction Types
-export interface Auction {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  startTime: Date;
-  endTime: Date;
-  reservePrice?: number;
-  minBidIncrement?: number;
-  currency: string;
-  status: 'SCHEDULED' | 'ACTIVE' | 'ENDED' | 'SETTLED' | 'CANCELLED';
-  campaignId?: string;
-  artItemId: string;
-  winningBidId?: string;
 }
 
 // Bid Types
@@ -142,6 +160,39 @@ export interface UserDTO {
   avatarUrl?: string;
 }
 
+export interface CampaignDTO {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  collection?: {
+    id: string;
+    name: string;
+    imageUrl?: string;
+  };
+  sessionCount: number;
+}
+
+export interface AuctionSessionDTO {
+  id: string;
+  sessionDate: string;
+  preAuctionStartTime: string;
+  preAuctionEndTime: string;
+  auctionStartTime: string;
+  auctionEndTime: string;
+  postAuctionStartTime: string;
+  postAuctionEndTime: string;
+  status: string;
+  streamKey?: string;
+  campaign: {
+    id: string;
+    name: string;
+  };
+  lots: AuctionDTO[];
+  currentLotId?: string;
+}
+
 export interface AuctionDTO {
   id: string;
   startTime: string;
@@ -149,6 +200,7 @@ export interface AuctionDTO {
   status: string;
   currentPrice?: number;
   currency: string;
+  lotOrder: number;
   artItem: {
     id: string;
     name: string;
@@ -166,18 +218,4 @@ export interface BidDTO {
   currency: string;
   timestamp: string;
   bidder: UserDTO;
-}
-
-export interface CampaignDTO {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  status: string;
-  collection?: {
-    id: string;
-    name: string;
-    imageUrl?: string;
-  };
-  auctionCount: number;
 } 
