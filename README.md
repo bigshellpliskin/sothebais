@@ -191,4 +191,7 @@ Monitoring is automatically enabled in production environments.
 
 ## License
 
-[License Type] - See LICENSE file for details 
+[License Type] - See LICENSE file for details
+
+## Git Repository
+This repository was initialized on March 13, 2024. The codebase is now properly tracked with Git using the `main` branch as the primary development branch. 
