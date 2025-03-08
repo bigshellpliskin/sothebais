@@ -1,0 +1,11 @@
+{
+  "name": "@sothebais/types",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+} 

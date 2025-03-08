@@ -1,0 +1,78 @@
+---
+description: How to use the local /docs folder
+globs: .md, requirements.md, architecture.md, 
+alwaysApply: false
+---
+# Documentation Navigation Guide
+
+Projects are built using structured documentation. Each document serves a specific purpose in understanding and implementing the system. Use this guide to efficiently navigate the documentation for different types of questions.
+
+## Core Documentation Files
+
+### Required Documents
+- [requirements.md](mdc:docs/requirements.md) - **What the system should do**
+  - Contains user stories, functional requirements, and constraints
+  - Use when questions involve "what features are needed" or "what should the system do"
+  - Foundational document that all implementation decisions must align with
+
+- [architecture.md](mdc:docs/architecture.md) - **How the system should be built**
+  - Details system design, components, and their interactions
+  - Use when questions involve "how should this be implemented" or "what patterns should be used"
+  - Provides technical guidance on implementation approach and standards
+
+- [implementation-plan.md](mdc:docs/implementation-plan.md) - **Current project status**
+  - Shows the roadmap and progress of development
+  - Use when questions involve "what's the priority" or "what's next to implement"
+  - Provides context on what has been completed and what still needs work
+
+### Supporting Documents
+- [project-structure.md](mdc:docs/project-structure.md) - **Codebase organization**
+  - Explains the project's directory structure
+  - Use when questions involve "where should I put this code" or "how is the codebase organized"
+
+- [api-documentation.md](mdc:docs/api-documentation.md) - **Interface specifications**
+  - Details all API endpoints and their usage
+  - Use when questions involve service interactions or interface requirements
+
+- [schema.md](mdc:docs/schema.md) - **Data structures**
+  - Defines database schemas, data models, and event structures
+  - Use when questions involve data storage, retrieval, or event handling
+
+## Documentation Usage Strategy
+
+### For Implementation Questions
+1. First, check **requirements.md** to understand what needs to be built
+2. Then, consult **architecture.md** to see how it should be designed
+3. Reference **schema.md** for data structure details
+4. Check **implementation-plan.md** to verify the task's priority and dependencies
+
+### For Understanding Existing Code
+1. Start with **project-structure.md** to locate relevant code files
+2. Use **architecture.md** to understand component relationships
+3. Check **api-documentation.md** for interface details
+4. Refer to **schema.md** for data structure insights
+
+### For Planning Tasks
+1. Review **implementation-plan.md** for current progress and priorities
+2. Cross-reference with **requirements.md** to ensure alignment with goals
+3. Check **architecture.md** for design constraints
+
+### For Technical Decisions
+1. Always ensure alignment with the principles in **architecture.md**
+2. Validate against requirements in **requirements.md**
+3. Consider implementation impacts from **schema.md**
+
+## Documentation Hierarchy
+When documents seem to conflict, prioritize in this order:
+1. requirements.md (highest priority)
+2. architecture.md
+3. schema.md
+4. api-documentation.md
+5. implementation-plan.md
+6. project-structure.md (lowest priority)
+
+## Documentation Navigation Tips
+- Use the table of contents at the start of each document for quick navigation
+- Reference related documents when providing recommendations
+- Always cite the specific section of documentation you're using in your responses
+- When implementing features, cross-reference multiple documents to ensure comprehensive understanding
