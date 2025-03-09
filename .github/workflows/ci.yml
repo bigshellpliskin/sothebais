@@ -17,20 +17,20 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Build Docker image for testing
+        uses: docker/build-push-action@v4
         with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        working-directory: ./apps/${{ matrix.service }}
-        run: npm ci || npm install
-        
-      - name: Build
-        working-directory: ./apps/${{ matrix.service }}
-        run: npm run build
-        
-      # Uncomment when tests are configured
-      # - name: Test
-      #   working-directory: ./apps/${{ matrix.service }}
-      #   run: npm test
+          context: ./apps/${{ matrix.service }}
+          push: false
+          load: true
+          tags: sothebais-${{ matrix.service }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Uncomment and adapt when tests are configured
+      # - name: Run tests in Docker container
+      #   run: |
+      #     docker run --rm sothebais-${{ matrix.service }}:test npm test
