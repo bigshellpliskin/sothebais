@@ -5,35 +5,31 @@ FROM node:20-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache curl
 
-# Development stage
+# Development stage - useful for local development with hot reloading
 FROM base AS development
-# Install dependencies
 COPY package*.json ./
+# Use --package-lock-only first to update package-lock without installing
+RUN npm install --package-lock-only
+RUN npm install
+COPY . .
+EXPOSE 4100 4190 4191
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:4191/health || exit 1
+CMD ["npm", "run", "dev"]
+
+# Production image - builds TypeScript and creates production image
+FROM base AS production
+# Copy package files and install dependencies
+COPY package*.json ./
+# Use --package-lock-only first to update package-lock without installing
+RUN npm install --package-lock-only
 RUN npm install
 # Copy source code
 COPY . .
-# Expose ports (4100: Main API, 4190: Metrics, 4191: Health)
-EXPOSE 4100 4190 4191
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:4191/health || exit 1
-# Start development server with hot reload
-CMD ["npm", "run", "dev"]
-
-# Build stage
-FROM base AS builder
-COPY package*.json ./
-RUN npm ci
-COPY . .
+# Build TypeScript
 RUN npm run build
-
-# Production stage
-FROM base AS production
-# Copy package files and install only production dependencies
-COPY package*.json ./
-RUN npm ci --only=production
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Prune development dependencies after build
+RUN npm install --omit=dev
 # Expose ports
 EXPOSE 4100 4190 4191
 # Health check
