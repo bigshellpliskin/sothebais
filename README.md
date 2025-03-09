@@ -4,14 +4,48 @@ A decentralized NFT auction system with VTuber integration, powered by Shape L2 
 
 ## System Overview
 
-The system consists of several microservices:
-- **Auction Manager**: Handles NFT lifecycle and bid processing
-- **Event Handler**: Manages system-wide event orchestration
-- **Stream Manager**: Handles Twitter integration and bid monitoring
-- **Shape L2 Integration**: Manages blockchain interactions
-- **ElizaOS**: VTuber character system and visual output
-- **Admin Frontend**: Service managment and monitoring
+The system consists of several microservices organized as independent applications:
 
+- **Admin Frontend**: Next.js dashboard for system management and monitoring
+- **Auction Engine**: Handles NFT lifecycle, auction logic, and bid processing
+- **ElizaOS**: VTuber character system and visual composition for streams
+- **Event Handler**: Manages system-wide event orchestration via Redis pub/sub
+- **Stream Manager**: Manages Twitter/X integration, streams, and real-time interactions
+- **Shared Services**: Common code, schemas, and type definitions used across services
+
+## Project Structure
+
+```
+sothebais/
+├── apps/                  # Application services
+│   ├── admin/             # Admin dashboard frontend
+│   ├── auction-engine/    # Auction logic service
+│   ├── eliza/             # VTuber character system
+│   ├── event-handler/     # Event processing service
+│   ├── shared/            # Shared code and utilities
+│   │   ├── schema/        # Database schemas
+│   │   │   ├── prisma/    # PostgreSQL schema (Prisma)
+│   │   │   ├── redis/     # Redis schema definitions
+│   │   └── types/         # TypeScript type definitions
+│   └── stream-manager/    # Stream management service
+├── data/                  # Persistent data storage
+├── docs/                  # Project documentation
+├── .env                   # Environment variables (gitignored)
+└── compose.yaml           # Docker Compose configuration
+```
+
+For complete documentation, see the [docs](./docs) directory.
+
+## Technical Stack
+
+- **Frontend**: Next.js, React
+- **Backend**: Node.js with TypeScript
+- **Data Storage**: 
+  - PostgreSQL (via Prisma) for persistent data
+  - Redis for real-time state and messaging
+  - Docker volumes for asset storage
+- **Deployment**: Docker & Docker Compose
+- **Monitoring**: Prometheus & Grafana
 
 ## Quick Start
 
@@ -29,30 +63,23 @@ git clone <repository-url>
 cd sothebais
 ```
 
-2. Initialize the environment:
-```bash
-# For local development
-./run.sh setup local --stage dev
-
-# For production deployment
-./run.sh setup vps --stage prod
-```
-
-3. Configure environment variables:
-   - The setup script will create a `.env` file from `.env.example`
+2. Configure environment variables:
+   - Copy `.env.example` to `.env`
    - Update the variables in `.env` according to your needs
-   - For production, make sure to configure SSL/TLS, monitoring, and backup settings
 
-4. Start the services:
+3. Start the services:
 ```bash
-# Start all services locally
-./run.sh start local --stage dev
+# Start all services
+docker compose up -d
 
 # Start specific service
-./run.sh start local --stage dev --service auction-manager
+docker compose up -d auction-engine
 
-# Start production services
-./run.sh start vps --stage prod
+# Start with build
+docker compose up -d --build
+
+# Start with logs
+docker compose up
 ```
 
 Services will be available at:
@@ -71,11 +98,7 @@ Our port allocation follows a systematic approach for security, scalability, and
 
 #### Core Application Services (4000-4999)
 Each service gets a 100-port range for main service and auxiliary endpoints:
-- Shape L2: 4000-4099
-  - Main API: http://localhost:4000
-  - Metrics: http://localhost:4090
-  - Health: http://localhost:4091
-- Auction Manager: 4100-4199
+- Auction Engine: 4100-4199
   - Main API: http://localhost:4100
   - Metrics: http://localhost:4190
   - Health: http://localhost:4191
@@ -97,6 +120,7 @@ Each service gets a 100-port range for main service and auxiliary endpoints:
 
 #### Infrastructure Services (6000-9999)
 - Redis: http://localhost:6379 (standard Redis port)
+- PostgreSQL: http://localhost:5432 (standard PostgreSQL port)
 - Adminer: http://localhost:6380 (database management)
 - Prometheus: http://localhost:9090 (metrics collection)
 - Node Exporter: http://localhost:9100 (system metrics)
@@ -110,41 +134,55 @@ Each service gets a 100-port range for main service and auxiliary endpoints:
 #### Development vs Production
 - Development: All ports are exposed as listed above
 - Production: Only ports 80/443 exposed publicly, all internal communication via Docker network
-- Staging: Limited port exposure based on testing needs
 
-## Environment Management
+## Data Storage Strategy
+
+The system uses a hybrid approach to data management:
+
+1. **PostgreSQL** (via Prisma)
+   - Persistent, relational data (users, auctions, bids, etc.)
+   - Historical records and analytics data
+
+2. **Redis**
+   - Real-time state (active auctions, streams)
+   - Event pub/sub for inter-service communication
+   - Caching and rate limiting
+
+3. **File System** (Docker Volumes)
+   - Stream assets and media files
+   - Config files and certificates
+
+## Service Management
 
 ### Available Commands
 ```bash
 # View service logs
-./run.sh logs local --service auction-manager --lines 100
+docker compose logs auction-engine
+docker compose logs auction-engine --tail=100 -f
 
 # Check service status
-./run.sh status local
+docker compose ps
 
-# Create backups
-./run.sh backup local --type full    # full backup
-./run.sh backup local --type db      # database only
-./run.sh backup local --type logs    # logs only
-
-# Clean up resources
-./run.sh clean local --clean all     # clean everything
-./run.sh clean local --clean docker  # clean docker resources
-./run.sh clean local --clean data    # clean data directory
+# Stop services
+docker compose stop
+docker compose stop auction-engine
 
 # Restart services
-./run.sh restart local --stage dev
+docker compose restart
+docker compose restart auction-engine
+
+# Tear down everything
+docker compose down
+
+# Tear down and remove volumes
+docker compose down -v
 ```
 
 ## Environment Configurations
 
-| Environment | Purpose | Stage | Usage |
-|------------|---------|-------|--------|
-| Local | Development and testing | dev | ./run.sh start local --stage dev |
-| VPS Dev | Staging and integration | dev | ./run.sh start vps --stage dev |
-| Production | Live deployment | prod | ./run.sh start vps --stage prod |
+The system is designed to run in both development and production environments using the same Docker Compose configuration, with environment variables controlling the behavior.
 
-See [Deployment Configuration](docs/deployment-config.md) for detailed environment information.
+See [Architecture Document](docs/architecture.md) for detailed environment information.
 
 ## Monitoring
 
@@ -155,7 +193,7 @@ The system includes comprehensive monitoring:
 - **Node Exporter**: System metrics
 - **Custom Metrics**: Application-specific monitoring
 
-Monitoring is automatically enabled in production environments.
+Monitoring is automatically enabled for all environments.
 
 ## Security
 
@@ -172,15 +210,45 @@ Monitoring is automatically enabled in production environments.
 
 ## Backup Strategy
 
-### Development
-- Manual backups via `./run.sh backup local`
-- Volume mounts for persistence
+### Data Backup
+```bash
+# PostgreSQL backup
+docker compose exec postgres pg_dump -U postgres sothebais > backup_$(date +%Y%m%d).sql
 
-### Production
-- Automated hourly backups
-- 30-day retention
-- Transaction log backups
-- Automated restore testing
+# Redis backup
+docker compose exec redis redis-cli SAVE
+
+# Full data directory backup
+tar -czvf data_backup_$(date +%Y%m%d).tar.gz data/
+```
+
+For production environments, consider setting up cron jobs for automated backups.
+
+## Implementation Plan
+
+Development is organized into phases:
+
+1. **Phase 0: Setup & Infrastructure**
+   - Repository setup
+   - Development environment configuration
+   - Docker and tooling setup
+
+2. **Phase 1: Foundation**
+   - Data layer implementation
+   - Core service containers
+   - Basic communication between services
+
+3. **Phase 2: Core System**
+   - Auction engine functionality
+   - Stream management
+   - Event processing system
+
+4. **Phase 3: Complete Product**
+   - ElizaOS integration
+   - UI refinement
+   - Performance optimization
+
+See [Implementation Plan](docs/implementation-plan.md) for detailed development roadmap.
 
 ## Contributing
 

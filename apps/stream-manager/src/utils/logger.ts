@@ -1,5 +1,5 @@
 import pino from 'pino';
-import type { Config } from '../config/index.js';
+import type { Config } from '../types/config.js';
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
