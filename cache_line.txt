@@ -1,1 +1,0 @@
-cache-dependency-path: apps/\${{ matrix.service }}/package-lock.json
