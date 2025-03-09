@@ -13,7 +13,7 @@ export class RedisService {
       host: redisHost,
       port: parseInt(redisPort),
       password: redisPassword,
-      retryStrategy: (times) => {
+      retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
       }
@@ -24,7 +24,7 @@ export class RedisService {
       console.log('Connected to Redis');
     });
 
-    this.client.on('error', (err) => {
+    this.client.on('error', (err: Error) => {
       console.error('Redis connection error:', err);
     });
   }
@@ -72,7 +72,7 @@ export class RedisService {
 
   private async getRedisInfo(): Promise<any> {
     const info = await this.client.info();
-    return info.split('\r\n').reduce((acc: any, line) => {
+    return info.split('\r\n').reduce((acc: any, line: string) => {
       const [key, value] = line.split(':');
       if (key && value) {
         acc[key.trim()] = value.trim();
@@ -121,7 +121,7 @@ export class RedisService {
   async getBidHistory(marathonId: string, dayNumber: number): Promise<Bid[]> {
     const key = `auction:${marathonId}:day:${dayNumber}:bids`;
     const bids = await this.client.zrange(key, 0, -1);
-    return bids.map(bid => JSON.parse(bid));
+    return bids.map((bid: string) => JSON.parse(bid));
   }
 
   // User Bid History
@@ -133,7 +133,7 @@ export class RedisService {
   async getUserBids(userId: string): Promise<Bid[]> {
     const key = `users:${userId}:bids`;
     const bids = await this.client.zrange(key, 0, -1);
-    return bids.map(bid => JSON.parse(bid));
+    return bids.map((bid: string) => JSON.parse(bid));
   }
 
   // Backup Methods
@@ -160,7 +160,7 @@ export class RedisService {
     await this.pruneSnapshots(marathonId);
   }
 
-  private async getAllBids(marathonId: string): Promise<{[key: string]: Bid[]}> {
+  async getAllBids(marathonId: string): Promise<{[key: string]: Bid[]}> {
     const state = await this.getCurrentAuction(marathonId);
     if (!state) return {};
 
