@@ -4,18 +4,27 @@ WORKDIR /app
 # Install dependencies including health check utilities
 RUN apk add --no-cache curl netcat-openbsd
 
-# Copy package files first
+# First create the basic directory structure
+RUN mkdir -p /app/apps/admin /app/apps/shared
+
+# Copy package files
 COPY package*.json ./
+COPY apps/admin/package*.json ./apps/admin/
+COPY apps/shared/package*.json ./apps/shared/
+
+# Copy shared directory (needed for TypeScript compilation)
+COPY apps/shared/ ./apps/shared/
 
 # Install dependencies
+WORKDIR /app/apps/admin
 RUN npm install
 
-# Add node_modules/.bin to PATH and set other environment variables
-ENV PATH="/app/node_modules/.bin:$PATH" \
-    NEXT_TELEMETRY_DISABLED=1
+# Copy the rest of the admin application
+COPY apps/admin/ ./
 
-# Copy the rest of the application
-COPY . .
+# Add node_modules/.bin to PATH and set other environment variables
+ENV PATH="/app/apps/admin/node_modules/.bin:$PATH" \
+    NEXT_TELEMETRY_DISABLED=1
 
 # Generate TypeScript types and build the application
 RUN npm run build
