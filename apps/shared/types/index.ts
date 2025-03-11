@@ -5,6 +5,9 @@
  * These are type definitions for development and don't represent actual database schemas.
  */
 
+// Core Types
+export * from './core';
+
 // Stream Types
 export * from './stream';
 
