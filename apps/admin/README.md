@@ -1,320 +1,118 @@
-# Admin Frontend Service
+# SothebAIs Admin Dashboard
 
-This service provides the administrative interface for managing and monitoring the SothebAI's NFT auction system.
+The Admin Dashboard is a Next.js application that provides administration capabilities for the SothebAIs auction platform.
 
-## Architecture Plan
+## Features
 
-### Tech Stack
-- Next.js 14+ (App Router)
-- Tailwind CSS + shadcn/ui
-- Clerk for authentication
-- React Query for data fetching
-- Zustand for state management
-- Docker Engine API for container monitoring
-- Server-Sent Events for log streaming
+- Authentication via Clerk
+- Real-time auction management
+- Stream monitoring and control
+- User management
+- System settings and configuration
 
-### Core Features
-1. Authentication & Access Control
-   - Secure login page at `/sign-in`
-   - Built-in session management
-   - Protected routes via middleware
-   - Role-based access control
-   - OAuth providers (optional)
-   - Organization management (optional)
+## Tech Stack
 
-2. Docker Service Monitoring
-   - Real-time container status monitoring
-   - Container health checks
-   - Container start/stop/restart controls
-   - Container logs streaming
+- **Framework**: Next.js 14 with App Router
+- **State Management**: Zustand
+- **UI Components**: Custom components with Radix UI primitives
+- **Styling**: Tailwind CSS
+- **Authentication**: Clerk
+- **Data Fetching**: React Query (TanStack Query)
+- **Database Connectivity**: Redis
 
-3. Log Management
-   - Real-time log streaming for each service
-   - Log search and filtering
-   - Log level filtering (ERROR, WARN, INFO, DEBUG)
-   - Log retention management
-   - Log download functionality
-   - Multi-container log correlation
+## Getting Started
 
-4. Dashboard
-   - Service health overview
-   - Container status cards
-   - System resource metrics
-   - Active auctions summary
-   - Recent events timeline
+### Prerequisites
 
-### Directory Structure
-```
-apps/admin/
-├── src/
-│   ├── app/                    # Next.js app router pages
-│   │   ├── sign-in/           # Authentication pages
-│   │   ├── dashboard/         # Protected dashboard
-│   │   ├── services/          # Service management
-│   │   └── logs/             # Log viewer
-│   ├── components/
-│   │   ├── auth/             # Authentication components
-│   │   ├── ui/               # Base UI components
-│   │   ├── features/         # Feature-specific components
-│   │   ├── monitoring/       # Docker monitoring components
-│   │   └── logs/            # Log viewing components
-│   ├── lib/
-│   │   ├── auth/            # Authentication utilities
-│   │   ├── docker/          # Docker API integration
-│   │   └── websocket/       # WebSocket handlers
-│   ├── hooks/
-│   │   ├── useAuth/         # Authentication hooks
-│   │   ├── useDockerStats/  # Docker statistics hooks
-│   │   └── useLogs/         # Log streaming hooks
-│   ├── store/               # State management
-│   ├── types/               # TypeScript types
-│   └── api/                 # API route handlers
-├── public/                  # Static assets
-├── tests/                   # Test files
-└── config/                  # Configuration files
-```
+- Node.js 20 or later
+- npm or yarn
+- Access to required services (Redis, etc.)
 
-### Core System Architecture
-
-#### 1. Authentication Layer (Clerk)
-```typescript
-// src/middleware.ts
-export default authMiddleware({
-  publicRoutes: ["/"],
-  ignoredRoutes: ["/api/health"],
-  afterAuth(auth, req) {
-    // Custom authorization logic
-  }
-});
-```
-
-#### 2. Docker Integration Layer
-```typescript
-// src/lib/docker/client.ts
-export class DockerClient {
-  private socket: string;
-  
-  constructor() {
-    this.socket = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
-  }
-
-  async listContainers() {
-    // Implementation
-  }
-
-  async getContainerLogs(id: string) {
-    // Implementation
-  }
-
-  async containerStats(id: string) {
-    // Implementation
-  }
-}
-```
-
-#### 3. Real-time Logging System
-```typescript
-// src/lib/logs/stream.ts
-export class LogStreamer {
-  private clients: Set<SSEConnection>;
-
-  async streamContainerLogs(containerId: string, client: SSEConnection) {
-    // Implementation
-  }
-
-  async broadcastLog(log: LogEntry) {
-    // Implementation
-  }
-}
-```
-
-### Feature Implementation Details
-
-#### 1. Authentication & Access Control
-```typescript
-// src/app/sign-in/[[...sign-in]]/page.tsx
-import { SignIn } from "@clerk/nextjs";
-import { Logo } from "@/components/ui/logo";
-
-export default function SignInPage() {
-  return (
-    <div className="flex min-h-screen">
-      <div className="flex-1 flex items-center justify-center">
-        <SignIn 
-          appearance={{
-            elements: {
-              rootBox: "w-full max-w-md",
-              card: "shadow-lg"
-            }
-          }}
-        />
-      </div>
-      <div className="hidden lg:flex flex-1 bg-primary">
-        <Logo className="m-auto h-12 w-12" />
-      </div>
-    </div>
-  );
-}
-```
-
-#### 2. Dashboard Layout
-```typescript
-// src/components/layout/dashboard.tsx
-export function DashboardLayout({ children }: PropsWithChildren) {
-  return (
-    <div className="min-h-screen flex">
-      <Sidebar />
-      <main className="flex-1 p-6">
-        <TopNav />
-        {children}
-      </main>
-    </div>
-  );
-}
-```
-
-#### 3. Container Monitoring
-```typescript
-// src/components/features/container-monitor.tsx
-export function ContainerMonitor() {
-  const { data: containers } = useContainers();
-  const stats = useContainerStats();
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {containers.map(container => (
-        <ContainerCard
-          key={container.id}
-          container={container}
-          stats={stats[container.id]}
-        />
-      ))}
-    </div>
-  );
-}
-```
-
-#### 4. Log Viewer
-```typescript
-// src/components/features/log-viewer.tsx
-export function LogViewer({ containerId }: { containerId: string }) {
-  const logs = useContainerLogs(containerId);
-  const [filter, setFilter] = useState<LogLevel>();
-
-  return (
-    <div className="h-[600px] flex flex-col">
-      <LogToolbar onFilterChange={setFilter} />
-      <LogList logs={logs} filter={filter} />
-    </div>
-  );
-}
-```
-
-### Development Setup
+### Installation
 
 1. Install dependencies:
-```bash
-cd apps/admin
-npm install
-npm install @clerk/nextjs
-```
+   ```bash
+   npm install
+   ```
 
 2. Set up environment variables:
+   Create a `.env.local` file with the necessary configuration (see `.env.example` if available).
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Available Scripts
+
+- `npm run dev` - Start the development server
+- `npm run build` - Build the application for production
+- `npm run start` - Start the production server
+- `npm run lint` - Run ESLint for code linting
+- `npm test` - Run Jest tests
+
+## Project Structure
+
+```
+apps/admin/
+├── public/             # Static assets
+├── src/                # Source code
+│   ├── app/            # Next.js App Router pages
+│   ├── components/     # Reusable UI components
+│   ├── hooks/          # Custom React hooks
+│   ├── lib/            # Utility libraries and configurations
+│   ├── middleware.ts   # Next.js middleware (auth, etc.)
+│   ├── store/          # Zustand state management
+│   ├── types/          # TypeScript type definitions
+│   └── utils/          # Helper functions
+├── Dockerfile          # Docker configuration for containerization
+├── next.config.js      # Next.js configuration
+├── package.json        # NPM dependencies and scripts
+└── tailwind.config.js  # Tailwind CSS configuration
+```
+
+## Docker Deployment
+
+The application includes Docker configuration for containerized deployment:
+
 ```bash
-# .env.local
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
-DOCKER_SOCKET=/var/run/docker.sock
-LOG_RETENTION_DAYS=7
+# Build the Docker image
+docker build -t sothebais-admin .
+
+# Run the container
+docker run -p 3000:3000 sothebais-admin
 ```
 
-3. Configure Docker socket access:
+Alternatively, use Docker Compose from the root directory of the monorepo:
+
 ```bash
-# For development
-sudo chmod 666 /var/run/docker.sock
-
-# For production (Dockerfile)
-FROM node:20-alpine
-RUN apk add --no-cache docker-cli
-USER node
+docker compose up admin-frontend
 ```
 
-### Security Considerations
-- Clerk handles:
-  - Session management
-  - CSRF protection
-  - Rate limiting
-  - Password hashing
-  - MFA
-  - OAuth
-- Additional security:
-  - Secure Docker socket access
-  - Log access control
-  - Socket connection security
-  - Input validation
-  - Regular security audits
+## Integration with SothebAIs Platform
 
-### Type Definitions
+The Admin Dashboard communicates with other microservices in the SothebAIs ecosystem:
 
-```typescript
-// src/types/docker.ts
-export interface Container {
-  id: string;
-  name: string;
-  status: ContainerStatus;
-  image: string;
-  ports: Port[];
-  created: Date;
-}
+- **Stream Manager**: For managing live auction streams
+- **Event Handler**: For processing system events
+- **Auction Engine**: For auction business logic
+- **Shared Library**: For common code and types
 
-export interface ContainerStats {
-  cpu: number;
-  memory: {
-    usage: number;
-    limit: number;
-  };
-  network: {
-    rx_bytes: number;
-    tx_bytes: number;
-  };
-}
+## Development Guidelines
 
-// src/types/logs.ts
-export interface LogEntry {
-  timestamp: Date;
-  level: LogLevel;
-  message: string;
-  container: string;
-  service: string;
-}
-```
+1. Follow the project's code style and patterns
+2. Write unit tests for new functionality
+3. Update documentation when making significant changes
+4. Use conventional commit messages
 
-### Implementation Steps
+## Troubleshooting
 
-1. Project Setup
-   - Initialize Next.js with TypeScript
-   - Configure Tailwind and shadcn/ui
-   - Set up Clerk authentication
-   - Configure Docker socket access
+- If you encounter connection issues, ensure the required services are running
+- For authentication problems, verify your Clerk configuration
+- Check the browser console and server logs for detailed error messages
 
-2. Core Features
-   - Implement Docker client
-   - Set up log streaming
-   - Create container monitoring
-   - Build dashboard UI
+## License
 
-3. Security & Polish
-   - Implement access controls
-   - Add error handling
-   - Set up monitoring
-   - Add loading states
-
-4. Testing & Deployment
-   - Write core tests
-   - Set up CI/CD
-   - Configure production environment
-   - Deploy initial version
-
-This implementation plan focuses on getting a secure, functional admin interface up and running as quickly as possible while maintaining good practices and security standards. 
+This project is proprietary to SothebAIs and is not licensed for public use. 
