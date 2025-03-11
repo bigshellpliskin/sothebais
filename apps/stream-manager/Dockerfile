@@ -11,7 +11,8 @@ RUN apk add --no-cache \
 # Set up Node.js app
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Always generate package-lock.json, then use npm ci for deterministic installs
+RUN npm install --package-lock-only && npm ci
 
 # Copy app source
 COPY . .
@@ -32,7 +33,7 @@ RUN apk add --no-cache \
     vips
 
 # Set up nginx configuration
-COPY config/nginx.conf /etc/nginx/nginx.conf
+COPY apps/stream-manager/config/nginx.conf /etc/nginx/nginx.conf
 
 # Create necessary directories
 RUN mkdir -p /tmp/hls && \
@@ -42,11 +43,12 @@ RUN mkdir -p /tmp/hls && \
 # Set up Node.js app
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Always generate package-lock.json, then use npm ci for deterministic installs
+RUN npm install --package-lock-only && npm ci
 
 # Copy app source and configs
 COPY . .
-COPY config/supervisord.conf /etc/supervisord.conf
+COPY apps/stream-manager/config/supervisord.conf /etc/supervisord.conf
 
 # Create storage directory
 RUN mkdir -p /app/storage && chown -R node:node /app
@@ -74,7 +76,7 @@ RUN apk add --no-cache \
     vips
 
 # Set up nginx configuration
-COPY config/nginx.conf /etc/nginx/nginx.conf
+COPY apps/stream-manager/config/nginx.conf /etc/nginx/nginx.conf
 
 # Create necessary directories
 RUN mkdir -p /tmp/hls && \
@@ -87,10 +89,11 @@ WORKDIR /app
 # Copy built app from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/package-lock.json ./
 RUN npm ci --only=production
 
 # Copy configs
-COPY config/supervisord.conf /etc/supervisord.conf
+COPY apps/stream-manager/config/supervisord.conf /etc/supervisord.conf
 
 # Create storage directory
 RUN mkdir -p /app/storage && chown -R node:node /app

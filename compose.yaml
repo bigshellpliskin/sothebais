@@ -48,8 +48,8 @@ services:
 
   admin-frontend:
     build:
-      context: ./apps/admin
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/admin/Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
@@ -92,8 +92,8 @@ services:
   # Stream Processing Service
   stream-manager:
     build:
-      context: ./apps/stream-manager
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/stream-manager/Dockerfile
       target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -188,8 +188,8 @@ services:
 
   event-handler:
     build:
-      context: ./apps/event-handler
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/event-handler/Dockerfile
       target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -242,8 +242,8 @@ services:
   # Auction Engine Service
   auction-engine:
     build:
-      context: ./apps/auction-engine
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/auction-engine/Dockerfile
       target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -299,8 +299,8 @@ services:
   # Eliza Agent Service
   eliza:
     build:
-      context: ./apps/eliza
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/eliza/Dockerfile
       target: ${NODE_ENV:-development}
     environment:
       - NODE_ENV=${NODE_ENV:-development}

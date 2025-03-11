@@ -17,7 +17,8 @@ COPY apps/shared/ ./apps/shared/
 
 # Install dependencies
 WORKDIR /app/apps/admin
-RUN npm install
+# Always generate package-lock.json, then use npm ci for deterministic installs
+RUN npm install --package-lock-only && npm ci
 
 # Copy the rest of the admin application
 COPY apps/admin/ ./

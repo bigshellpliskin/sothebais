@@ -8,9 +8,8 @@ RUN apk add --no-cache curl
 # Development stage - useful for local development with hot reloading
 FROM base AS development
 COPY package*.json ./
-# Use --package-lock-only first to update package-lock without installing
-RUN npm install --package-lock-only
-RUN npm install
+# Always generate package-lock.json, then use npm ci for deterministic installs
+RUN npm install --package-lock-only && npm ci
 COPY . .
 EXPOSE 4300 4301 4390 4391
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -21,9 +20,8 @@ CMD ["npm", "run", "dev"]
 FROM base AS production
 # Copy and install dependencies first (for better caching)
 COPY package*.json ./
-# Use --package-lock-only first to update package-lock without installing
-RUN npm install --package-lock-only
-RUN npm install --omit=dev
+# Always generate package-lock.json, then use npm ci for deterministic installs
+RUN npm install --package-lock-only && npm ci --omit=dev
 # Copy source code
 COPY . .
 # Expose ports (4300: Main API, 4301: Event Stream, 4390: Metrics, 4391: Health)
