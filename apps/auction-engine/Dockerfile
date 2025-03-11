@@ -1,4 +1,7 @@
 # syntax=docker/dockerfile:1
+# Note: This service uses a simple non-staged build approach.
+# For CI compatibility with other services that use staged builds,
+# use build args instead of targets: --build-arg BUILD_MODE=production
 FROM node:20-alpine
 WORKDIR /app
 
