@@ -242,11 +242,10 @@ services:
   # Auction Engine Service
   auction-engine:
     build:
-      context: .
-      dockerfile: ./apps/auction-engine/Dockerfile
-      target: ${NODE_ENV:-development}
+      context: ./apps/auction-engine
+      dockerfile: ./Dockerfile
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=development
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}
       - REDIS_HOST=redis
       - REDIS_PORT=${REDIS_PORT:-6379}
@@ -258,8 +257,6 @@ services:
       - LOG_PRETTY_PRINT=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./apps/auction-engine/src:/app/src:ro
-      - ./apps/auction-engine/package.json:/app/package.json:ro
       - ./data/auction:/app/storage:rw
     ports:
       - "${AUCTION_ENGINE_PORT:-4400}:${AUCTION_ENGINE_PORT:-4400}"
@@ -267,6 +264,7 @@ services:
       - "${AUCTION_ENGINE_HEALTH_PORT:-4491}:${AUCTION_ENGINE_HEALTH_PORT:-4491}"
     networks:
       - auction_net
+    command: npm run start
     labels:
       - "traefik.enable=true"
       # Main API endpoints
@@ -286,7 +284,6 @@ services:
         limits:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
-    command: npm run dev
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4491/health"]
       interval: 30s
@@ -357,14 +354,6 @@ services:
       - stream-manager
 
 x-volumes:
-  dev.volumes.auction-engine: &dev-volumes
-    - ./apps/auction-engine/src:/app/src:ro
-    - ./apps/auction-engine/package.json:/app/package.json:ro
-    - ./data/auction:/app/storage:rw
-  
-  prod.volumes.auction-engine:
-    - ./data/auction:/app/storage:rw
-
   dev.volumes.stream-manager:
     - type: bind
       source: ./.env
@@ -409,13 +398,9 @@ x-volumes:
     - ./data/event-handler:/app/storage:rw
 
 x-commands:
-  dev.command.auction-engine: &dev-command
+  dev.command.event-handler:
     npm run dev
   
-  prod.command.auction-engine:
-    npm run start
-
-  dev.command.event-handler: *dev-command
   prod.command.event-handler:
     npm run start
 
