@@ -10,6 +10,10 @@ FROM base AS development
 COPY package*.json ./
 # Always generate package-lock.json, then use npm ci for deterministic installs
 RUN npm install --package-lock-only && npm ci
+
+# Verify that development tools are installed
+RUN npm list ts-node-dev || npm install -g ts-node-dev
+
 COPY . .
 EXPOSE 4100 4190 4191
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

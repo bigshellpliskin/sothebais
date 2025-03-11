@@ -6,7 +6,8 @@ RUN apk add --no-cache \
     python3 \
     build-base \
     g++ \
-    vips-dev
+    vips-dev \
+    git
 
 # Set up Node.js app
 WORKDIR /app
@@ -30,7 +31,8 @@ RUN apk add --no-cache \
     netcat-openbsd \
     supervisor \
     ffmpeg \
-    vips
+    vips \
+    git
 
 # Set up nginx configuration
 COPY apps/stream-manager/config/nginx.conf /etc/nginx/nginx.conf
@@ -44,11 +46,15 @@ RUN mkdir -p /tmp/hls && \
 WORKDIR /app
 COPY package*.json ./
 # Always generate package-lock.json, then use npm ci for deterministic installs
+# Don't use --only=production to ensure dev dependencies are installed
 RUN npm install --package-lock-only && npm ci
 
 # Copy app source and configs
 COPY . .
 COPY apps/stream-manager/config/supervisord.conf /etc/supervisord.conf
+
+# Verify that development tools are installed
+RUN npm list tsx || npm install -g tsx
 
 # Create storage directory
 RUN mkdir -p /app/storage && chown -R node:node /app

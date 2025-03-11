@@ -345,7 +345,7 @@ services:
         limits:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
-    command: npm run dev
+    command: npm run start
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4591/health"]
       interval: 30s
