@@ -47,6 +47,71 @@ For complete documentation, see the [docs](./docs) directory.
 - **Deployment**: Docker & Docker Compose
 - **Monitoring**: Prometheus & Grafana
 
+## Git Submodules
+
+### ElizaOS Integration
+
+This project uses Git submodules to manage the ElizaOS integration. The `apps/eliza` directory is a submodule pointing to our custom fork of the ElizaOS Starter repository at [bigshellpliskin/eliza-sothebais](https://github.com/bigshellpliskin/eliza-sothebais).
+
+#### Initial Setup
+
+When cloning this repository, you need to initialize the submodules:
+
+```bash
+# Clone with submodules
+git clone --recurse-submodules <repository-url>
+cd sothebais
+
+# OR, if already cloned
+git submodule init
+git submodule update
+```
+
+#### Updating the ElizaOS Submodule
+
+We follow a controlled update strategy for ElizaOS updates using our custom fork:
+
+```bash
+# Navigate to the submodule directory
+cd apps/eliza
+
+# Fetch the latest changes
+git fetch origin
+git checkout origin/main
+
+# Return to project root
+cd ../..
+
+# Commit the submodule update
+git add apps/eliza
+git commit -m "Update ElizaOS to latest version"
+```
+
+#### Custom Modifications
+
+Our fork at [bigshellpliskin/eliza-sothebais](https://github.com/bigshellpliskin/eliza-sothebais) contains customized modifications for the SothebAIs project, particularly in the Dockerfile. When updating, always:
+1. Review the changes in our fork against the upstream repository
+2. Verify our customizations are preserved after updating
+3. Test functionality thoroughly before deploying to production
+
+#### Switching to Our Fork
+
+If your submodule is still pointing to the original repository, switch to our fork with:
+
+```bash
+# Remove the existing submodule
+git submodule deinit -f apps/eliza
+git rm -f apps/eliza
+rm -rf .git/modules/apps/eliza
+
+# Add our forked repository as the submodule
+git submodule add https://github.com/bigshellpliskin/eliza-sothebais.git apps/eliza
+
+# Commit the changes
+git add .gitmodules apps/eliza
+git commit -m "Switch ElizaOS submodule to our custom fork"
+```
+
 ## Quick Start
 
 ### Prerequisites
