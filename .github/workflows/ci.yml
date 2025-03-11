@@ -30,6 +30,7 @@ jobs:
           tags: sothebais-${{ matrix.service }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          target: production
       
       # Uncomment and adapt when tests are configured
       # - name: Run tests in Docker container

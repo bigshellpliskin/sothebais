@@ -5,37 +5,34 @@ FROM node:20-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache curl
 
-# Development stage - useful for local development with hot reloading
+# Development stage - uses local ts-node-dev from package.json
 FROM base AS development
 COPY package*.json ./
-# Always generate package-lock.json, then use npm ci for deterministic installs
-RUN npm install --package-lock-only && npm ci
-
-# Verify that development tools are installed
-RUN npm list ts-node-dev || npm install -g ts-node-dev
-
+RUN npm ci
 COPY . .
-EXPOSE 4100 4190 4191
+EXPOSE 4400 4490 4491
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:4191/health || exit 1
+    CMD curl -f http://localhost:4491/health || exit 1
 CMD ["npm", "run", "dev"]
 
-# Production image - builds TypeScript and creates production image
-FROM base AS production
-# Copy package files and install dependencies
+# Build stage - builds TypeScript code
+FROM base AS build
 COPY package*.json ./
-# Always generate package-lock.json, then use npm ci for deterministic installs
-RUN npm install --package-lock-only && npm ci
-# Copy source code
+RUN npm ci
 COPY . .
-# Build TypeScript
 RUN npm run build
-# Prune development dependencies after build
+
+# Production stage - uses built code
+FROM base AS production
+COPY package*.json ./
+# Only install production dependencies
 RUN npm ci --omit=dev
+# Copy built files from build stage
+COPY --from=build /app/dist ./dist
 # Expose ports
-EXPOSE 4100 4190 4191
+EXPOSE 4400 4490 4491
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:4191/health || exit 1
+    CMD curl -f http://localhost:4491/health || exit 1
 # Start production server
 CMD ["npm", "run", "start"] 

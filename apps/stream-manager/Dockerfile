@@ -24,18 +24,20 @@ RUN npm run build
 # Development stage
 FROM node:18-alpine AS development
 
-# Install runtime dependencies
+# Install runtime dependencies - make sure git comes first
 RUN apk add --no-cache \
+    git \
     nginx \
     nginx-mod-rtmp \
     netcat-openbsd \
     supervisor \
     ffmpeg \
-    vips \
-    git
+    vips
 
+# Use ARG to determine where we are building from
+ARG CONFIG_PATH=config
 # Set up nginx configuration
-COPY apps/stream-manager/config/nginx.conf /etc/nginx/nginx.conf
+COPY ${CONFIG_PATH}/nginx.conf /etc/nginx/nginx.conf
 
 # Create necessary directories
 RUN mkdir -p /tmp/hls && \
@@ -51,9 +53,10 @@ RUN npm install --package-lock-only && npm ci
 
 # Copy app source and configs
 COPY . .
-COPY apps/stream-manager/config/supervisord.conf /etc/supervisord.conf
+# Copy config files
+COPY ${CONFIG_PATH}/supervisord.conf /etc/supervisord.conf
 
-# Verify that development tools are installed
+# Verify that development tools are installed - add explicit global installation if needed
 RUN npm list tsx || npm install -g tsx
 
 # Create storage directory
@@ -72,8 +75,9 @@ CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
 # Production stage
 FROM node:18-alpine AS production
 
-# Install runtime dependencies
+# Install runtime dependencies and git for potential package installations
 RUN apk add --no-cache \
+    git \
     nginx \
     nginx-mod-rtmp \
     netcat-openbsd \
@@ -81,8 +85,10 @@ RUN apk add --no-cache \
     ffmpeg \
     vips
 
+# Use ARG to determine where we are building from
+ARG CONFIG_PATH=config
 # Set up nginx configuration
-COPY apps/stream-manager/config/nginx.conf /etc/nginx/nginx.conf
+COPY ${CONFIG_PATH}/nginx.conf /etc/nginx/nginx.conf
 
 # Create necessary directories
 RUN mkdir -p /tmp/hls && \
@@ -99,7 +105,7 @@ COPY --from=builder /app/package-lock.json ./
 RUN npm ci --only=production
 
 # Copy configs
-COPY apps/stream-manager/config/supervisord.conf /etc/supervisord.conf
+COPY ${CONFIG_PATH}/supervisord.conf /etc/supervisord.conf
 
 # Create storage directory
 RUN mkdir -p /app/storage && chown -R node:node /app
