@@ -23,15 +23,13 @@ jobs:
       - name: Build Docker image for testing
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ./apps/${{ matrix.service }}
           file: ./apps/${{ matrix.service }}/Dockerfile
           push: false
           load: true
           tags: sothebais-${{ matrix.service }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            BUILD_MODE=production
       
       # Uncomment and adapt when tests are configured
       # - name: Run tests in Docker container
