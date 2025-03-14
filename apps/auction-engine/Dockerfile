@@ -7,11 +7,11 @@ WORKDIR /app
 RUN apk add --no-cache curl
 
 # Copy package files and install dependencies
-COPY package*.json ./
+COPY apps/auction-engine/package*.json ./
 RUN npm install
 
 # Copy application code
-COPY . .
+COPY apps/auction-engine/ .
 
 # Build TypeScript code
 RUN npm run build

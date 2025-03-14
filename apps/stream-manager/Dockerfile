@@ -16,21 +16,26 @@ RUN apk add --no-cache \
     ffmpeg \
     vips
 
-# Create necessary directories for nginx
+# Create necessary directories for nginx and shared types
 RUN mkdir -p /tmp/hls && \
     mkdir -p /run/nginx && \
+    mkdir -p /app/shared/types && \
     chown -R nginx:nginx /tmp/hls /run/nginx
 
 # Copy package files and install dependencies
-COPY package*.json ./
+COPY apps/stream-manager/package*.json ./
+
+# Copy shared types
+COPY apps/shared/types ../shared/types
+
 RUN npm install
 
 # Copy all app files
-COPY . .
+COPY apps/stream-manager/ .
 
 # Set up nginx and supervisor config
-COPY ./config/nginx.conf /etc/nginx/nginx.conf
-COPY ./config/supervisord.conf /etc/supervisord.conf
+COPY apps/stream-manager/config/nginx.conf /etc/nginx/nginx.conf
+COPY apps/stream-manager/config/supervisord.conf /etc/supervisord.conf
 
 # Build the application
 RUN npm run build

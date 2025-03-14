@@ -48,8 +48,8 @@ services:
 
   admin-frontend:
     build:
-      context: ./apps/admin
-      dockerfile: ./Dockerfile
+      context: .
+      dockerfile: ./apps/admin/Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
@@ -92,8 +92,8 @@ services:
   # Stream Processing Service
   stream-manager:
     build:
-      context: ./apps/stream-manager
-      dockerfile: ./Dockerfile
+      context: .
+      dockerfile: ./apps/stream-manager/Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}
@@ -187,9 +187,8 @@ services:
 
   event-handler:
     build:
-      context: ./apps/event-handler
-      dockerfile: ./Dockerfile
-      target: development
+      context: .
+      dockerfile: ./apps/event-handler/Dockerfile
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
@@ -231,7 +230,7 @@ services:
         limits:
           cpus: ${RESOURCES_CPU:-0.5}
           memory: ${RESOURCES_MEMORY:-512M}
-    command: npm run dev
+    command: npm run start
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4391/health"]
       interval: 30s
@@ -241,8 +240,8 @@ services:
   # Auction Engine Service
   auction-engine:
     build:
-      context: ./apps/auction-engine
-      dockerfile: ./Dockerfile
+      context: .
+      dockerfile: ./apps/auction-engine/Dockerfile
     environment:
       - NODE_ENV=development
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}
@@ -295,9 +294,8 @@ services:
   # Eliza Agent Service
   # eliza:
   #   build:
-  #     context: ./apps/eliza
-  #     dockerfile: ./Dockerfile
-  #     target: development
+  #     context: .
+  #     dockerfile: ./apps/eliza/Dockerfile
   #   environment:
   #     - NODE_ENV=${NODE_ENV:-development}
   #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}

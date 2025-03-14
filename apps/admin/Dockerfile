@@ -5,16 +5,19 @@ WORKDIR /app
 RUN apk add --no-cache curl netcat-openbsd
 
 # Create shared directory for types
-RUN mkdir -p /app/shared
+RUN mkdir -p /app/shared/types
 
 # Copy package files
-COPY package*.json ./
+COPY apps/admin/package*.json ./
+
+# Copy shared types
+COPY apps/shared/types ../shared/types
 
 # Install dependencies
 RUN npm install
 
 # Copy the admin application
-COPY . ./
+COPY apps/admin/ ./
 
 # Add node_modules/.bin to PATH and set other environment variables
 ENV PATH="/app/node_modules/.bin:$PATH" \
