@@ -1,4 +1,5 @@
-const promClient = require('prom-client');
+import promClient from 'prom-client';
+import type { Request, Response, NextFunction } from 'express';
 
 // Create a Registry
 const register = new promClient.Registry();
@@ -40,7 +41,7 @@ register.registerMetric(redisConnectionGauge);
 register.registerMetric(activeClientsGauge);
 
 // Middleware to track HTTP request duration
-const metricsMiddleware = (req, res, next) => {
+export const metricsMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const start = process.hrtime();
 
   res.on('finish', () => {
@@ -48,7 +49,7 @@ const metricsMiddleware = (req, res, next) => {
     const durationInSeconds = duration[0] + duration[1] / 1e9;
 
     httpRequestDuration
-      .labels(req.method, req.route?.path || req.path, res.statusCode)
+      .labels(req.method, req.route?.path || req.path, res.statusCode.toString())
       .observe(durationInSeconds);
   });
 
@@ -56,21 +57,17 @@ const metricsMiddleware = (req, res, next) => {
 };
 
 // Metrics endpoint middleware
-const metricsEndpoint = async (req, res) => {
+export const metricsEndpoint = async (req: Request, res: Response) => {
   try {
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   } catch (err) {
-    res.status(500).end(err);
+    res.status(500).end((err as Error).message);
   }
 };
 
-module.exports = {
-  metricsMiddleware,
-  metricsEndpoint,
-  metrics: {
-    eventCounter,
-    redisConnectionGauge,
-    activeClientsGauge
-  }
+export const metrics = {
+  eventCounter,
+  redisConnectionGauge,
+  activeClientsGauge
 }; 

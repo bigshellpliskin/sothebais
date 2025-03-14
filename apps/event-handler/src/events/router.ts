@@ -1,20 +1,46 @@
-const { createLogger } = require('../utils/logger');
+import { createLogger } from '../utils/logger.js';
+import type { RedisClientType } from 'redis';
+
+// Define types
+interface Event {
+  id?: string;
+  type: string;
+  payload: any;
+  source?: string;
+}
+
+// Import metrics (these were missing in the original file)
+// Assuming they're defined in the metrics module
+import { metrics } from '../middleware/metrics.js';
+
+// Need to add these metrics that were referenced but not defined
+const eventCounter = metrics.eventCounter;
+// Adding a dummy implementation since this wasn't defined before
+const eventProcessingDuration = {
+  observe: (labels: Record<string, string>, value: number) => {
+    console.log(`Event processing duration: ${value}s for type ${labels.type}`);
+  }
+};
+
 const logger = createLogger('event-router');
 
 class EventRouter {
-  constructor(redisClient) {
+  private redisClient: RedisClientType;
+  private handlers: Map<string, (payload: any) => Promise<void>>;
+
+  constructor(redisClient: RedisClientType) {
     this.redisClient = redisClient;
     this.handlers = new Map();
   }
 
   // Register an event handler
-  on(eventType, handler) {
+  on(eventType: string, handler: (payload: any) => Promise<void>): void {
     this.handlers.set(eventType, handler);
     logger.info({ eventType }, 'Event handler registered');
   }
 
   // Process an incoming event
-  async processEvent(event) {
+  async processEvent(event: Event): Promise<void> {
     const { type, payload, source } = event;
     const startTime = process.hrtime();
     const eventContext = {
@@ -58,8 +84,8 @@ class EventRouter {
 
       logger.error({ 
         ...eventContext,
-        error: error.message,
-        stack: error.stack,
+        error: (error as Error).message,
+        stack: (error as Error).stack,
         duration,
         state: 'failed'
       }, 'Error processing event');
@@ -69,7 +95,7 @@ class EventRouter {
   }
 
   // Broadcast an event to all connected clients
-  async broadcast(event) {
+  async broadcast(event: Event): Promise<void> {
     const eventContext = {
       eventId: event.id || Date.now().toString(),
       eventType: event.type,
@@ -81,7 +107,6 @@ class EventRouter {
       await this.redisClient.lPush('events:history', JSON.stringify(event));
       
       // Broadcast to connected clients
-      const message = JSON.stringify(event);
       // Implementation of broadcasting will depend on how we store connected clients
       
       logger.info({ 
@@ -91,7 +116,7 @@ class EventRouter {
     } catch (error) {
       logger.error({ 
         ...eventContext,
-        error: error.message,
+        error: (error as Error).message,
         state: 'broadcast_failed'
       }, 'Error broadcasting event');
       throw error;
@@ -99,4 +124,4 @@ class EventRouter {
   }
 }
 
-module.exports = EventRouter; 
+export default EventRouter; 
