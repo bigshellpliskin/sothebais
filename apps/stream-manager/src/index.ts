@@ -2,6 +2,15 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { logger } from './utils/logger.js';
 import { loadConfig } from './config/index.js';
+import { StreamManager } from './streaming/stream-manager.js';
+import { stateManager } from './state/state-manager.js';
+import { AssetManager } from './core/assets.js';
+import { CompositionEngine } from './core/composition.js';
+import { createDefaultScene } from './scenes/default-scene.js';
+import type { 
+  AssetManager as AssetManagerType, 
+  CompositionEngine as CompositionEngineType
+} from './types/core.js';
 
 // TODO: Import core components once prototype in generate-test-stream.ts is ready
 // import { StreamManager } from './streaming/stream-manager.js';
@@ -14,11 +23,39 @@ const loadedConfig = await loadConfig();
 // Initialize logger early
 logger.initialize(loadedConfig);
 
+async function initializeCoreComponents() {
+  logger.info('Initializing core components...');
+
+  // Parse resolution
+  const [width, height] = loadedConfig.STREAM_RESOLUTION.split('x').map(Number);
+
+  // Initialize managers
+  const assets = AssetManager.getInstance() as AssetManagerType;
+  const composition = CompositionEngine.getInstance(loadedConfig) as CompositionEngineType;
+
+  // Update composition dimensions
+  composition.updateDimensions(width, height);
+
+  logger.info('Core components initialized');
+
+  return { assets, composition };
+}
+
 async function startServer() {
   try {
-    // TODO: Move initialization logic from generate-test-stream.ts here once prototype is stable
-    // Current prototype implementation can be found in:
-    // src/tools/debug/generate-test-stream.ts
+    // Initialize core components
+    const { assets, composition } = await initializeCoreComponents();
+
+    // Create default scene
+    const scene = createDefaultScene(loadedConfig);
+
+    // Initialize stream manager
+    const streamManager = StreamManager.getInstance();
+    await streamManager.initialize(loadedConfig, {
+      assets,
+      composition,
+      currentScene: scene
+    });
 
     const app = express();
     app.use(express.json());
@@ -28,14 +65,39 @@ async function startServer() {
       res.json({ status: 'ok' });
     });
 
+    // Stream status endpoint for health checks
+    app.get('/stream/status', (_req: Request, res: Response) => {
+      const state = stateManager.getStreamState();
+      res.json({
+        status: 'ok',
+        isLive: state.isLive,
+        metrics: streamManager.getMetrics()
+      });
+    });
+
     // Start HTTP server
     const port = loadedConfig.PORT || 4200;
     app.listen(port, '0.0.0.0', () => {
-      logger.info('Stream Manager development server ready', {
+      logger.info('Stream Manager server ready', {
         port,
-        status: 'development'
+        status: process.env.NODE_ENV || 'development'
       });
     });
+
+    // Start the stream manager
+    await streamManager.start();
+    logger.info('Stream manager started successfully');
+
+    // Setup cleanup handlers
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+
+    // Cleanup function
+    async function cleanup() {
+      logger.info('Shutting down gracefully...');
+      await streamManager.cleanup();
+      process.exit(0);
+    }
 
   } catch (error) {
     logger.error('Stream Manager failed to start', {

@@ -4,6 +4,7 @@ import { FramePipeline } from './output/pipeline.js';
 import { StreamEncoder } from './output/encoder.js';
 import { RTMPServer } from './rtmp/server.js';
 import { StreamKeyService } from './rtmp/stream-key.js';
+import { TwitterBroadcaster } from './output/twitter-broadcaster.js';
 import { stateManager } from '../state/state-manager.js';
 import { webSocketService } from '../server/websocket.js';
 import type { StateManager } from '../types/state.js';
@@ -107,6 +108,13 @@ export class StreamManager extends EventEmitter {
         expiresAt: keyInfo.expiresAt,
         alias: 'preview'
       });
+
+      // Setup Twitter if credentials are provided
+      if (process.env.TWITTER_BROADCAST_ENABLED === 'true' && 
+          process.env.TWITTER_RTMP_URL && 
+          process.env.TWITTER_STREAM_KEY) {
+        this.setupTwitterBroadcast();
+      }
 
       // Log config values before encoder init
       logger.info('Initializing encoder with config', { 
@@ -397,5 +405,93 @@ export class StreamManager extends EventEmitter {
     // Reset instance
     StreamManager.instance = null;
     this.isInitialized = false;
+  }
+
+  /**
+   * Setup Twitter broadcasting by configuring the RTMP endpoint
+   */
+  private setupTwitterBroadcast(): void {
+    if (!process.env.TWITTER_RTMP_URL || !process.env.TWITTER_STREAM_KEY) {
+      logger.warn('Twitter broadcasting disabled - missing RTMP URL or stream key');
+      return;
+    }
+    
+    try {
+      const twitterBroadcaster = TwitterBroadcaster.getInstance();
+      twitterBroadcaster.configure(
+        process.env.TWITTER_RTMP_URL,
+        process.env.TWITTER_STREAM_KEY
+      );
+      
+      logger.info('Twitter broadcasting configured', {
+        rtmpUrl: process.env.TWITTER_RTMP_URL,
+        enabled: process.env.TWITTER_BROADCAST_ENABLED
+      });
+    } catch (error) {
+      logger.error('Failed to configure Twitter broadcasting', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Start Twitter broadcasting by configuring the RTMP server to forward streams
+   */
+  public async startTwitterBroadcast(): Promise<boolean> {
+    if (!this.isInitialized) {
+      logger.error('Cannot start Twitter broadcast - Stream manager not initialized');
+      return false;
+    }
+    
+    try {
+      const twitterBroadcaster = TwitterBroadcaster.getInstance();
+      if (!twitterBroadcaster.isReady()) {
+        logger.warn('Twitter broadcasting not configured');
+        return false;
+      }
+      
+      // Get Twitter endpoint
+      const twitterEndpoint = twitterBroadcaster.getTwitterEndpoint();
+      if (!twitterEndpoint) {
+        logger.error('Twitter endpoint not available');
+        return false;
+      }
+      
+      logger.info('Starting Twitter broadcast to', { endpoint: twitterEndpoint });
+      
+      // The actual RTMP forwarding is handled by the RTMP server
+      // Here we would typically inform the RTMP server to start forwarding
+      // to the Twitter endpoint if we had that functionality
+      
+      return true;
+    } catch (error) {
+      logger.error('Failed to start Twitter broadcast', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Stop Twitter broadcasting
+   */
+  public async stopTwitterBroadcast(): Promise<boolean> {
+    if (!this.isInitialized) {
+      return false;
+    }
+    
+    try {
+      // The actual RTMP forwarding stop would be handled by the RTMP server
+      // Here we would typically inform the RTMP server to stop forwarding
+      // to the Twitter endpoint if we had that functionality
+      
+      logger.info('Twitter broadcast stopped');
+      return true;
+    } catch (error) {
+      logger.error('Failed to stop Twitter broadcast', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return false;
+    }
   }
 } 

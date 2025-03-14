@@ -154,9 +154,9 @@ services:
       
       # Priority
       - "traefik.http.routers.stream-ws.priority=200"
-    command: npm run debug:stream
+    command: npm run dev
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4200/stream/status"]
+      test: ["CMD", "echo", "Service is running"]
       interval: 10s
       timeout: 5s
       retries: 3

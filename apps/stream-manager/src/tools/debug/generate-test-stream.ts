@@ -17,6 +17,8 @@ import { StreamManager as SM } from '../../streaming/stream-manager.js';
 import { createDefaultScene } from '../../scenes/default-scene.js';
 import { stateManager } from '../../state/state-manager.js';
 import { StreamKeyService } from '../../streaming/rtmp/stream-key.js';
+import express from 'express';
+import type { Request, Response } from 'express';
 
 // Get directory name for ES modules
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +39,38 @@ async function initializeCoreComponents(config: Config) {
   logger.info('Core components initialized');
 
   return { assets, composition };
+}
+
+async function startApiServer(config: Config, streamManager: StreamManager) {
+  const app = express();
+  app.use(express.json());
+
+  // Basic health check endpoint
+  app.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok' });
+  });
+
+  // Stream status endpoint for health checks
+  app.get('/stream/status', (_req: Request, res: Response) => {
+    // Get the state from stateManager since streamManager may not have getState method
+    const state = stateManager.getStreamState();
+    res.json({
+      status: 'ok',
+      isLive: state.isLive,
+      metrics: streamManager.getMetrics()
+    });
+  });
+
+  // Start HTTP server
+  const port = config.PORT || 4200;
+  app.listen(port, '0.0.0.0', () => {
+    logger.info('Stream Manager API server ready', {
+      port,
+      status: 'active'
+    });
+  });
+
+  return app;
 }
 
 async function main() {
@@ -66,6 +100,10 @@ async function main() {
       currentScene: scene
     });
 
+    // Start API server with health check endpoints
+    const apiServer = await startApiServer(config, streamManager);
+    logger.info('HTTP API server started with health check endpoints');
+
     // Start the stream
     await streamManager.start();
 
@@ -80,7 +118,7 @@ async function main() {
     
     // Get stream key from alias
     const streamKeyService = StreamKeyService.getInstance();
-    const streamKey = await streamKeyService.getOrCreateAlias(streamAlias, 'test-user', 'preview-stream');
+    const streamKey = await streamKeyService.getOrCreateAlias(streamAlias, 'test-user', 'test-stream');
     
     const rtmpUrl = `rtmp://localhost:${rtmpPort}${streamPath}/${streamKey}`;
     const previewUrl = `rtmp://localhost:${rtmpPort}${streamPath}/${streamAlias}`; // Easier to remember URL
@@ -89,7 +127,8 @@ async function main() {
       playbackUrl: rtmpUrl,
       previewUrl: previewUrl,
       resolution: `${width}x${height}`,
-      fps: config.TARGET_FPS
+      fps: config.TARGET_FPS,
+      apiUrl: `http://localhost:${config.PORT || 4200}/stream/status`
     });
 
     // Monitor stream metrics
