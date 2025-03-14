@@ -44,9 +44,8 @@ jobs:
       # - name: Build and push eliza service
       #   if: matrix.service == 'eliza'
       #   run: |
-      #     cd apps/eliza
       #     docker buildx build \
-      #       --file Dockerfile \
+      #       --file ./apps/eliza/Dockerfile \
       #       --push ${{ github.event_name != 'pull_request' }} \
       #       --tags ${{ steps.meta.outputs.tags }} \
       #       --labels ${{ steps.meta.outputs.labels }} \

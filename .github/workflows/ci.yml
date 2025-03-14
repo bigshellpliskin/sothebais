@@ -24,9 +24,8 @@ jobs:
       # - name: Build eliza Docker image for testing
       #   if: matrix.service == 'eliza'
       #   run: |
-      #     cd apps/eliza
       #     docker buildx build \
-      #       --file Dockerfile \
+      #       --file ./apps/eliza/Dockerfile \
       #       --push false \
       #       --load true \
       #       --tag sothebais-eliza:test \
@@ -38,7 +37,7 @@ jobs:
       - name: Build other services Docker image for testing
         uses: docker/build-push-action@v4
         with:
-          context: ./apps/${{ matrix.service }}
+          context: .
           file: ./apps/${{ matrix.service }}/Dockerfile
           push: false
           load: true
