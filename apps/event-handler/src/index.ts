@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction, Application } from 'express';
 import * as Redis from 'redis';
 import Docker from 'dockerode';
 import cors from 'cors';
-import { createLogger } from './utils/logger.js';
+import { logger as appLogger } from './utils/logger.js';
 import { metricsMiddleware, metricsEndpoint, metrics } from './middleware/metrics.js';
 
 // Define types
@@ -75,8 +75,8 @@ let redisConnectionState: RedisConnectionState = {
   reconnectAttempts: 0
 };
 
-// Initialize logger with custom transport
-const logger = createLogger('app', [{ stream: customTransport }]);
+// Use the imported logger instead of creating a new one
+const logger = appLogger;
 
 // Initialize Redis client
 const redisClient = Redis.createClient({
@@ -409,7 +409,7 @@ async function startApp() {
     
     // Graceful shutdown
     process.on('SIGTERM', async () => {
-      logger.info('SIGTERM received, shutting down gracefully');
+      logger.info({}, 'SIGTERM received, shutting down gracefully');
       try {
         // Close Redis connection
         await redisClient.quit();

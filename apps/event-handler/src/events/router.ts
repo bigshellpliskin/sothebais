@@ -1,4 +1,4 @@
-import { createLogger } from '../utils/logger.js';
+import { logger } from '../utils/logger.js';
 import type { RedisClientType } from 'redis';
 
 // Define types
@@ -21,8 +21,6 @@ const eventProcessingDuration = {
     console.log(`Event processing duration: ${value}s for type ${labels.type}`);
   }
 };
-
-const logger = createLogger('event-router');
 
 class EventRouter {
   private redisClient: RedisClientType;
