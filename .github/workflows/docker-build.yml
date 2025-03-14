@@ -13,7 +13,7 @@ jobs:
     
     strategy:
       matrix:
-        service: [admin, stream-manager, auction-engine, event-handler, eliza]
+        service: [admin, stream-manager, auction-engine, event-handler]
         
     steps:
       - uses: actions/checkout@v3
@@ -40,23 +40,22 @@ jobs:
             type=semver,pattern={{version}}
             type=sha,format=short
       
-      # Special handling for eliza service
-      - name: Build and push eliza service
-        if: matrix.service == 'eliza'
-        run: |
-          cd apps/eliza
-          docker buildx build \
-            --file Dockerfile \
-            --push ${{ github.event_name != 'pull_request' }} \
-            --tags ${{ steps.meta.outputs.tags }} \
-            --labels ${{ steps.meta.outputs.labels }} \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
+      # Special handling for eliza service (commented out)
+      # - name: Build and push eliza service
+      #   if: matrix.service == 'eliza'
+      #   run: |
+      #     cd apps/eliza
+      #     docker buildx build \
+      #       --file Dockerfile \
+      #       --push ${{ github.event_name != 'pull_request' }} \
+      #       --tags ${{ steps.meta.outputs.tags }} \
+      #       --labels ${{ steps.meta.outputs.labels }} \
+      #       --cache-from type=gha \
+      #       --cache-to type=gha,mode=max \
+      #       .
         
       # Standard handling for other services
       - name: Build and push other services
-        if: matrix.service != 'eliza'
         uses: docker/build-push-action@v4
         with:
           context: .

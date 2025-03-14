@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        service: [admin, stream-manager, auction-engine, event-handler, eliza]
+        service: [admin, stream-manager, auction-engine, event-handler]
         
     steps:
       - uses: actions/checkout@v3
@@ -20,23 +20,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       
-      # Special handling for eliza service  
-      - name: Build eliza Docker image for testing
-        if: matrix.service == 'eliza'
-        run: |
-          cd apps/eliza
-          docker buildx build \
-            --file Dockerfile \
-            --push false \
-            --load true \
-            --tag sothebais-eliza:test \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
+      # Special handling for eliza service (commented out)  
+      # - name: Build eliza Docker image for testing
+      #   if: matrix.service == 'eliza'
+      #   run: |
+      #     cd apps/eliza
+      #     docker buildx build \
+      #       --file Dockerfile \
+      #       --push false \
+      #       --load true \
+      #       --tag sothebais-eliza:test \
+      #       --cache-from type=gha \
+      #       --cache-to type=gha,mode=max \
+      #       .
         
       # Standard handling for other services
       - name: Build other services Docker image for testing
-        if: matrix.service != 'eliza'
         uses: docker/build-push-action@v4
         with:
           context: ./apps/${{ matrix.service }}

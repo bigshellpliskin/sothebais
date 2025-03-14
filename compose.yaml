@@ -293,64 +293,64 @@ services:
       - traefik
 
   # Eliza Agent Service
-  eliza:
-    build:
-      context: ./apps/eliza
-      dockerfile: ./Dockerfile
-      target: development
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}
-      - REDIS_HOST=redis
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
-      - PORT=${ELIZA_PORT:-4500}
-      - WS_PORT=${ELIZA_WS_PORT:-4501}
-      - METRICS_PORT=${ELIZA_METRICS_PORT:-4590}
-      - HEALTH_PORT=${ELIZA_HEALTH_PORT:-4591}
-      - AUCTION_ENGINE_URL=http://auction-engine:${AUCTION_ENGINE_PORT:-4400}
-      - STREAM_MANAGER_URL=http://stream-manager:${STREAM_MANAGER_PORT:-4200}
-      - LOG_LEVEL=debug
-      - LOG_PRETTY_PRINT=true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./apps/eliza/src:/app/src:ro
-      - ./apps/eliza/package.json:/app/package.json:ro
-      - ./data/eliza:/app/storage:rw
-    ports:
-      - "${ELIZA_PORT:-4500}:${ELIZA_PORT:-4500}"
-      - "${ELIZA_WS_PORT:-4501}:${ELIZA_WS_PORT:-4501}"
-      - "${ELIZA_METRICS_PORT:-4590}:${ELIZA_METRICS_PORT:-4590}"
-      - "${ELIZA_HEALTH_PORT:-4591}:${ELIZA_HEALTH_PORT:-4591}"
-    networks:
-      - auction_net
-    labels:
-      - "traefik.enable=true"
-      # Main API endpoints
-      - "traefik.http.routers.eliza.rule=Host(`${DOMAIN}`) && PathPrefix(`/agent`)"
-      - "traefik.http.routers.eliza.entrypoints=web"
-      - "traefik.http.services.eliza.loadbalancer.server.port=${ELIZA_PORT:-4500}"
-      # WebSocket Configuration
-      - "traefik.http.routers.eliza-ws.rule=PathPrefix(`/agent/ws`)"
-      - "traefik.http.routers.eliza-ws.entrypoints=web"
-      - "traefik.http.routers.eliza-ws.service=eliza-ws"
-      - "traefik.http.services.eliza-ws.loadbalancer.server.port=${ELIZA_WS_PORT:-4501}"
-      - "traefik.http.routers.eliza-ws.middlewares=ws-headers"
-    deploy:
-      resources:
-        limits:
-          cpus: ${RESOURCES_CPU:-0.5}
-          memory: ${RESOURCES_MEMORY:-512M}
-    command: npm run start
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4591/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    depends_on:
-      - redis
-      - auction-engine
-      - stream-manager
+  # eliza:
+  #   build:
+  #     context: ./apps/eliza
+  #     dockerfile: ./Dockerfile
+  #     target: development
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-development}
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:${REDIS_PORT:-6379}
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=${REDIS_PORT:-6379}
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+  #     - PORT=${ELIZA_PORT:-4500}
+  #     - WS_PORT=${ELIZA_WS_PORT:-4501}
+  #     - METRICS_PORT=${ELIZA_METRICS_PORT:-4590}
+  #     - HEALTH_PORT=${ELIZA_HEALTH_PORT:-4591}
+  #     - AUCTION_ENGINE_URL=http://auction-engine:${AUCTION_ENGINE_PORT:-4400}
+  #     - STREAM_MANAGER_URL=http://stream-manager:${STREAM_MANAGER_PORT:-4200}
+  #     - LOG_LEVEL=debug
+  #     - LOG_PRETTY_PRINT=true
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - ./apps/eliza/src:/app/src:ro
+  #     - ./apps/eliza/package.json:/app/package.json:ro
+  #     - ./data/eliza:/app/storage:rw
+  #   ports:
+  #     - "${ELIZA_PORT:-4500}:${ELIZA_PORT:-4500}"
+  #     - "${ELIZA_WS_PORT:-4501}:${ELIZA_WS_PORT:-4501}"
+  #     - "${ELIZA_METRICS_PORT:-4590}:${ELIZA_METRICS_PORT:-4590}"
+  #     - "${ELIZA_HEALTH_PORT:-4591}:${ELIZA_HEALTH_PORT:-4591}"
+  #   networks:
+  #     - auction_net
+  #   labels:
+  #     - "traefik.enable=true"
+  #     # Main API endpoints
+  #     - "traefik.http.routers.eliza.rule=Host(`${DOMAIN}`) && PathPrefix(`/agent`)"
+  #     - "traefik.http.routers.eliza.entrypoints=web"
+  #     - "traefik.http.services.eliza.loadbalancer.server.port=${ELIZA_PORT:-4500}"
+  #     # WebSocket Configuration
+  #     - "traefik.http.routers.eliza-ws.rule=PathPrefix(`/agent/ws`)"
+  #     - "traefik.http.routers.eliza-ws.entrypoints=web"
+  #     - "traefik.http.routers.eliza-ws.service=eliza-ws"
+  #     - "traefik.http.services.eliza-ws.loadbalancer.server.port=${ELIZA_WS_PORT:-4501}"
+  #     - "traefik.http.routers.eliza-ws.middlewares=ws-headers"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: ${RESOURCES_CPU:-0.5}
+  #         memory: ${RESOURCES_MEMORY:-512M}
+  #   command: npm run start
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4591/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #   depends_on:
+  #     - redis
+  #     - auction-engine
+  #     - stream-manager
 
 x-volumes:
   dev.volumes.stream-manager:
