@@ -32,7 +32,8 @@ sothebais/
 │   ├── schema.md          # Database schema documentation
 │   ├── api-documentation.md # API endpoints
 │   ├── project-structure.md # This file
-│   └── TODO.md            # Implementation tasks
+│   ├── environment-setup.md # Environment setup guide
+│   └── implementation-plan.md # Implementation tasks
 ├── .env                   # Environment variables (gitignored)
 ├── .env.example           # Example environment variables
 ├── compose.yaml           # Docker Compose configuration
@@ -71,13 +72,14 @@ For more detailed information, please refer to:
 - [Architecture](architecture.md): System design and component interactions
 - [Schema](schema.md): Database models and data structures
 - [API Documentation](api-documentation.md): Service endpoints and interfaces
-- [TODO](TODO.md): Implementation tasks and progress tracking
+- [Environment Setup](environment-setup.md): Guide for running in different environments
+- [Implementation Plan](implementation-plan.md): Implementation tasks and progress tracking
 
 ## Development Quick Start
 
 1. Clone the repository
 2. Copy `.env.example` to `.env` and configure environment variables
-3. Run `docker-compose up` to start the development environment
+3. Run `docker compose up -d` to start the development environment
 4. Access the admin dashboard at `http://localhost:3000`
 
-For Docker setup details, see the [architecture documentation](architecture.md#12-docker-implementation). 
+For detailed Docker and environment setup, see the [environment setup guide](environment-setup.md). 

@@ -36,6 +36,15 @@ sothebais/
 
 For complete documentation, see the [docs](./docs) directory.
 
+## Quick Start
+
+1. Clone the repository
+2. Copy `.env.example` to `.env` and configure environment variables
+3. Run `docker compose up -d` to start the development environment
+4. Access the admin dashboard at `http://localhost:3000`
+
+For detailed setup instructions, see the [Environment Setup Guide](./docs/environment-setup.md).
+
 ## Technical Stack
 
 - **Frontend**: Next.js, React
