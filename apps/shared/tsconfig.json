@@ -1,15 +1,8 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "es2020",
-    "module": "NodeNext",
+    "verbatimModuleSyntax": false,
     "lib": ["es2020"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "NodeNext",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "incremental": true,
     "baseUrl": ".",
     "outDir": "dist",

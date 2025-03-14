@@ -28,6 +28,7 @@ export class PreviewServer extends EventEmitter {
     this.composition = CompositionEngine.getInstance();
 
     // Listen for state updates using EventEmitter
+    // @ts-ignore - Type compatibility issue with EventEmitter
     stateManager.on(EventType.STATE_STREAM_UPDATE, (event: StreamEvent) => {
       const streamState = event.payload.state;
       if (streamState) {

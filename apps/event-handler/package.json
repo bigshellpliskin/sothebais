@@ -25,6 +25,7 @@
     "@types/dockerode": "^3.3.23",
     "@types/express": "^4.17.21",
     "@types/node": "^20.11.24",
+    "@types/pino": "^7.0.4",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "8.56.0",

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Note: This service uses a simple non-staged build approach.
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 
 # Install curl for healthchecks

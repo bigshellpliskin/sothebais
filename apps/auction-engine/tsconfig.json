@@ -1,21 +1,11 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
+    "verbatimModuleSyntax": false,
     "lib": ["ES2020", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "sourceMap": true,
-    "declaration": true,
-    "types": ["node", "express", "jest"],
-    "typeRoots": ["./node_modules/@types"],
-    "allowSyntheticDefaultImports": true
+    "types": ["node", "express", "jest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]

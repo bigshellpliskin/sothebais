@@ -50,7 +50,8 @@ class WebSocketService {
               headers: request.headers,
               timestamp: new Date().toISOString()
             });
-            return protocols[0];
+            // @ts-ignore - Handle protocols properly
+            return protocols && protocols.length > 0 ? protocols[0] : null;
           }
         });
         
