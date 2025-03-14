@@ -57,19 +57,20 @@ services:
       - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
       - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
       - DOCKER_SOCKET=/var/run/docker.sock
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sothebais}
       - PORT=${ADMIN_PORT:-3000}
       - METRICS_PORT=${ADMIN_METRICS_PORT:-3090}
       - HEALTH_PORT=${ADMIN_HEALTH_PORT:-3091}
       - PROMETHEUS_URL=http://prometheus:${PROMETHEUS_PORT:-9090}
       - STREAM_MANAGER_URL=http://stream-manager:${STREAM_MANAGER_PORT:-4200}
-      - NEXT_PUBLIC_WS_URL=ws://${DOMAIN}/ws  # Use non-TLS WebSocket URL
+      - NEXT_PUBLIC_WS_URL=ws://${DOMAIN:-localhost}/ws  # Use non-TLS WebSocket URL
+    command: sh -c "npm install && npm run dev"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./.env:/app/.env:ro
       - ./apps/admin/src:/app/src:ro
       - ./apps/admin/public:/app/public:ro
       - ./apps/admin/.next:/app/.next
-      - ./apps/admin/node_modules:/app/node_modules
     networks:
       - auction_net
     ports:
@@ -77,8 +78,9 @@ services:
     labels:
       - "traefik.enable=true"
       # HTTP routing
-      - "traefik.http.routers.admin.rule=Host(`${DOMAIN}`) && PathPrefix(`/`)"
-      - "traefik.http.services.admin.loadbalancer.server.port=${ADMIN_PORT:-3000}"
+      - "traefik.http.routers.admin.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.services.admin-service.loadbalancer.server.port=${ADMIN_PORT:-3000}"
+      - "traefik.http.routers.admin.service=admin-service"
       - "traefik.http.routers.admin.entrypoints=web"
       - "traefik.http.routers.admin.priority=1"  # Lowest priority (catch-all)
     healthcheck:
@@ -88,6 +90,7 @@ services:
       retries: 3
     depends_on:
       - stream-manager
+      - postgres
 
   # Stream Processing Service
   stream-manager:
@@ -100,6 +103,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sothebais}
       - PORT=${STREAM_MANAGER_PORT:-4200}
       - WS_PORT=${STREAM_MANAGER_WS_PORT:-4201}
       - METRICS_PORT=${STREAM_MANAGER_METRICS_PORT:-4290}
@@ -129,15 +133,16 @@ services:
     labels:
       - "traefik.enable=true"
       # HTTP API
-      - "traefik.http.routers.stream-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.stream-api.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/stream`)"
       - "traefik.http.routers.stream-api.entrypoints=web"
-      - "traefik.http.services.stream-api.loadbalancer.server.port=${STREAM_MANAGER_PORT:-4200}"
+      - "traefik.http.services.stream-api-service.loadbalancer.server.port=${STREAM_MANAGER_PORT:-4200}"
+      - "traefik.http.routers.stream-api.service=stream-api-service"
       
       # WebSocket Configuration
       - "traefik.http.routers.stream-ws.rule=PathPrefix(`/ws`)"
       - "traefik.http.routers.stream-ws.entrypoints=web"
-      - "traefik.http.routers.stream-ws.service=stream-ws"
-      - "traefik.http.services.stream-ws.loadbalancer.server.port=${STREAM_MANAGER_WS_PORT:-4201}"
+      - "traefik.http.routers.stream-ws.service=stream-ws-service"
+      - "traefik.http.services.stream-ws-service.loadbalancer.server.port=${STREAM_MANAGER_WS_PORT:-4201}"
       
       # WebSocket Middleware
       - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Connection=Upgrade"
@@ -158,6 +163,7 @@ services:
       start_period: 30s
     depends_on:
       - redis
+      - postgres
       - traefik
 
   # Redis for Caching and Message Queue
@@ -185,6 +191,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # PostgreSQL for persistent storage
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-sothebais}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - auction_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   event-handler:
     build:
       context: .
@@ -192,6 +219,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-default_password}@redis:6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sothebais}
       - PORT=${EVENT_HANDLER_PORT:-4300}
       - EVENT_STREAM_PORT=${EVENT_HANDLER_STREAM_PORT:-4301}
       - METRICS_PORT=${EVENT_HANDLER_METRICS_PORT:-4390}
@@ -213,18 +241,20 @@ services:
     labels:
       - "traefik.enable=true"
       # Main API endpoints including logs (only active in production)
-      - "traefik.http.routers.event-handler.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/events`)"
-      - "traefik.http.routers.event-handler.entrypoints=websecure"
-      - "traefik.http.routers.event-handler.tls.certresolver=letsencrypt"
-      - "traefik.http.services.event-handler.loadbalancer.server.port=${EVENT_HANDLER_PORT:-4300}"
+      - "traefik.http.routers.event-handler.rule=Host(`${ADMIN_SUBDOMAIN:-admin.${DOMAIN}}`) && PathPrefix(`/events`)"
+      - "traefik.http.routers.event-handler.entrypoints=web"
+      - "traefik.http.services.event-handler-service.loadbalancer.server.port=${EVENT_HANDLER_PORT:-4300}"
+      - "traefik.http.routers.event-handler.service=event-handler-service"
       # Metrics endpoint
-      - "traefik.http.routers.event-handler-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/events`)"
-      - "traefik.http.routers.event-handler-metrics.entrypoints=websecure"
-      - "traefik.http.services.event-handler-metrics.loadbalancer.server.port=${EVENT_HANDLER_METRICS_PORT:-4390}"
+      - "traefik.http.routers.event-handler-metrics.rule=Host(`${ADMIN_SUBDOMAIN:-admin.${DOMAIN}}`) && PathPrefix(`/metrics/events`)"
+      - "traefik.http.routers.event-handler-metrics.entrypoints=web"
+      - "traefik.http.services.event-handler-metrics-service.loadbalancer.server.port=${EVENT_HANDLER_METRICS_PORT:-4390}"
+      - "traefik.http.routers.event-handler-metrics.service=event-handler-metrics-service"
       # Health check endpoint
-      - "traefik.http.routers.event-handler-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/events`)"
-      - "traefik.http.routers.event-handler-health.entrypoints=websecure"
-      - "traefik.http.services.event-handler-health.loadbalancer.server.port=${EVENT_HANDLER_HEALTH_PORT:-4391}"
+      - "traefik.http.routers.event-handler-health.rule=Host(`${ADMIN_SUBDOMAIN:-admin.${DOMAIN}}`) && PathPrefix(`/health/events`)"
+      - "traefik.http.routers.event-handler-health.entrypoints=web"
+      - "traefik.http.services.event-handler-health-service.loadbalancer.server.port=${EVENT_HANDLER_HEALTH_PORT:-4391}"
+      - "traefik.http.routers.event-handler-health.service=event-handler-health-service"
     deploy:
       resources:
         limits:
@@ -236,6 +266,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    depends_on:
+      - redis
+      - postgres
+      - traefik
 
   # Auction Engine Service
   auction-engine:
@@ -248,6 +282,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sothebais}
       - PORT=${AUCTION_ENGINE_PORT:-4400}
       - METRICS_PORT=${AUCTION_ENGINE_METRICS_PORT:-4490}
       - HEALTH_PORT=${AUCTION_ENGINE_HEALTH_PORT:-4491}
@@ -268,15 +303,18 @@ services:
       # Main API endpoints
       - "traefik.http.routers.auction-engine.rule=Host(`${DOMAIN}`) && PathPrefix(`/auction`)"
       - "traefik.http.routers.auction-engine.entrypoints=web"
-      - "traefik.http.services.auction-engine.loadbalancer.server.port=${AUCTION_ENGINE_PORT:-4400}"
+      - "traefik.http.services.auction-engine-service.loadbalancer.server.port=${AUCTION_ENGINE_PORT:-4400}"
+      - "traefik.http.routers.auction-engine.service=auction-engine-service"
       # Metrics endpoint
-      - "traefik.http.routers.auction-engine-metrics.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/metrics/auction`)"
-      - "traefik.http.routers.auction-engine-metrics.entrypoints=websecure"
-      - "traefik.http.services.auction-engine-metrics.loadbalancer.server.port=${AUCTION_ENGINE_METRICS_PORT:-4490}"
+      - "traefik.http.routers.auction-engine-metrics.rule=Host(`${ADMIN_SUBDOMAIN:-admin.${DOMAIN}}`) && PathPrefix(`/metrics/auction`)"
+      - "traefik.http.routers.auction-engine-metrics.entrypoints=web"
+      - "traefik.http.services.auction-engine-metrics-service.loadbalancer.server.port=${AUCTION_ENGINE_METRICS_PORT:-4490}"
+      - "traefik.http.routers.auction-engine-metrics.service=auction-engine-metrics-service"
       # Health check endpoint
-      - "traefik.http.routers.auction-engine-health.rule=Host(`${ADMIN_SUBDOMAIN}`) && PathPrefix(`/health/auction`)"
-      - "traefik.http.routers.auction-engine-health.entrypoints=websecure"
-      - "traefik.http.services.auction-engine-health.loadbalancer.server.port=${AUCTION_ENGINE_HEALTH_PORT:-4491}"
+      - "traefik.http.routers.auction-engine-health.rule=Host(`${ADMIN_SUBDOMAIN:-admin.${DOMAIN}}`) && PathPrefix(`/health/auction`)"
+      - "traefik.http.routers.auction-engine-health.entrypoints=web"
+      - "traefik.http.services.auction-engine-health-service.loadbalancer.server.port=${AUCTION_ENGINE_HEALTH_PORT:-4491}"
+      - "traefik.http.routers.auction-engine-health.service=auction-engine-health-service"
     deploy:
       resources:
         limits:
@@ -289,6 +327,7 @@ services:
       retries: 3
     depends_on:
       - redis
+      - postgres
       - traefik
 
   # Eliza Agent Service
@@ -381,7 +420,6 @@ x-volumes:
     - ./apps/admin/src:/app/src:ro
     - ./apps/admin/public:/app/public:ro
     - ./apps/admin/.next:/app/.next
-    - ./apps/admin/node_modules:/app/node_modules
 
   prod.volumes.admin-frontend:
     - ./apps/admin/.next:/app/.next
@@ -404,6 +442,7 @@ x-commands:
 volumes:
   redis_data:
   stream_storage:
+  postgres_data:
 
 networks:
   auction_net:
