@@ -33,8 +33,34 @@ export enum EventType {
   STREAM_END = 'stream:end',
   STREAM_ERROR = 'stream:error',
   STREAM_QUALITY = 'stream:quality',
+  STREAM_STATE_UPDATE = 'stream:state:update',
+  STREAM_METRICS_UPDATE = 'stream:metrics:update',
   SCENE_UPDATE = 'stream:scene:update',
+  SCENE_LOAD = 'scene:load',
+  SCENE_UNLOAD = 'scene:unload',
+  SCENE_ASSET_ADD = 'scene:asset:add',
+  SCENE_ASSET_REMOVE = 'scene:asset:remove',
+  SCENE_ASSET_UPDATE = 'scene:asset:update',
   ASSET_LOADED = 'stream:asset:loaded',
+  
+  // State events
+  STATE_STREAM_UPDATE = 'state:stream:update',
+  STATE_SCENE_UPDATE = 'state:scene:update',
+  STATE_PREVIEW_UPDATE = 'state:preview:update',
+  
+  // Preview events
+  PREVIEW_CONNECT = 'preview:connect',
+  PREVIEW_DISCONNECT = 'preview:disconnect',
+  PREVIEW_QUALITY_CHANGE = 'preview:quality:change',
+  PREVIEW_FRAME = 'preview:frame',
+  
+  // RTMP Events
+  RTMP_CONNECTION = 'rtmp:connection',
+  RTMP_DISCONNECTION = 'rtmp:disconnection',
+  RTMP_PUBLISH_START = 'rtmp:publish:start',
+  RTMP_PUBLISH_STOP = 'rtmp:publish:stop',
+  RTMP_PLAY_START = 'rtmp:play:start',
+  RTMP_PLAY_STOP = 'rtmp:play:stop',
 
   // Agent Events (agent:*)
   AGENT_MESSAGE = 'agent:message',
@@ -60,6 +86,10 @@ export enum EventType {
 export enum EventSource {
   AUCTION_ENGINE = 'auction-engine',
   STREAM_MANAGER = 'stream-manager',
+  SCENE_MANAGER = 'scene-manager',
+  STATE_MANAGER = 'state-manager',
+  PREVIEW_MANAGER = 'preview-manager',
+  RTMP_SERVER = 'rtmp-server',
   AGENT_SERVICE = 'agent-service',
   EVENT_HANDLER = 'event-handler',
   ADMIN_FRONTEND = 'admin-frontend'
@@ -450,6 +480,13 @@ export interface SystemConfigEvent extends BaseEvent {
     configValue: any;
     timestamp: string; // ISO date string
   };
+}
+
+// Connection types for RTMP server
+export enum ConnectionType {
+  PENDING = 'pending',
+  PUBLISHER = 'publisher',
+  PLAYER = 'player'
 }
 
 // Union type of all events

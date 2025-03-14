@@ -1,123 +1,72 @@
-import pino from 'pino';
-import type { Config } from '../types/config.js';
+/**
+ * Logger for the Stream Manager Service
+ * 
+ * This module extends the shared logger with stream-manager-specific functionality.
+ */
 
-export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+import { createLogger } from '@sothebais/shared/utils/logger.js';
+import type { Logger as BaseLogger } from '@sothebais/shared/utils/logger.js';
 
-export interface LogContext {
-  [key: string]: any;
+// Extend the Logger interface with stream-manager specific methods
+export interface Logger extends BaseLogger {
+  logMetrics(metrics: Record<string, any>): void;
+  logLayerEvent(event: string, layerId: string, data?: Record<string, any>): void;
+  logStreamEvent(event: string, data?: Record<string, any>): void;
+  logWebSocketEvent(event: string, clientId?: string, data?: Record<string, any>): void;
+  _lastMetricsLog: number; // Track the last time metrics were logged
 }
 
-class Logger {
-  private static instance: Logger;
-  private logger: ReturnType<typeof pino>;
-  private initialized = false;
-  private metricsLogInterval = 10000; // Log metrics every 10 seconds
-  private lastMetricsLog = 0;
-
-  constructor() {
-    // Create a basic logger until properly initialized
-    this.logger = pino({
-      level: 'info',
-      // Remove transport configuration to write directly to stdout
-    });
+// Create a base logger instance for the stream manager
+const baseLogger = createLogger('stream-manager', {
+  additionalMeta: {
+    component: 'stream-manager'
   }
+});
 
-  public static getInstance(): Logger {
-    if (!Logger.instance) {
-      Logger.instance = new Logger();
-    }
-    return Logger.instance;
-  }
-
-  public initialize(config: Config): void {
-    if (this.initialized) {
-      return;
-    }
-
-    this.logger = pino({
-      level: config.LOG_LEVEL || 'info',
-      // Remove transport configuration to write directly to stdout
-      formatters: {
-        level: (label) => {
-          return { level: label };
-        },
-      },
-      timestamp: () => `,"time":"${new Date().toISOString()}"`,
-    });
-
-    this.initialized = true;
-    this.info('Logger initialized', { level: config.LOG_LEVEL });
-  }
-
-  private ensureLogger(): void {
-    if (!this.initialized) {
-      // TODO: Initialize with proper config when available
-      this.initialized = true;
-    }
-  }
-
-  public info(message: string, context?: LogContext): void {
-    this.ensureLogger();
-    this.logger.info(context || {}, message);
-  }
-
-  public error(message: string, context?: LogContext): void {
-    this.ensureLogger();
-    this.logger.error(context || {}, message);
-  }
-
-  public warn(message: string, context?: LogContext): void {
-    this.ensureLogger();
-    this.logger.warn(context || {}, message);
-  }
-
-  public debug(message: string, context?: LogContext): void {
-    this.ensureLogger();
-    this.logger.debug(context || {}, message);
-  }
-
-  public trace(message: string, context?: LogContext): void {
-    this.ensureLogger();
-    this.logger.trace(context || {}, message);
-  }
-
-  // Specialized logging methods for specific contexts
-  public logMetrics(metrics: LogContext): void {
+// Create an extended logger with specialized methods
+export const logger: Logger = {
+  ...baseLogger,
+  
+  // Metrics logging (throttled to avoid excessive logs)
+  logMetrics(metrics: Record<string, any>): void {
     const now = Date.now();
-    if (now - this.lastMetricsLog >= this.metricsLogInterval) {
+    const metricsLogInterval = 10000; // Log metrics every 10 seconds
+    
+    if (now - this._lastMetricsLog >= metricsLogInterval) {
       this.info('Performance metrics update', { type: 'metrics', ...metrics });
-      this.lastMetricsLog = now;
+      this._lastMetricsLog = now;
     }
-  }
+  },
 
-  public logLayerEvent(event: string, layerId: string, data?: LogContext): void {
+  // Layer event logging
+  logLayerEvent(event: string, layerId: string, data?: Record<string, any>): void {
     this.debug('Layer event: ' + event, { 
       type: 'layer', 
       event, 
       layerId, 
       ...data 
     });
-  }
+  },
 
-  public logStreamEvent(event: string, data?: LogContext): void {
+  // Stream event logging
+  logStreamEvent(event: string, data?: Record<string, any>): void {
     this.info('Stream event: ' + event, { 
       type: 'stream', 
       event, 
       ...data 
     });
-  }
+  },
 
-  public logWebSocketEvent(event: string, clientId?: string, data?: LogContext): void {
+  // WebSocket event logging
+  logWebSocketEvent(event: string, clientId?: string, data?: Record<string, any>): void {
     this.debug('WebSocket event: ' + event, { 
       type: 'websocket', 
       event, 
       clientId, 
       ...data 
     });
-  }
-}
-
-export const logger = Logger.getInstance();
-
-// Export the class for testing or specialized instances
-export { Logger }; 
+  },
+  
+  // Initialize the metrics tracking time
+  _lastMetricsLog: 0
+}; 

@@ -1,30 +1,19 @@
-// Using dynamic import for pino (ES modules compatible)
-import * as pinoModule from 'pino';
-const { default: pino } = pinoModule as any;
+/**
+ * Logger for the Event Handler Service
+ * 
+ * This module re-exports the shared logger with event-handler-specific configuration.
+ */
 
-interface CustomTransport {
-  stream: any;
-}
+import { createLogger } from '@sothebais/shared/utils/logger.js';
+import type { Logger } from '@sothebais/shared/utils/logger.js';
 
-export const createLogger = (name: string, customTransports: CustomTransport[] = []) => {
-  const streams = [
-    { stream: process.stdout },
-    ...customTransports
-  ];
+// Create a logger instance specifically for the event handler service
+export const logger: Logger = createLogger('event-handler', {
+  // Additional event-handler-specific configuration can go here
+  additionalMeta: {
+    component: 'event-handler'
+  }
+});
 
-  // Create the logger
-  return pino({
-    name,
-    level: process.env.LOG_LEVEL || 'info',
-    timestamp: pino.stdTimeFunctions ? pino.stdTimeFunctions.isoTime : undefined,
-    formatters: {
-      level: (label: string) => {
-        return { level: label };
-      },
-    },
-    base: {
-      service: 'event-handler',
-      env: process.env.NODE_ENV,
-    },
-  }, pino.multistream(streams));
-}; 
+// Re-export the Logger interface for type usage
+export type { Logger }; 

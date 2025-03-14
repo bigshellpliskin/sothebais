@@ -1,5 +1,5 @@
-import { twitterService } from '../services/twitter';
-import { logger } from '../utils/logger';
+import { twitterService } from '../services/twitter.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Twitter Integration Test Script
@@ -94,15 +94,22 @@ async function runTwitterTest() {
     
     logger.info('Twitter integration test completed successfully');
   } catch (error) {
-    logger.error('Error during Twitter integration test', error);
+    logger.error('Error during Twitter integration test', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
     process.exit(1);
   }
 }
 
-// Run the test if this script is called directly
-if (require.main === module) {
+// Run the test if this script is executed directly
+// Note: In ESM, there's no direct equivalent to require.main === module
+// Using a simple approach to check if this is the main module
+const isMainModule = import.meta.url.endsWith(process.argv[1]);
+if (isMainModule) {
   runTwitterTest().catch(error => {
-    logger.error('Unhandled error in Twitter test', error);
+    logger.error('Unhandled error in Twitter test', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
     process.exit(1);
   });
 }

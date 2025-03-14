@@ -1,67 +1,16 @@
+/**
+ * Event Types
+ * 
+ * Re-exports from shared package to maintain backward compatibility
+ */
+
 import type { Scene, Asset } from './core.js';
 import type { StreamState, PreviewClient, SceneState } from './state.js';
 
-// Base event interface
-export interface BaseEvent {
-  id: string;
-  timestamp: number;
-  type: EventType;
-  source: EventSource;
-}
+// Re-export event types from shared package
+export { EventType, EventSource, ConnectionType } from '@sothebais/shared/types/events.js';
 
-// Event types enum
-export enum EventType {
-  // Stream events
-  STREAM_START = 'stream:start',
-  STREAM_STOP = 'stream:stop',
-  STREAM_ERROR = 'stream:error',
-  STREAM_STATE_UPDATE = 'stream:state:update',
-  STREAM_METRICS_UPDATE = 'stream:metrics:update',
-  
-  // Scene events
-  SCENE_LOAD = 'scene:load',
-  SCENE_UNLOAD = 'scene:unload',
-  SCENE_UPDATE = 'scene:update',
-  SCENE_ASSET_ADD = 'scene:asset:add',
-  SCENE_ASSET_REMOVE = 'scene:asset:remove',
-  SCENE_ASSET_UPDATE = 'scene:asset:update',
-  
-  // State events
-  STATE_STREAM_UPDATE = 'state:stream:update',
-  STATE_SCENE_UPDATE = 'state:scene:update',
-  STATE_PREVIEW_UPDATE = 'state:preview:update',
-  
-  // Preview events
-  PREVIEW_CONNECT = 'preview:connect',
-  PREVIEW_DISCONNECT = 'preview:disconnect',
-  PREVIEW_QUALITY_CHANGE = 'preview:quality:change',
-  PREVIEW_FRAME = 'preview:frame',
-  // RTMP Events
-  RTMP_CONNECTION = 'rtmp:connection',
-  RTMP_DISCONNECTION = 'rtmp:disconnection',
-  RTMP_PUBLISH_START = 'rtmp:publish:start',
-  RTMP_PUBLISH_STOP = 'rtmp:publish:stop',
-  RTMP_PLAY_START = 'rtmp:play:start',
-  RTMP_PLAY_STOP = 'rtmp:play:stop'
-}
-
-// Event sources
-export enum EventSource {
-  STREAM_MANAGER = 'stream-manager',
-  SCENE_MANAGER = 'scene-manager',
-  STATE_MANAGER = 'state-manager',
-  PREVIEW_MANAGER = 'preview-manager',
-  RTMP_SERVER = 'rtmp_server'
-}
-
-// Connection types for RTMP server
-export enum ConnectionType {
-  PENDING = 'pending',
-  PUBLISHER = 'publisher',
-  PLAYER = 'player'
-}
-
-// Payload types
+// Payload types specific to stream-manager
 export interface StreamEventPayload {
   previous?: Partial<StreamState>;
   current: Partial<StreamState>;
@@ -76,15 +25,27 @@ export interface SystemEventPayload {
 
 export interface RTMPEventPayload {
   clientId: string;
-  connectionType: ConnectionType;
+  connectionType: import('@sothebais/shared/types/events.js').ConnectionType;
   streamPath?: string;
   timestamp: number;
   duration?: number;
 }
 
+// Base event interface
+export interface BaseEvent {
+  id: string;
+  timestamp: number;
+  type: import('@sothebais/shared/types/events.js').EventType;
+  source: import('@sothebais/shared/types/events.js').EventSource;
+}
+
 // Concrete event types
 export interface StreamEvent extends BaseEvent {
-  type: EventType.STREAM_START | EventType.STREAM_STOP | EventType.STREAM_ERROR | EventType.STREAM_STATE_UPDATE | EventType.STREAM_METRICS_UPDATE;
+  type: import('@sothebais/shared/types/events.js').EventType.STREAM_START | 
+        import('@sothebais/shared/types/events.js').EventType.STREAM_END | 
+        import('@sothebais/shared/types/events.js').EventType.STREAM_ERROR | 
+        import('@sothebais/shared/types/events.js').EventType.STREAM_STATE_UPDATE | 
+        import('@sothebais/shared/types/events.js').EventType.STREAM_METRICS_UPDATE;
   payload: {
     state?: Partial<StreamState>;
     error?: string;
@@ -92,7 +53,12 @@ export interface StreamEvent extends BaseEvent {
 }
 
 export interface SceneEvent extends BaseEvent {
-  type: EventType.SCENE_LOAD | EventType.SCENE_UNLOAD | EventType.SCENE_UPDATE | EventType.SCENE_ASSET_ADD | EventType.SCENE_ASSET_REMOVE | EventType.SCENE_ASSET_UPDATE;
+  type: import('@sothebais/shared/types/events.js').EventType.SCENE_LOAD | 
+        import('@sothebais/shared/types/events.js').EventType.SCENE_UNLOAD | 
+        import('@sothebais/shared/types/events.js').EventType.SCENE_UPDATE | 
+        import('@sothebais/shared/types/events.js').EventType.SCENE_ASSET_ADD | 
+        import('@sothebais/shared/types/events.js').EventType.SCENE_ASSET_REMOVE | 
+        import('@sothebais/shared/types/events.js').EventType.SCENE_ASSET_UPDATE;
   payload: {
     scene?: Scene;
     asset?: Asset;
@@ -100,14 +66,19 @@ export interface SceneEvent extends BaseEvent {
 }
 
 export interface StateEvent extends BaseEvent {
-  type: EventType.STATE_STREAM_UPDATE | EventType.STATE_SCENE_UPDATE | EventType.STATE_PREVIEW_UPDATE;
+  type: import('@sothebais/shared/types/events.js').EventType.STATE_STREAM_UPDATE | 
+        import('@sothebais/shared/types/events.js').EventType.STATE_SCENE_UPDATE | 
+        import('@sothebais/shared/types/events.js').EventType.STATE_PREVIEW_UPDATE;
   payload: {
     state?: Partial<StreamState> | Scene | SceneState;
   };
 }
 
 export interface PreviewEvent extends BaseEvent {
-  type: EventType.PREVIEW_CONNECT | EventType.PREVIEW_DISCONNECT | EventType.PREVIEW_QUALITY_CHANGE | EventType.PREVIEW_FRAME;
+  type: import('@sothebais/shared/types/events.js').EventType.PREVIEW_CONNECT | 
+        import('@sothebais/shared/types/events.js').EventType.PREVIEW_DISCONNECT | 
+        import('@sothebais/shared/types/events.js').EventType.PREVIEW_QUALITY_CHANGE | 
+        import('@sothebais/shared/types/events.js').EventType.PREVIEW_FRAME;
   payload: {
     clientId: string;
     client?: PreviewClient;
@@ -125,9 +96,9 @@ export type EventListener = (event: StreamManagerEvent) => void | Promise<void>;
 // Event emitter interface
 export interface EventEmitter {
   emit(event: StreamManagerEvent): Promise<void>;
-  on(type: EventType, listener: EventListener): void;
-  off(type: EventType, listener: EventListener): void;
-  once(type: EventType, listener: EventListener): void;
-  removeAllListeners(type?: EventType): void;
-  listenerCount(type: EventType): number;
+  on(type: import('@sothebais/shared/types/events.js').EventType, listener: EventListener): void;
+  off(type: import('@sothebais/shared/types/events.js').EventType, listener: EventListener): void;
+  once(type: import('@sothebais/shared/types/events.js').EventType, listener: EventListener): void;
+  removeAllListeners(type?: import('@sothebais/shared/types/events.js').EventType): void;
+  listenerCount(type: import('@sothebais/shared/types/events.js').EventType): number;
 } 

@@ -25,6 +25,7 @@ model User {
   // Relationships
   bids          Bid[]
   preferences   UserPreference?
+  tweets        Tweet[]    // New relationship for tweets
   
   @@map("users")
 }
@@ -165,6 +166,8 @@ model Bid {
   auction     Auction  @relation(fields: [auctionId], references: [id])
   auctionId   String
   wonAuction  Auction? @relation("WinningBid")
+  tweet       Tweet?   @relation(fields: [tweetId], references: [id])
+  tweetId     String?
   
   @@map("bids")
 }
@@ -212,4 +215,52 @@ model EventLog {
   data        Json     // Event data
   
   @@map("event_logs")
+}
+
+// Tweet model for storing Twitter data
+model Tweet {
+  id          String    @id @default(uuid())
+  tweetId     String    @unique // The actual Twitter ID
+  createdAt   DateTime  @default(now())
+  postedAt    DateTime  // When the tweet was posted on Twitter
+  authorId    String    // Twitter user ID
+  content     String    @db.Text
+  isBid       Boolean   @default(false) // Whether this tweet contains a bid
+  isProcessed Boolean   @default(false) // Whether this tweet has been processed
+  metadata    Json?     // Raw tweet data from Twitter API
+  
+  // Relationships
+  bids        Bid[]    // Bids associated with this tweet
+  user        User?    @relation(fields: [userId], references: [id])
+  userId      String?  // Our system's user ID if matched
+  
+  @@index([authorId])
+  @@index([isBid])
+  @@map("tweets")
+}
+
+// TwitterStream model for tracking active Twitter API streams
+model TwitterStream {
+  id          String    @id @default(uuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  streamType  String    // "FILTERED", "SAMPLED", "RULES", etc.
+  query       String?   // The query or rules for the stream
+  isActive    Boolean   @default(false)
+  lastActive  DateTime?
+  metadata    Json?     // Additional data about the stream
+  
+  @@map("twitter_streams")
+}
+
+// TwitterRateLimit for tracking Twitter API rate limits
+model TwitterRateLimit {
+  id          String    @id @default(uuid())
+  endpoint    String    // API endpoint
+  remaining   Int       // Requests remaining
+  reset       DateTime  // When the limit resets
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([endpoint])
+  @@map("twitter_rate_limits")
 } 

@@ -1,13 +1,14 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Registry, collectDefaultMetrics } from 'prom-client';
-import { createLogger } from './utils/logger';
-import { healthRouter } from './routes/health';
-import { metricsRouter } from './routes/metrics';
-import { auctionRouter } from './routes/auction';
-import { stateRouter } from './routes/state';
+import { logger } from '@sothebais/shared/utils/logger.js';
+import { healthRouter } from './routes/health.js';
+import { metricsRouter } from './routes/metrics.js';
+import { auctionRouter } from './routes/auction.js';
+import stateRouter from './routes/state.js';
 
-const logger = createLogger('app');
+// const logger = createLogger('app');
 const app = express();
 const metricsApp = express();
 const healthApp = express();
@@ -21,7 +22,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auction', auctionRouter);
-app.use('/api', stateRouter);
+app.use('/api/state', stateRouter);
 
 // Basic route for testing
 app.get('/', (_req: Request, res: Response) => {

@@ -17,6 +17,15 @@ export * from './events';
 // Model Types
 export * from './models';
 
+// Twitter Types
+export * from './twitter';
+
+// Auction Types
+export * from './auction';
+
+// Service Types
+export * from './service';
+
 /**
  * Type Documentation
  * 

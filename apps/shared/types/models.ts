@@ -58,23 +58,6 @@ export interface AuctionSession {
   campaignId: string;
 }
 
-// Auction (Lot) Types
-export interface Auction {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  startTime: Date;
-  endTime: Date;
-  reservePrice?: number;
-  minBidIncrement?: number;
-  currency: string;
-  status: 'SCHEDULED' | 'ACTIVE' | 'ENDED' | 'SETTLED' | 'CANCELLED';
-  auctionSessionId?: string;
-  artItemId: string;
-  winningBidId?: string;
-  lotOrder: number;
-}
-
 // Collection Types
 export interface Collection {
   id: string;
