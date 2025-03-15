@@ -1,15 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "verbatimModuleSyntax": false,
-    "lib": ["es2020"],
-    "incremental": true,
-    "baseUrl": ".",
-    "outDir": "dist",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "baseUrl": "../..",
     "paths": {
-      "@/*": ["./*"]
+      "@sothebais/shared/*": ["apps/shared/src/*"]
     }
   },
-  "include": ["**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
-} 
+}

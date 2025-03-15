@@ -1,0 +1,155 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # Shared Package Structure and Import Standards
+
+This document outlines the recommended structure for the SothebAIs shared package and how to properly import from it.
+
+## Recommended Structure
+
+After analyzing the current setup, we recommend consolidating the shared package into a **single cohesive package** rather than multiple workspaces, with the following internal structure:
+
+```
+apps/shared/
+├── dist/          # Built output
+├── src/           # Source code
+│   ├── types/     # Type definitions
+│   ├── schema/    # Database schemas and models
+│   ├── utils/     # Utility functions
+│   └── index.ts   # Main entry point that re-exports everything
+├── package.json   # Single package definition
+└── tsconfig.json  # Single tsconfig
+```
+
+## Benefits of This Approach
+
+- **Simplified Imports**: One consistent import pattern across the codebase.
+- **Easier Builds**: Single build process for the entire shared package.
+- **Clearer Dependencies**: Better visibility of dependencies without nested workspaces.
+- **Reduced Configuration**: Single tsconfig.json file to maintain.
+
+## Implementation Steps
+
+1. **Flatten the Structure**:
+   - Move all code from `types/`, `schema/`, and `utils/` into `src/types/`, `src/schema/`, and `src/utils/`.
+   - Create a single main `index.ts` that re-exports everything needed.
+
+2. **Consolidate package.json**:
+   - Remove workspace definitions from shared package.json.
+   - Include all dependencies in the single package.json.
+
+3. **Update tsconfig.json**:
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@sothebais/shared/*": ["apps/shared/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+4. **Update Build Script**:
+```json
+"scripts": {
+  "build": "tsc -p tsconfig.json",
+  "clean": "rm -rf dist",
+  "lint": "eslint ."
+}
+```
+
+## Import Standards
+
+### Consistent Import Patterns
+
+Always use the following pattern for imports from the shared package:
+
+```typescript
+// Correct
+import { createLogger } from '@sothebais/shared/utils/logger.js';
+import type { StreamState } from '@sothebais/shared/types/stream.js';
+```
+
+### Path Aliases in Service Packages
+
+For each service package that needs to use the shared package, add the following to its tsconfig.json:
+
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@sothebais/shared/*": ["../shared/src/*"]
+    }
+  }
+}
+```
+
+### ESM Imports
+
+Always include the `.js` extension in import paths, even for TypeScript files:
+
+```typescript
+// Correct
+import { createLogger } from '@sothebais/shared/utils/logger.js';
+
+// Incorrect
+import { createLogger } from '@sothebais/shared/utils/logger';
+```
+
+## Local Development
+
+To ensure proper local development:
+
+1. **Build the shared package first**:
+```bash
+cd apps/shared
+npm run build
+```
+
+2. **Use package references in tsconfig**:
+Add this to each service's tsconfig.json:
+```json
+{
+  "references": [
+    { "path": "../shared" }
+  ]
+}
+```
+
+3. **Use npm workspaces for installation**:
+```bash
+npm install
+```
+
+## Troubleshooting Common Issues
+
+### Module Not Found Errors
+
+If you see "Cannot find module '@sothebais/shared/...'" errors:
+
+1. Ensure the shared package is built.
+2. Check that your tsconfig.json has the correct paths alias.
+3. Verify you're using the `.js` extension in your imports.
+
+### Type Issues
+
+If TypeScript can't find types from the shared package:
+
+1. Make sure to explicitly import the types: `import type { ... } from '@sothebais/shared/types/...';`
+2. Check that the shared package's build is up to date.
+
+## Migration Guide
+
+1. Create the new structure in a separate branch.
+2. Update all imports in one service at a time.
+3. Test each service after migration.
+4. Gradually roll out the changes across all services.

@@ -3,12 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "schema",
-    "types"
-  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
     "lint": "eslint ."
   },
   "devDependencies": {
@@ -16,6 +13,9 @@
     "@typescript-eslint/eslint-plugin": "^8.26.0",
     "@typescript-eslint/parser": "^8.26.0",
     "eslint": "^8.56.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0",
+    "ts-node": "^10.9.2"
   }
 }

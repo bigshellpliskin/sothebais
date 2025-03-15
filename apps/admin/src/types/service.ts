@@ -4,4 +4,4 @@
  * Re-exports from shared package to maintain backward compatibility
  */
 
-export * from '../../../shared/types/service.js'; 
+export * from '@sothebais/shared/types/service.js'; 

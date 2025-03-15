@@ -6,25 +6,26 @@
  */
 
 // Core Types
-export * from './core';
+export * from './core.js';
 
 // Stream Types
-export * from './stream';
+export * from './stream.js';
 
 // Event Types
-export * from './events';
+export * from './events.js';
 
 // Model Types
-export * from './models';
+export * from './models.js';
+export * from './redis-models.js';
 
 // Twitter Types
-export * from './twitter';
+export * from './twitter.js';
 
 // Auction Types
-export * from './auction';
+export * from './auction.js';
 
 // Service Types
-export * from './service';
+export * from './service.js';
 
 /**
  * Type Documentation

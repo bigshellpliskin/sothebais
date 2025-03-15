@@ -51,7 +51,7 @@ class ConsoleLogger implements Logger {
   constructor(config: LoggerConfig) {
     this.service = config.service;
     this.level = config.level || LogLevel.INFO;
-    this.environment = config.environment || process.env.NODE_ENV || 'development';
+    this.environment = config.environment || process.env['NODE_ENV'] || 'development';
     this.additionalMeta = config.additionalMeta || {};
   }
 

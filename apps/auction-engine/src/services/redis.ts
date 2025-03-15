@@ -4,22 +4,31 @@ import * as IoRedis from 'ioredis';
 const Redis = IoRedis.default || IoRedis;
 
 import type { AuctionState } from '@sothebais/shared/schema/redis/models.js';
-import type { MarathonConfig } from '@sothebais/shared/types/auction.js';
-import type { TwitterBid as Bid } from '@sothebais/shared/types/twitter.js';
+import type { MarathonConfig, AuctionStatus } from '@sothebais/shared/types/auction.js';
+import type { TwitterBid } from '@sothebais/shared/types/twitter.js';
 
 // Interface to extend AuctionState with the properties we need
-interface ExtendedAuctionState extends AuctionState {
+interface ExtendedAuctionState extends Omit<AuctionState, 'id'> {
+  id: string; // This is the marathonId
   marathonId: string;
   dayNumber: number;
+  sessionId: string;
+  artItemId: string;
+  status: AuctionStatus;
+  startTime: string;
+  endTime: string;
+  currency: string;
+  lotOrder: number;
+  highestBidId?: string;
 }
 
 export class RedisService {
   private client: any; // Using any to avoid type issues
 
   constructor() {
-    const redisPassword = process.env.REDIS_PASSWORD || 'default_password';
-    const redisHost = process.env.REDIS_HOST || 'redis';
-    const redisPort = process.env.REDIS_PORT || '6379';
+    const redisPassword = process.env['REDIS_PASSWORD'] || 'default_password';
+    const redisHost = process.env['REDIS_HOST'] || 'redis';
+    const redisPort = process.env['REDIS_PORT'] || '6379';
     
     // @ts-ignore - Ignore type error for Redis construction
     this.client = new Redis({
@@ -120,30 +129,30 @@ export class RedisService {
   }
 
   // Bid Management
-  async addBid(marathonId: string, dayNumber: number, bid: Bid): Promise<void> {
+  async addBid(marathonId: string, dayNumber: number, bid: TwitterBid): Promise<void> {
     const key = `auction:${marathonId}:day:${dayNumber}:bids`;
     await this.client.zadd(key, bid.timestamp.getTime(), JSON.stringify(bid));
   }
 
-  async getHighestBid(marathonId: string, dayNumber: number): Promise<Bid | null> {
+  async getHighestBid(marathonId: string, dayNumber: number): Promise<TwitterBid | null> {
     const key = `auction:${marathonId}:day:${dayNumber}:bids`;
     const bids = await this.client.zrevrange(key, 0, 0);
     return bids.length > 0 ? JSON.parse(bids[0]) : null;
   }
 
-  async getBidHistory(marathonId: string, dayNumber: number): Promise<Bid[]> {
+  async getBidHistory(marathonId: string, dayNumber: number): Promise<TwitterBid[]> {
     const key = `auction:${marathonId}:day:${dayNumber}:bids`;
     const bids = await this.client.zrange(key, 0, -1);
     return bids.map((bid: string) => JSON.parse(bid));
   }
 
   // User Bid History
-  async addUserBid(userId: string, bid: Bid): Promise<void> {
+  async addUserBid(userId: string, bid: TwitterBid): Promise<void> {
     const key = `users:${userId}:bids`;
     await this.client.zadd(key, bid.timestamp.getTime(), JSON.stringify(bid));
   }
 
-  async getUserBids(userId: string): Promise<Bid[]> {
+  async getUserBids(userId: string): Promise<TwitterBid[]> {
     const key = `users:${userId}:bids`;
     const bids = await this.client.zrange(key, 0, -1);
     return bids.map((bid: string) => JSON.parse(bid));
@@ -173,11 +182,11 @@ export class RedisService {
     await this.pruneSnapshots(marathonId);
   }
 
-  async getAllBids(marathonId: string): Promise<{[key: string]: Bid[]}> {
+  async getAllBids(marathonId: string): Promise<{[key: string]: TwitterBid[]}> {
     const state = await this.getCurrentAuction(marathonId);
     if (!state) return {};
 
-    const bids: {[key: string]: Bid[]} = {};
+    const bids: {[key: string]: TwitterBid[]} = {};
     for (let day = 1; day <= state.dayNumber; day++) {
       bids[day] = await this.getBidHistory(marathonId, day);
     }
@@ -236,7 +245,7 @@ export class RedisService {
     return keys.sort().pop() || null;
   }
 
-  private async restoreBids(marathonId: string, bids: {[key: string]: Bid[]}): Promise<void> {
+  private async restoreBids(marathonId: string, bids: {[key: string]: TwitterBid[]}): Promise<void> {
     for (const [day, dayBids] of Object.entries(bids)) {
       for (const bid of dayBids) {
         await this.addBid(marathonId, parseInt(day), bid);

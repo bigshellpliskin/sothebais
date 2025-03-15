@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { Redis } from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import type { TwitterApiTweet } from '@sothebais/shared/types';
+import type { TwitterApiTweet } from '@sothebais/shared/types/twitter.js';
 
 // Redis key prefixes
 const TWEET_CACHE_PREFIX = 'twitter:tweet:';
@@ -158,14 +158,14 @@ export class TwitterStorage {
   public async getRateLimit(endpoint: string): Promise<{ remaining: number; reset: number; updated: number } | null> {
     try {
       const data = await this.redis.hgetall(`${RATE_LIMIT_PREFIX}${endpoint}`);
-      if (!data || !data.remaining) {
+      if (!data || !data['remaining']) {
         return null;
       }
       
       return {
-        remaining: parseInt(data.remaining, 10),
-        reset: parseInt(data.reset, 10),
-        updated: parseInt(data.updated, 10)
+        remaining: parseInt(data['remaining'], 10),
+        reset: parseInt(data['reset'] || '0', 10),
+        updated: parseInt(data['updated'] || '0', 10)
       };
     } catch (error) {
       logger.error('Failed to get rate limit information', {

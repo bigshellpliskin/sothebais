@@ -4,8 +4,8 @@
  * This module re-exports the shared logger with admin-specific configuration.
  */
 
-import { createLogger } from '@sothebais/shared/utils/logger.js';
-import type { Logger } from '@sothebais/shared/utils/logger.js';
+import { createLogger } from '@sothebais/shared/utils/logger';
+import type { Logger } from '@sothebais/shared/utils/logger';
 
 // Create a logger instance specifically for the admin service
 export const logger: Logger = createLogger('admin', {

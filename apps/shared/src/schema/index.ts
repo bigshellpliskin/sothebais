@@ -5,9 +5,13 @@
  * These schemas define the actual data storage structures, not just TypeScript types.
  */
 
+// Database initialization utilities
+export * from './db-init.js';
+
 // Redis Schema
-export * from './redis/keys';
-export * from './redis/models';
+export * from './redis/models.js';
+// Uncomment once keys.js is properly migrated
+// export * from './redis/keys.js';
 
 // Prisma Schema
 // Note: Prisma client is typically imported directly from @prisma/client
@@ -46,4 +50,12 @@ export * from './redis/models';
  * 
  * Note: TypeScript types for development are defined separately in the 'types' directory.
  * These schemas define the actual data storage structures and are used at runtime.
- */ 
+ */
+
+/**
+ * Schema Exports
+ * 
+ * Exports database schema related models, types, and utilities.
+ */
+
+// Add Prisma models or other data access exports as needed 

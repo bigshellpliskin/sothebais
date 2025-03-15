@@ -1,6 +1,7 @@
 ---
-description: How to use docker, docker compose and associated files
-globs: Dockerfile, compose.yaml
+description: 
+globs: 
+alwaysApply: true
 ---
 # Docker Setup for SothebAIs
 

@@ -13,7 +13,15 @@
     "declaration": true,
     "sourceMap": true,
     "noImplicitAny": true,
-    "stripInternal": true
+    "stripInternal": true,
+    "allowJs": false,
+    "composite": true,
+    "incremental": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true
   },
   "exclude": ["**/node_modules", "**/dist"]
 } 

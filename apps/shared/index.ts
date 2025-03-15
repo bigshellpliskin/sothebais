@@ -1,13 +1,8 @@
 /**
- * Shared Package Index
+ * Shared Package Root Index
  * 
- * Exports all shared components, utilities, and types for use across services.
+ * Re-exports all shared components, utilities, and types from the src directory.
  */
 
-// Export shared types
-export * from './types/index.js';
-
-// Export utilities
-export * from './utils/logger.js';
-
-// Add other exports as needed 
+// Export everything from src/index.ts
+export * from './src/index.js'; 

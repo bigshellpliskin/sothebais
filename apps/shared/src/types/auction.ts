@@ -4,7 +4,7 @@
  * Shared types for auction functionality used across services
  */
 
-import { AuctionState } from '../schema/redis/models.js';
+import type { AuctionState } from './redis-models.js';
 
 /**
  * Auction bid data structure
@@ -22,12 +22,13 @@ export interface AuctionBid {
  * Auction marathon configuration
  */
 export interface MarathonConfig {
-  totalDays: number;
-  dailyStartTime: string; // Format: "HH:MM" in 24h format
-  dailyEndTime: string;   // Format: "HH:MM" in 24h format
-  minBidIncrement?: number;
+  startDate: string;
+  endDate: string;
   currency: string;
-  startingPrice?: number;
+  minBid: number;
+  bidIncrement: number;
+  auctionDuration: number; // in hours
+  breakDuration: number; // in hours
 }
 
 /**
@@ -64,4 +65,6 @@ export interface AuctionStats {
   uniqueBidders: number;
   highestBid?: AuctionBid;
   bidHistory: AuctionBid[];
-} 
+}
+
+export type { AuctionState }; 

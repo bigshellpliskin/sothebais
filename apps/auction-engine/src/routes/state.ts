@@ -1,26 +1,20 @@
 import { Router } from 'express';
 import { RedisService } from '../services/redis.js';
 import { logger } from '@sothebais/shared/utils/logger.js';
+import type { TwitterBid } from '@sothebais/shared/types/twitter.js';
 
 const router = Router();
 const redis = new RedisService();
 
-// Define types for our data structures
-interface Bid {
-  userId: string;
-  amount: number;
-  timestamp: string;
-}
-
 interface BidsByDay {
-  [day: string]: Bid[];
+  [day: string]: TwitterBid[];
 }
 
 router.get('/bids', async (req, res) => {
   try {
     // Get the current marathon ID or use a default one
-    const marathonId = req.query.marathonId as string || 'current';
-    const bidsData = await redis.getAllBids(marathonId) as BidsByDay;
+    const marathonId = req.query['marathonId'] as string || 'current';
+    const bidsData = await redis.getAllBids(marathonId);
     
     // Calculate total bids
     const totalBids = Object.values(bidsData).reduce((total, dayBids) => {
@@ -33,7 +27,7 @@ router.get('/bids', async (req, res) => {
     
     // Get last 10 bids
     const lastBids = [...allBids]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, 10);
     
     res.json({

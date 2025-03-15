@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["../shared/*"]
+      "@sothebais/shared/*": ["../shared/src/*"]
     },
     "types": ["jest", "node"]
   },
@@ -32,5 +32,8 @@
   ],
   "exclude": [
     "node_modules"
+  ],
+  "references": [
+    { "path": "../shared" }
   ]
 }

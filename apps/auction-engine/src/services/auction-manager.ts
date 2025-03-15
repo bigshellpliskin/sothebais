@@ -32,11 +32,13 @@ export class AuctionManager {
       const startTime = this.getAuctionStartTime(config);
       const endTime = this.getAuctionEndTime(config);
       
-      const initialState: AuctionState = {
+      const initialState = {
         id: marathonId,
+        marathonId,
+        dayNumber: 1,
         sessionId: marathonId, // Using marathon ID as session ID for now
         artItemId: 'day-1', // Placeholder
-        status: 'SCHEDULED', // Use a valid status from the type
+        status: 'SCHEDULED' as AuctionStatus, // Use a valid status from the type
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         currency: config.currency,
@@ -115,14 +117,7 @@ export class AuctionManager {
       await this.redis.setCurrentAuction(state);
       
       // Store bid in history
-      await this.redis.addBid(marathonId, state.lotOrder, {
-        id: bid.tweetId,
-        userId: bid.userId,
-        amount: bid.amount.toString(),
-        currency: 'ETH', // Hardcoded for now, should come from config
-        timestamp: new Date().toISOString(),
-        status: 'ACCEPTED'
-      });
+      await this.redis.addBid(marathonId, state.lotOrder, bid);
       
       logger.info('Processed new bid', { 
         marathonId, 
@@ -185,15 +180,21 @@ export class AuctionManager {
       
       // Set up next day's auction
       const config = await this.redis.getMarathonConfig();
+      if (!config) {
+        throw new Error('Marathon config not found');
+      }
+      
       const nextLotOrder = state.lotOrder + 1;
       const startTime = this.getAuctionStartTime(config);
       const endTime = this.getAuctionEndTime(config);
       
-      const newState: AuctionState = {
+      const newState = {
         id: marathonId,
+        marathonId,
+        dayNumber: nextLotOrder,
         sessionId: marathonId,
         artItemId: `day-${nextLotOrder}`, // Placeholder
-        status: 'SCHEDULED',
+        status: 'SCHEDULED' as AuctionStatus,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
         currency: config.currency,
@@ -262,22 +263,27 @@ export class AuctionManager {
   }
 
   private getAuctionStartTime(config: MarathonConfig): Date {
-    // Implementation depends on your specific requirements
     const now = new Date();
-    const startTime = new Date(now);
-    startTime.setHours(parseInt(config.dailyStartTime.split(':')[0]));
-    startTime.setMinutes(parseInt(config.dailyStartTime.split(':')[1]));
+    // Ensure we have a starting date
+    const startDate = config.startDate ? new Date(config.startDate) : now;
+    
+    // Set auction start time based on current time plus a small offset
+    const startTime = new Date(startDate);
+    startTime.setHours(now.getHours());
+    startTime.setMinutes(now.getMinutes() + 5); // Start 5 minutes from now
     startTime.setSeconds(0);
+    
     return startTime;
   }
 
   private getAuctionEndTime(config: MarathonConfig): Date {
-    // Implementation depends on your specific requirements
-    const now = new Date();
-    const endTime = new Date(now);
-    endTime.setHours(parseInt(config.dailyEndTime.split(':')[0]));
-    endTime.setMinutes(parseInt(config.dailyEndTime.split(':')[1]));
-    endTime.setSeconds(0);
+    // Get the start time and add the auction duration
+    const startTime = this.getAuctionStartTime(config);
+    const endTime = new Date(startTime);
+    
+    // Add the auction duration (in hours)
+    endTime.setHours(endTime.getHours() + (config.auctionDuration || 24));
+    
     return endTime;
   }
 } 
