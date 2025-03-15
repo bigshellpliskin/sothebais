@@ -29,8 +29,8 @@ export class PreviewServer extends EventEmitter {
 
     // Listen for state updates using EventEmitter
     // @ts-ignore - Type compatibility issue with EventEmitter
-    stateManager.on(EventType.STATE_STREAM_UPDATE, (event: StreamEvent) => {
-      const streamState = event.payload.state;
+    stateManager.on(EventType.STATE_STREAM_UPDATE, (event: any) => {
+      const streamState = event.payload?.state;
       if (streamState) {
         this.handleStreamStateUpdate(streamState);
         
@@ -275,7 +275,7 @@ export class PreviewServer extends EventEmitter {
       clearInterval(this.frameInterval);
       this.frameInterval = null;
     }
-    stateManager.updateStreamState({ isLive: false, startTime: undefined });
+    stateManager.updateStreamState({ isLive: false, startTime: null });
     logger.info('Preview streaming stopped');
   }
 
@@ -286,5 +286,50 @@ export class PreviewServer extends EventEmitter {
     }
     PreviewServer.instance = null;
     logger.info('Preview server shut down');
+  }
+
+  private sendFrames(): void {
+    if (!this.composition || !this.currentScene) {
+      logger.warn('Cannot send frames - composition or scene not available');
+      return;
+    }
+
+    try {
+      // Generate frame from composition engine
+      this.composition.renderScene(this.currentScene)
+        .then(frame => {
+          if (!frame) {
+            logger.warn('Empty frame generated');
+            return;
+          }
+          
+          // Save the frame buffer
+          this.lastFrameBuffer = frame;
+          
+          // Broadcast to connected clients
+          this.broadcastFrame(frame);
+          
+          // Update metrics in state
+          const streamState = stateManager.getStreamState();
+          const frameCount = streamState.frameCount + 1;
+          
+          stateManager.updateStreamState({
+            frameCount,
+            fps: Math.min(frameCount / ((Date.now() - (streamState.startTime || Date.now())) / 1000), 
+                          streamState.targetFPS)
+          });
+        })
+        .catch(error => {
+          logger.error('Error rendering frame', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          });
+        });
+    } catch (error) {
+      logger.error('Error in sendFrames', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    }
   }
 }

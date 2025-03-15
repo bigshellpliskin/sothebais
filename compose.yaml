@@ -128,6 +128,11 @@ services:
       - ./apps/stream-manager/package.json:/app/package.json:ro
       - ./data/stream-manager:/app/storage:rw
       - ./apps/stream-manager/assets:/app/assets:ro  # Mount assets directory
+      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
+      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
+      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
+      - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     networks:
       - auction_net
     labels:
@@ -406,6 +411,26 @@ x-volumes:
     - type: bind
       source: ./apps/stream-manager/assets
       target: /app/assets
+      read_only: true
+    - type: bind
+      source: ./apps/shared/src
+      target: /app/shared/src
+      read_only: true
+    - type: bind
+      source: ./apps/shared/package.json
+      target: /app/shared/package.json
+      read_only: true
+    - type: bind
+      source: ./apps/shared/tsconfig.json
+      target: /app/shared/tsconfig.json
+      read_only: true
+    - type: bind
+      source: ./tsconfig.base.json
+      target: /app/tsconfig.base.json
+      read_only: true
+    - type: bind
+      source: ./tsconfig.base.json
+      target: /tsconfig.base.json
       read_only: true
     - type: volume
       source: stream_storage

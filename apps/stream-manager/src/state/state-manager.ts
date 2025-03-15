@@ -12,13 +12,20 @@ import type {
   StreamManagerEvent,
   SceneEvent,
   PreviewEvent,
-  StateEvent
+  StateEvent,
+  AnyEvent
 } from '../types/index.js';
+import { EVENT_TYPES } from '../types/index.js';
 
 import { RedisService } from './redis-service.js';
 import { logger } from '../utils/logger.js';
 import { eventEmitter } from './event-emitter.js';
 import { webSocketService } from '../server/websocket.js';
+
+// Define EventListener interface
+interface EventListener {
+  (event: AnyEvent): Promise<void> | void;
+}
 
 // Define a local type for the event source
 const EVENT_SOURCES = {
@@ -30,7 +37,8 @@ const EVENT_SOURCES = {
   REDIS: 'REDIS',
   REST: 'REST',
   GRAPHQL: 'GRAPHQL',
-  GRPC: 'GRPC'
+  GRPC: 'GRPC',
+  STREAM_MANAGER: 'STREAM_MANAGER'
 } as const;
 
 const DEFAULT_STREAM_STATE: StreamState = {
@@ -145,17 +153,15 @@ export class StateManagerImpl implements StateManager {
       await this.ensureRedisConnection();
       await this.redisService.saveStreamState(this.state.stream);
 
-      const event: StateEvent = {
+      const event: any = {
         id: Date.now().toString(),
         timestamp: Date.now(),
         type: EVENT_TYPES.STATE_STREAM_UPDATE,
         source: EVENT_SOURCES.STREAM_MANAGER,
-        payload: {
-          state: this.state.stream
-        }
+        payload: this.state.stream
       };
 
-      await eventEmitter.emit(event);
+      await eventEmitter.emit(event as StreamManagerEvent);
       webSocketService.broadcastStateUpdate(event);
 
       logger.info('Stream state updated and persisted:', {
@@ -199,18 +205,16 @@ export class StateManagerImpl implements StateManager {
       await this.redisService.saveSceneState(this.state.scene);
 
       // Create standardized event
-      const event: StateEvent = {
+      const event: any = {
         id: Date.now().toString(),
         timestamp: Date.now(),
         type: EVENT_TYPES.STATE_SCENE_UPDATE,
         source: EVENT_SOURCES.STREAM_MANAGER,
-        payload: {
-          state: this.state.scene
-        }
+        payload: this.state.scene
       };
 
       // Emit event
-      await eventEmitter.emit(event);
+      await eventEmitter.emit(event as StreamManagerEvent);
 
       // Broadcast via WebSocket
       webSocketService.broadcastStateUpdate(event);
@@ -296,16 +300,16 @@ export class StateManagerImpl implements StateManager {
   }
 
   // Event handling methods that delegate to eventEmitter
-  public on(type: EventType, listener: StreamManagerEventListener): void {
-    eventEmitter.on(type, listener);
+  public on(type: EventType, listener: EventListener): void {
+    eventEmitter.on(type, listener as any);
   }
 
-  public off(type: EventType, listener: StreamManagerEventListener): void {
-    eventEmitter.off(type, listener);
+  public off(type: EventType, listener: EventListener): void {
+    eventEmitter.off(type, listener as any);
   }
 
-  public once(type: EventType, listener: StreamManagerEventListener): void {
-    eventEmitter.once(type, listener);
+  public once(type: EventType, listener: EventListener): void {
+    eventEmitter.once(type, listener as any);
   }
 
   // Preview client methods
@@ -337,7 +341,7 @@ export class StateManagerImpl implements StateManager {
       payload.quality = update.quality;
     }
     
-    const event: PreviewEvent = {
+    const event: any = {
       id: Date.now().toString(),
       timestamp: Date.now(),
       type: update.connected === false ? EVENT_TYPES.PREVIEW_DISCONNECT :
@@ -347,7 +351,7 @@ export class StateManagerImpl implements StateManager {
       payload
     };
 
-    eventEmitter.emit(event);
+    eventEmitter.emit(event as StreamManagerEvent);
     webSocketService.broadcastStateUpdate(event);
   }
 }

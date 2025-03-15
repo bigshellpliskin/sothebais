@@ -198,7 +198,7 @@ export class StreamEncoder extends EventEmitter {
     ];
 
     // Basic video processing - simplified
-    const videoArgs = [
+    const videoArgs: string[] = [
       '-vf', 'format=yuv420p',  // Just convert to yuv420p for h264
       '-g', '30',  // Keyframe every 30 frames
       '-c:v', 'libx264',
@@ -209,17 +209,17 @@ export class StreamEncoder extends EventEmitter {
     ];
 
     // Output options - simplified
-    const outputArgs = [
+    const outputArgs: string[] = [
       '-f', 'flv',
-      this.config.outputs[0]  // Use the first output URL
+      this.config.outputs[0] || ''  // Ensure a string value is always returned
     ];
 
-    const args = [
+    const args: string[] = [
       ...globalArgs,
       ...inputArgs,
       ...videoArgs,
       ...outputArgs
-    ];
+    ].filter(Boolean) as string[]; // Filter out any falsy values
 
     logger.info('FFmpeg command configuration', {
       command: 'ffmpeg ' + args.join(' '),

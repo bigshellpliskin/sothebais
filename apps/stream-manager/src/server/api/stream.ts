@@ -152,12 +152,12 @@ streamRouter.get('/config', (req: Request, res: Response) => {
     logger.info('Config request received');
     
     const publicConfig = {
-      STREAM_RESOLUTION: config.STREAM_RESOLUTION,
-      TARGET_FPS: config.TARGET_FPS,
-      RENDER_QUALITY: config.RENDER_QUALITY,
-      MAX_LAYERS: config.MAX_LAYERS,
-      STREAM_BITRATE: config.STREAM_BITRATE,
-      ENABLE_HARDWARE_ACCELERATION: config.ENABLE_HARDWARE_ACCELERATION
+      STREAM_RESOLUTION: config['STREAM_RESOLUTION'],
+      TARGET_FPS: config['TARGET_FPS'],
+      RENDER_QUALITY: config['RENDER_QUALITY'],
+      MAX_LAYERS: config['MAX_LAYERS'],
+      STREAM_BITRATE: config['STREAM_BITRATE'],
+      ENABLE_HARDWARE_ACCELERATION: config['ENABLE_HARDWARE_ACCELERATION']
     };
 
     logger.info('Sending config response', { config: publicConfig });

@@ -1,22 +1,22 @@
 import type { EventType } from '@sothebais/shared/types/events.js';
 import { logger } from '../utils/logger.js';
-import type { StreamManagerEvent } from '../types/index.js';
+import type { StreamManagerEvent, AnyEvent } from '../types/index.js';
 
 // Define EventListener interface locally
 interface EventListener {
-  (event: StreamManagerEvent): Promise<void> | void;
+  (event: AnyEvent): Promise<void> | void;
 }
 
 // Define EventEmitter interface locally
 interface EventEmitter {
-  on(type: EventType, listener: EventListener): void;
-  off(type: EventType, listener: EventListener): void;
-  once(type: EventType, listener: EventListener): void;
-  emit(event: StreamManagerEvent): Promise<void> | void;
+  on(type: string, listener: EventListener): void;
+  off(type: string, listener: EventListener): void;
+  once(type: string, listener: EventListener): void;
+  emit(event: AnyEvent): Promise<void> | void;
 }
 
 export class StreamManagerEventEmitter implements EventEmitter {
-  private listeners: Map<EventType, Set<EventListener>>;
+  private listeners: Map<string, Set<EventListener>>;
   private static instance: StreamManagerEventEmitter | null = null;
 
   private constructor() {
@@ -30,9 +30,10 @@ export class StreamManagerEventEmitter implements EventEmitter {
     return StreamManagerEventEmitter.instance;
   }
 
-  public async emit(event: StreamManagerEvent): Promise<void> {
+  public async emit(event: AnyEvent): Promise<void> {
     try {
-      const eventListeners = this.listeners.get(event.type);
+      const eventType = event.type as string;
+      const eventListeners = this.listeners.get(eventType);
       if (!eventListeners) return;
 
       const promises = Array.from(eventListeners).map(async (listener) => {
@@ -57,14 +58,14 @@ export class StreamManagerEventEmitter implements EventEmitter {
     }
   }
 
-  public on(type: EventType, listener: EventListener): void {
+  public on(type: string, listener: EventListener): void {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set());
     }
     this.listeners.get(type)!.add(listener);
   }
 
-  public off(type: EventType, listener: EventListener): void {
+  public off(type: string, listener: EventListener): void {
     const eventListeners = this.listeners.get(type);
     if (eventListeners) {
       eventListeners.delete(listener);
@@ -74,8 +75,8 @@ export class StreamManagerEventEmitter implements EventEmitter {
     }
   }
 
-  public once(type: EventType, listener: EventListener): void {
-    const onceWrapper = async (event: StreamManagerEvent) => {
+  public once(type: string, listener: EventListener): void {
+    const onceWrapper = async (event: AnyEvent) => {
       try {
         await listener(event);
         this.off(type, onceWrapper);
@@ -91,7 +92,7 @@ export class StreamManagerEventEmitter implements EventEmitter {
     this.on(type, onceWrapper);
   }
 
-  public removeAllListeners(type?: EventType): void {
+  public removeAllListeners(type?: string): void {
     if (type) {
       this.listeners.delete(type);
     } else {
@@ -99,7 +100,7 @@ export class StreamManagerEventEmitter implements EventEmitter {
     }
   }
 
-  public listenerCount(type: EventType): number {
+  public listenerCount(type: string): number {
     return this.listeners.get(type)?.size ?? 0;
   }
 }
