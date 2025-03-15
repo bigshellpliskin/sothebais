@@ -4,9 +4,9 @@ import { CompositionEngine } from '../../core/composition.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { stateManager } from '../../state/state-manager.js';
-import type { Scene } from '../../types/core.js';
-import type { StreamState, PreviewClient } from '../../types/state.js';
-import { EventType, type StreamEvent } from '../../types/events.js';
+import type { Scene } from '@sothebais/shared/types/scene.js';
+import type { StreamState, PreviewClient, StreamEvent } from '@sothebais/shared/types/stream.js';
+import type { EventType } from '@sothebais/shared/types/events.js';
 import { Router } from 'express';
 
 interface PreviewMessage {
@@ -254,31 +254,20 @@ export class PreviewServer extends EventEmitter {
   }
 
   public start(): void {
-    if (this.frameInterval) return;
+    if (this.frameInterval) {
+      clearInterval(this.frameInterval);
+      this.frameInterval = null;
+    }
 
-    stateManager.updateStreamState({ isLive: true, startTime: Date.now() });
-    
-    // Start frame generation at target FPS
-    const targetFPS = config.TARGET_FPS || 30;
-    const frameInterval = 1000 / targetFPS;
-    
-    this.frameInterval = setInterval(async () => {
-      try {
-        if (!this.currentScene) return;
+    // Start sending frames at regular intervals
+    const fps = config['TARGET_FPS'] || 30;
+    const frameDelay = Math.floor(1000 / fps);
 
-        const frame = await this.composition.renderScene(this.currentScene);
-        if (frame) {
-          this.lastFrameBuffer = frame;
-          this.broadcastFrame(frame);
-        }
-      } catch (error) {
-        logger.error('Error generating preview frame', {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }, frameInterval);
+    this.frameInterval = setInterval(() => {
+      this.sendFrames();
+    }, frameDelay);
 
-    logger.info('Preview streaming started');
+    logger.info('Preview server started', { fps });
   }
 
   public stop(): void {

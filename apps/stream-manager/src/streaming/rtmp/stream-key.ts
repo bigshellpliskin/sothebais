@@ -1,7 +1,9 @@
 import { randomBytes, createHash } from 'crypto';
 import { Redis } from 'ioredis';
 import { logger } from '../../utils/logger.js';
-import type { LogContext } from '../../utils/logger.js';
+
+// Define LogContext type directly since it's not exported from logger.ts
+export type LogContext = Record<string, unknown>;
 
 const STREAM_KEY_PREFIX = 'stream:key:';
 const STREAM_ALIAS_PREFIX = 'stream:alias:';

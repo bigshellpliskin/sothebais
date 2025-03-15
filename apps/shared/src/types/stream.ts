@@ -1,26 +1,69 @@
-import type { Scene, Asset, Quadrant, QuadrantId } from './core.js';
+/**
+ * Stream Types
+ * 
+ * Core types for stream state, configuration, and metrics
+ */
 
-// Stream Configuration Types
-export interface StreamConfig {
-  resolution: {
-    width: number;
-    height: number;
-  };
+import type { Scene, Asset, Quadrant, QuadrantId } from './scene.js';
+import type { EventType, EventListener } from './events.js';
+import type { 
+  StreamConfig,
+  AudioConfig,
+  RenderConfig
+} from './config.js';
+
+// ----- Stream State Types -----
+
+/**
+ * Stream Runtime State
+ */
+export interface StreamState {
+  isLive: boolean;
+  isPaused: boolean;
   fps: number;
-  bitrate: number;
-  codec: 'h264' | 'vp8' | 'vp9';
-  preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium' | 'slow' | 'slower' | 'veryslow';
+  targetFPS: number;
+  frameCount: number;
+  droppedFrames: number;
+  averageRenderTime: number;
+  startTime: number | null;
+  error: string | null;
+  config?: StreamConfig;
+  audio?: AudioConfig;
+  metrics?: StreamMetrics;
+  currentScene?: Scene | null;
+}
+
+/**
+ * Scene State - Current state of scene composition
+ */
+export interface SceneState {
+  background: Asset[];
+  quadrants: Map<QuadrantId, Quadrant>;
+  overlay: Asset[];
+}
+
+/**
+ * Preview Client - Client connected to preview stream
+ */
+export interface PreviewClient {
+  id: string;
   quality: 'low' | 'medium' | 'high';
+  lastPing: number;
+  connected: boolean;
 }
 
-export interface AudioConfig {
-  codec: 'aac' | 'opus';
-  bitrate: number;
-  sampleRate: number;
-  channels: number;
+/**
+ * Application State
+ */
+export interface AppState {
+  stream: StreamState;
+  scene: SceneState;
+  preview: Record<string, PreviewClient>;
 }
 
-// Stream Metrics Types
+/**
+ * Stream performance metrics
+ */
 export interface StreamMetrics {
   fps: number;
   bitrate: number;
@@ -31,81 +74,53 @@ export interface StreamMetrics {
   memoryUsage: number;
 }
 
-// Stream Runtime State
-export interface StreamState {
-  isLive: boolean;
-  isPaused: boolean;
-  fps: number;
-  targetFPS: number;
-  frameCount: number;
-  droppedFrames: number;
-  averageRenderTime: number;
-  startTime?: number | null;
-  error?: string | null;
-  config?: StreamConfig;
-  audio?: AudioConfig;
-  metrics?: StreamMetrics;
-  currentScene?: Scene | null;
-}
-
-// Stream Output Configuration
-export interface StreamOutput {
-  type: 'twitter' | 'rtmp' | 'file';
-  url: string;
-  key?: string;
-}
-
-// Scene State Types
-export interface SceneState {
-  background: Asset[];
-  quadrants: Map<QuadrantId, Quadrant>;
-  overlay: Asset[];
-}
-
-// Preview Client Types
-export interface PreviewClient {
-  id: string;
-  quality: 'low' | 'medium' | 'high';
-  lastPing: number;
-  connected: boolean;
-}
-
-export interface PreviewState {
-  clients: Record<string, PreviewClient>;
-}
-
-// Application State
-export interface AppState {
-  stream: StreamState;
-  scene: SceneState;
-  preview: Record<string, PreviewClient>;
-}
-
-// State Update Events
+/**
+ * Event for state updates
+ */
 export type StateUpdateEvent = {
   type: 'stream' | 'scene' | 'preview';
   payload: Partial<StreamState> | Partial<SceneState> | Partial<PreviewClient>;
 };
 
-// Stream Events
+/**
+ * Stream lifecycle and metrics events
+ */
 export type StreamEvent = 
   | { type: 'streamStart'; timestamp: number }
   | { type: 'streamStop'; timestamp: number }
   | { type: 'streamError'; error: string; timestamp: number }
   | { type: 'metricsUpdate'; metrics: StreamMetrics; timestamp: number };
 
-// Configuration Types
-export interface RenderConfig {
-  quality: 'low' | 'medium' | 'high';
-  frameBuffer: number;
-  dropFrames: boolean;
-  metricsInterval: number;
+/**
+ * Stream output configuration
+ */
+export interface StreamOutput {
+  type: 'twitter' | 'rtmp' | 'file';
+  url: string;
+  key?: string;
 }
 
-export interface RTMPConfig {
-  port: number;
-  chunk_size: number;
-  gop_cache: boolean;
-  ping: number;
-  ping_timeout: number;
+/**
+ * State Manager Interface
+ */
+export interface StateManager {
+  initialize(config: any): Promise<void>;
+  getStreamState(): StreamState;
+  getSceneState(): SceneState;
+  updateStreamState(update: Partial<StreamState>): Promise<void>;
+  updateSceneState(update: Partial<SceneState>): Promise<void>;
+  loadState(): Promise<void>;
+  saveState(): Promise<void>;
+  
+  // Preview client methods
+  getPreviewClients(): Record<string, PreviewClient>;
+  updatePreviewClient(
+    clientId: string, 
+    update: Partial<PreviewClient>
+  ): void;
+  
+  // Event methods
+  on(type: EventType, listener: EventListener): void;
+  off(type: EventType, listener: EventListener): void;
+  once(type: EventType, listener: EventListener): void;
 } 

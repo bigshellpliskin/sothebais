@@ -31,7 +31,7 @@ class WebSocketService {
         return;
       }
 
-      const wsPort = process.env.WS_PORT ? parseInt(process.env.WS_PORT, 10) : 4201;
+      const wsPort = process.env['WS_PORT'] ? parseInt(process.env['WS_PORT'], 10) : 4201;
 
       logger.info('Initializing WebSocket server', {
         port: wsPort,

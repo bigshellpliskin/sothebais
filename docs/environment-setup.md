@@ -226,7 +226,8 @@ WORKDIR /app
 # Copy shared dependencies and service-specific files
 COPY tsconfig.base.json ../../tsconfig.base.json
 COPY apps/service-name/package*.json ./
-COPY apps/shared/types ../shared/types  # For services that need shared types
+COPY apps/shared/src ../shared/src  # Copy shared package source
+COPY apps/shared/package.json ../shared/package.json  # Copy shared package definition
 
 # Install dependencies and build
 RUN npm install
@@ -247,9 +248,11 @@ CMD ["npm", "run", "start"]
    - Use `docker ps` to identify containers with port conflicts
    - Change port mappings in `.env` file
 
-2. **Shared Type Errors**:
-   - Ensure shared types are properly copied into Docker containers
-   - Check that Dockerfiles include the `COPY apps/shared/types ../shared/types` step
+2. **Shared Package Errors**:
+   - Ensure the shared package is copied correctly into Docker containers
+   - Check that Dockerfiles include the `COPY apps/shared/src ../shared/src` step
+   - Verify import paths use the correct format: `@sothebais/shared/utils/logger.js`
+   - Make sure imports include the `.js` extension even for TypeScript files
 
 3. **Volume Mount Issues**:
    - Check that source directories are correctly mounted

@@ -7,10 +7,15 @@ import { StreamKeyService } from './rtmp/stream-key.js';
 import { TwitterBroadcaster } from './output/twitter-broadcaster.js';
 import { stateManager } from '../state/state-manager.js';
 import { webSocketService } from '../server/websocket.js';
-import type { StateManager } from '../types/state.js';
-import type { Config } from '../types/config.js';
-import type { AssetManager, CompositionEngine, Scene } from '../types/core.js';
-import { EventType } from '../types/events.js';
+import type { 
+  StateManager,
+  Config,
+  AssetManager, 
+  CompositionEngine, 
+  Scene,
+  EventType
+} from '../types/index.js';
+import { EVENT_TYPES } from '../types/index.js';
 
 interface StreamManagerDependencies {
   assets: AssetManager;
@@ -82,7 +87,7 @@ export class StreamManager extends EventEmitter {
       });
 
       // Initialize frame pipeline
-      const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+      const { width, height } = config.STREAM_RESOLUTION;
       this.pipeline = await FramePipeline.initialize({
         maxQueueSize: config.PIPELINE_MAX_QUEUE_SIZE,
         poolSize: config.PIPELINE_POOL_SIZE,
@@ -110,9 +115,9 @@ export class StreamManager extends EventEmitter {
       });
 
       // Setup Twitter if credentials are provided
-      if (process.env.TWITTER_BROADCAST_ENABLED === 'true' && 
-          process.env.TWITTER_RTMP_URL && 
-          process.env.TWITTER_STREAM_KEY) {
+      if (process.env['TWITTER_BROADCAST_ENABLED'] === 'true' && 
+          process.env['TWITTER_RTMP_URL'] && 
+          process.env['TWITTER_STREAM_KEY']) {
         this.setupTwitterBroadcast();
       }
 
@@ -162,7 +167,7 @@ export class StreamManager extends EventEmitter {
     this.rtmpServer.on('error', this.handleError.bind(this));
 
     // Handle state changes
-    this.stateManager.on(EventType.STATE_STREAM_UPDATE, this.handleStateChange.bind(this));
+    this.stateManager.on(EVENT_TYPES.STATE_STREAM_UPDATE, this.handleStateChange.bind(this));
   }
 
   private async handleStateChange(update: any): Promise<void> {
@@ -411,7 +416,7 @@ export class StreamManager extends EventEmitter {
    * Setup Twitter broadcasting by configuring the RTMP endpoint
    */
   private setupTwitterBroadcast(): void {
-    if (!process.env.TWITTER_RTMP_URL || !process.env.TWITTER_STREAM_KEY) {
+    if (!process.env['TWITTER_RTMP_URL'] || !process.env['TWITTER_STREAM_KEY']) {
       logger.warn('Twitter broadcasting disabled - missing RTMP URL or stream key');
       return;
     }
@@ -419,13 +424,13 @@ export class StreamManager extends EventEmitter {
     try {
       const twitterBroadcaster = TwitterBroadcaster.getInstance();
       twitterBroadcaster.configure(
-        process.env.TWITTER_RTMP_URL,
-        process.env.TWITTER_STREAM_KEY
+        process.env['TWITTER_RTMP_URL'],
+        process.env['TWITTER_STREAM_KEY']
       );
       
       logger.info('Twitter broadcasting configured', {
-        rtmpUrl: process.env.TWITTER_RTMP_URL,
-        enabled: process.env.TWITTER_BROADCAST_ENABLED
+        rtmpUrl: process.env['TWITTER_RTMP_URL'],
+        enabled: process.env['TWITTER_BROADCAST_ENABLED']
       });
     } catch (error) {
       logger.error('Failed to configure Twitter broadcasting', {

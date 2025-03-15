@@ -1,11 +1,22 @@
 import NodeMediaServer from 'node-media-server';
 import { EventEmitter } from 'events';
 import { logger } from '../../utils/logger.js';
-import { EventType, ConnectionType } from '../../types/events.js';
-import type { RTMPEventPayload } from '../../types/events.js';
+import { EVENT_TYPES, CONNECTION_TYPES } from '../../types/index.js';
+import type { RTMPEventPayload, ConnectionType } from '../../types/index.js';
 import { StreamKeyService } from './stream-key.js';
 import { RTMPEvents } from './events.js';
 import { rtmpBandwidthGauge } from './metrics.js';
+
+// Local RTMP connection type constants
+// TODO: These should be moved to the shared package
+const RTMP_CONNECTION_TYPES = {
+  PUBLISHER: 'PUBLISHER',
+  PLAYER: 'PLAYER',
+  PENDING: 'PENDING'
+} as const;
+
+// Local type for RTMP connection types
+type RTMPConnectionType = typeof RTMP_CONNECTION_TYPES[keyof typeof RTMP_CONNECTION_TYPES];
 
 // Add type definition for session
 export interface NodeMediaSession {
@@ -64,8 +75,10 @@ export class RTMPServer extends EventEmitter {
         },
         logType: 3 // Log to callback only
       });
-
-      this.eventHandler = new RTMPEvents(this);
+      
+      // Create event handler after server is initialized but before setupEventHandlers
+      const self = this as any; // Use any to bypass TypeScript checking during initialization
+      this.eventHandler = new RTMPEvents(self);
       
       // Setup event handlers
       this.setupEventHandlers();
@@ -227,13 +240,13 @@ export class RTMPServer extends EventEmitter {
       id: string;
       type: ConnectionType;
       duration: number;
-      streamPath?: string;
+      streamPath?: string | undefined;
     }>;
   } {
     const publishers = Array.from(this.connections.values())
-      .filter(conn => conn.type === ConnectionType.PUBLISHER).length;
+      .filter(conn => conn.type === CONNECTION_TYPES.PUBLISHER).length;
     const players = Array.from(this.connections.values())
-      .filter(conn => conn.type === ConnectionType.PLAYER).length;
+      .filter(conn => conn.type === CONNECTION_TYPES.PLAYER).length;
       
     const metrics = {
       connections: this.connections.size,

@@ -138,8 +138,10 @@ class NetworkTracer {
     // Calculate latency between before/after pairs
     const latencies = [];
     for (let i = 0; i < events.length - 1; i += 2) {
-      if (events[i].type === 'before' && events[i + 1]?.type === 'after') {
-        const latency = events[i + 1].timestamp - events[i].timestamp;
+      const beforeEvent = events[i];
+      const afterEvent = events[i + 1];
+      if (beforeEvent && afterEvent && beforeEvent.type === 'before' && afterEvent.type === 'after') {
+        const latency = afterEvent.timestamp - beforeEvent.timestamp;
         latencies.push(latency);
       }
     }
@@ -187,8 +189,10 @@ class NetworkTracer {
       .flatMap(conn => {
         const latencies = [];
         for (let i = 0; i < conn.events.length - 1; i += 2) {
-          if (conn.events[i].type === 'before' && conn.events[i + 1]?.type === 'after') {
-            latencies.push(conn.events[i + 1].timestamp - conn.events[i].timestamp);
+          const beforeEvent = conn.events[i];
+          const afterEvent = conn.events[i + 1];
+          if (beforeEvent && afterEvent && beforeEvent.type === 'before' && afterEvent.type === 'after') {
+            latencies.push(afterEvent.timestamp - beforeEvent.timestamp);
           }
         }
         return latencies;
@@ -227,7 +231,7 @@ class NetworkTracer {
     if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-    return sorted[index];
+    return sorted[index] || 0;
   }
 
   private logConnectionClosed(connection: NetworkConnection) {

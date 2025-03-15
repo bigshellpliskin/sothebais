@@ -467,6 +467,26 @@ REDIS_PORT=6379
   }
   ```
 
+- **Shared Package Structure**:
+  The system implements a consolidated shared package for consistent type definitions and utilities across services:
+  ```
+  apps/shared/
+  ├── dist/          # Built output
+  ├── src/           # Source code
+  │   ├── types/     # Type definitions (events.ts, stream.ts, etc.)
+  │   ├── schema/    # Database schemas (prisma, redis)
+  │   ├── utils/     # Utility functions (logger.js, etc.)
+  │   └── index.ts   # Main entry point that re-exports everything
+  ├── package.json   # Single package definition
+  └── tsconfig.json  # TypeScript configuration
+  ```
+
+  Services import from the shared package using the pattern:
+  ```typescript
+  import { createLogger } from '@sothebais/shared/utils/logger.js';
+  import type { StreamState } from '@sothebais/shared/types/stream.js';
+  ```
+
 - **Event Flow**:
   1. Service emits event to Redis pub/sub channel
   2. Event Handler receives and validates event

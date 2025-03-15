@@ -1,6 +1,13 @@
 import { logger } from '../../utils/logger.js';
-import { EventType, ConnectionType } from '../../types/events.js';
-import type { RTMPEventPayload } from '../../types/events.js';
+import { 
+  EVENT_TYPES, 
+  CONNECTION_TYPES, 
+  RTMP_CONNECTION_TYPES,
+  type EventType, 
+  type ConnectionType, 
+  type RTMPEventPayload, 
+  type RTMPConnectionType 
+} from '../../types/index.js';
 import { 
   rtmpConnectionsGauge, 
   rtmpErrorsGauge, 
@@ -10,8 +17,8 @@ import {
 
 // Define interface for RTMPServer to avoid circular dependency
 interface RTMPServer {
-  addConnection(connection: { id: string; type: ConnectionType; startTime: number; args: any; streamPath?: string }): void;
-  getConnection(id: string): { id: string; type: ConnectionType; startTime: number; args: any; streamPath?: string } | undefined;
+  addConnection(connection: { id: string; type: RTMPConnectionType; startTime: number; args: any; streamPath?: string }): void;
+  getConnection(id: string): { id: string; type: RTMPConnectionType; startTime: number; args: any; streamPath?: string } | undefined;
   removeConnection(id: string): void;
   getSession(id: string): { id: string; reject: () => void } | null;
   getStreamKeyByAlias(alias: string): Promise<string | null>;
@@ -37,7 +44,7 @@ export class RTMPEvents {
     
     this.server.addConnection({
       id,
-      type: isEncoder ? ConnectionType.PUBLISHER : ConnectionType.PENDING,
+      type: isEncoder ? RTMP_CONNECTION_TYPES.PUBLISHER : RTMP_CONNECTION_TYPES.PENDING,
       startTime: Date.now(),
       args,
       streamPath: StreamPath
@@ -45,12 +52,12 @@ export class RTMPEvents {
     
     const payload: RTMPEventPayload = {
       clientId: id,
-      connectionType: isEncoder ? ConnectionType.PUBLISHER : ConnectionType.PENDING,
+      connectionType: isEncoder ? RTMP_CONNECTION_TYPES.PUBLISHER : RTMP_CONNECTION_TYPES.PENDING,
       timestamp: Date.now(),
       streamPath: StreamPath
     };
     
-    this.server.emit(EventType.RTMP_CONNECTION, payload);
+    this.server.emit(EVENT_TYPES.RTMP_CONNECTION, payload);
     logger.info('RTMP pre-connect', { id, streamPath: StreamPath, args, isEncoder });
   }
 
@@ -61,9 +68,10 @@ export class RTMPEvents {
       const payload: RTMPEventPayload = {
         clientId: id,
         connectionType: conn.type,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        streamPath: conn.streamPath || '' // Provide default empty string if undefined
       };
-      this.server.emit(EventType.RTMP_CONNECTION, payload);
+      this.server.emit(EVENT_TYPES.RTMP_CONNECTION, payload);
     }
     logger.info('RTMP client connected', { id, args });
     rtmpConnectionsGauge.inc();
@@ -75,11 +83,11 @@ export class RTMPEvents {
       const payload: RTMPEventPayload = {
         clientId: id,
         connectionType: conn.type,
-        streamPath: conn.streamPath,
+        streamPath: conn.streamPath || '', // Provide default empty string if undefined
         timestamp: Date.now(),
         duration: Date.now() - conn.startTime
       };
-      this.server.emit(EventType.RTMP_DISCONNECTION, payload);
+      this.server.emit(EVENT_TYPES.RTMP_DISCONNECTION, payload);
       this.server.removeConnection(id);
     }
     logger.info('RTMP client disconnected', { 
@@ -96,7 +104,7 @@ export class RTMPEvents {
     publishCounter.labels('attempt').inc();
     const conn = this.server.getConnection(id);
     if (conn) {
-      conn.type = ConnectionType.PUBLISHER;
+      conn.type = RTMP_CONNECTION_TYPES.PUBLISHER;
       conn.streamPath = StreamPath;
     }
     
@@ -148,11 +156,11 @@ export class RTMPEvents {
     if (conn) {
       const payload: RTMPEventPayload = {
         clientId: id,
-        connectionType: ConnectionType.PUBLISHER,
+        connectionType: RTMP_CONNECTION_TYPES.PUBLISHER,
         streamPath: StreamPath,
         timestamp: Date.now()
       };
-      this.server.emit(EventType.RTMP_PUBLISH_START, payload);
+      this.server.emit(EVENT_TYPES.RTMP_PUBLISH_START, payload);
     }
     logger.info('RTMP stream published', { id, StreamPath, args });
     const streamKey = StreamPath.split('/').pop();
@@ -166,12 +174,12 @@ export class RTMPEvents {
     if (conn) {
       const payload: RTMPEventPayload = {
         clientId: id,
-        connectionType: ConnectionType.PUBLISHER,
+        connectionType: RTMP_CONNECTION_TYPES.PUBLISHER,
         streamPath: StreamPath,
         timestamp: Date.now(),
         duration: Date.now() - conn.startTime
       };
-      this.server.emit(EventType.RTMP_PUBLISH_STOP, payload);
+      this.server.emit(EVENT_TYPES.RTMP_PUBLISH_STOP, payload);
     }
     logger.info('RTMP stream unpublished', { id, StreamPath, args });
     const streamKey = StreamPath.split('/').pop();
@@ -184,7 +192,7 @@ export class RTMPEvents {
   public async handlePrePlay(id: string, StreamPath: string, args: any): Promise<void> {
     const conn = this.server.getConnection(id);
     if (conn) {
-      conn.type = ConnectionType.PLAYER;
+      conn.type = RTMP_CONNECTION_TYPES.PLAYER;
       conn.streamPath = StreamPath;
     }
     
@@ -200,11 +208,11 @@ export class RTMPEvents {
     if (conn) {
       const payload: RTMPEventPayload = {
         clientId: id,
-        connectionType: ConnectionType.PLAYER,
+        connectionType: RTMP_CONNECTION_TYPES.PLAYER,
         streamPath: StreamPath,
         timestamp: Date.now()
       };
-      this.server.emit(EventType.RTMP_PLAY_START, payload);
+      this.server.emit(EVENT_TYPES.RTMP_PLAY_START, payload);
     }
     logger.info('RTMP client started playing', { id, StreamPath, args });
   }
@@ -214,12 +222,12 @@ export class RTMPEvents {
     if (conn) {
       const payload: RTMPEventPayload = {
         clientId: id,
-        connectionType: ConnectionType.PLAYER,
+        connectionType: RTMP_CONNECTION_TYPES.PLAYER,
         streamPath: StreamPath,
         timestamp: Date.now(),
         duration: Date.now() - conn.startTime
       };
-      this.server.emit(EventType.RTMP_PLAY_STOP, payload);
+      this.server.emit(EVENT_TYPES.RTMP_PLAY_STOP, payload);
     }
     logger.info('RTMP client stopped playing', { id, StreamPath, args });
   }

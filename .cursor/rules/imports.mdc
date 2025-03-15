@@ -40,6 +40,6 @@ import { createLogger } from '@sothebais/shared/utils/logger';
 The project is configured with the following path aliases:
 
 - `@/*` - References files within the current app's `src/` directory
-- `@sothebais/shared/*` - References files from the shared package
+- `@sothebais/shared/*` - References files from the shared package's `src/` directory
 
 Use these path aliases consistently throughout the codebase. 

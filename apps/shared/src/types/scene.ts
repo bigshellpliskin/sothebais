@@ -1,19 +1,36 @@
-import type { Config } from './config.js';
+/**
+ * Scene Types
+ * 
+ * Core interfaces and types for scene composition, animations, and rendering
+ */
 
-// Canvas Types
+// ----- Canvas and Position Types -----
+
+/**
+ * Canvas dimensions and properties
+ */
 export interface Canvas {
   width: number;
   height: number;
   aspectRatio: number;
 }
 
+/**
+ * 2D point with x and y coordinates
+ */
 export interface Point2D {
   x: number;
   y: number;
 }
 
+/**
+ * Position in 2D space (alias for Point2D)
+ */
 export interface Position extends Point2D {}
 
+/**
+ * Canvas transformation matrix
+ */
 export interface CanvasTransform {
   a: number;  // scale x
   b: number;  // skew y
@@ -23,6 +40,9 @@ export interface CanvasTransform {
   f: number;  // translate y
 }
 
+/**
+ * Simple transform properties
+ */
 export interface Transform {
   scale: number;
   rotation: number;
@@ -30,6 +50,9 @@ export interface Transform {
   opacity: number;
 }
 
+/**
+ * Rectangle bounds
+ */
 export interface Bounds {
   left: number;
   right: number;
@@ -37,7 +60,11 @@ export interface Bounds {
   bottom: number;
 }
 
-// Animation Types
+// ----- Animation Types -----
+
+/**
+ * Easing function types for animations
+ */
 export type EasingFunction = 
   | 'linear'
   | 'easeInQuad'
@@ -51,6 +78,9 @@ export type EasingFunction =
   | 'easeInOutElastic'
   | 'spring';
 
+/**
+ * Properties that can be animated
+ */
 export type AnimatableProperty = 
   | 'opacity'
   | 'position'
@@ -58,8 +88,14 @@ export type AnimatableProperty =
   | 'rotation'
   | 'transform';
 
+/**
+ * Values that can be animated
+ */
 export type AnimationValue = number | Point2D | CanvasTransform;
 
+/**
+ * Base animation definition
+ */
 export interface Animation {
   id: string;
   targetLayerId: string;
@@ -73,6 +109,9 @@ export interface Animation {
   yoyo?: boolean;
 }
 
+/**
+ * Sequence of animations
+ */
 export interface Timeline {
   id: string;
   animations: Animation[];
@@ -82,6 +121,9 @@ export interface Timeline {
   paused?: boolean;
 }
 
+/**
+ * Animation with multiple keyframes
+ */
 export interface KeyframeAnimation extends Omit<Animation, 'startValue' | 'endValue'> {
   keyframes: Array<{
     time: number;
@@ -89,6 +131,9 @@ export interface KeyframeAnimation extends Omit<Animation, 'startValue' | 'endVa
   }>;
 }
 
+/**
+ * Physics-based spring animation
+ */
 export interface SpringAnimation extends Omit<Animation, 'duration' | 'easing'> {
   stiffness: number;
   damping: number;
@@ -96,6 +141,9 @@ export interface SpringAnimation extends Omit<Animation, 'duration' | 'easing'> 
   velocity: number;
 }
 
+/**
+ * Current state of all animations
+ */
 export type AnimationState = {
   activeAnimations: Animation[];
   activeTimelines: Timeline[];
@@ -103,13 +151,20 @@ export type AnimationState = {
   pausedTimelines: Timeline[];
 };
 
+/**
+ * Single animation keyframe
+ */
 export interface AnimationKeyframe {
   time: number;
   value: number | Point2D | CanvasTransform;
   easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
 }
 
-// Scene Asset Types
+// ----- Scene Composition Types -----
+
+/**
+ * Visual element in a scene
+ */
 export interface Asset {
   id: string;
   type: 'image' | 'text' | 'video' | 'stream' | 'overlay';
@@ -121,9 +176,14 @@ export interface Asset {
   metadata?: Record<string, unknown>;
 }
 
-// Quadrant Types
+/**
+ * Scene quadrant identifier
+ */
 export type QuadrantId = 0 | 1 | 2 | 3 | 4;  // 0 = absolute positioning, 1-4 = quadrants
 
+/**
+ * Defined region within a scene
+ */
 export interface Quadrant {
   id: QuadrantId;
   name: string;
@@ -132,7 +192,9 @@ export interface Quadrant {
   assets: Asset[];  // Assets in this quadrant
 }
 
-// Scene Structure
+/**
+ * Complete scene definition
+ */
 export interface Scene {
   id: string;
   name: string;
@@ -142,58 +204,54 @@ export interface Scene {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Scene transition effect
+ */
 export interface SceneTransition {
   type: 'fade' | 'slide' | 'zoom';
   duration: number;
   easing: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
 }
 
-// Core Services
+// ----- Rendering Service Interfaces -----
+
+/**
+ * Base interface for core services
+ */
 export interface CoreService {
   cleanup(): Promise<void>;
 }
 
+/**
+ * Asset management service interface
+ */
 export interface AssetManager extends CoreService {
   loadAsset(source: string, type: string): Promise<Buffer>;
   storeAsset(source: string, data: Buffer): Promise<void>;
   deleteAsset(source: string): Promise<void>;
 }
 
+/**
+ * Scene composition and rendering interface
+ */
 export interface CompositionEngine extends CoreService {
   renderScene(scene: Scene): Promise<Buffer>;
   updateDimensions(width: number, height: number): void;
   clearCache(): void;
 }
 
-export interface StreamManager extends CoreService {
-  initialize(config: Config, deps: {
-    assets: AssetManager;
-    composition: CompositionEngine;
-    currentScene: Scene;
-  }): Promise<void>;
-  start(): Promise<void>;
-  stop(): Promise<void>;
-  getMetrics(): {
-    frameCount: number;
-    droppedFrames: number;
-    fps: number;
-    encoderMetrics: Record<string, unknown>;
-    pipelineMetrics: Record<string, unknown>;
-  };
-}
-
-// Static initialization methods
+/**
+ * Static constructor for AssetManager
+ */
 export interface AssetManagerStatic {
   getInstance(): AssetManager;
-  initialize(config: Config): Promise<AssetManager>;
+  initialize(config: any): Promise<AssetManager>;
 }
 
+/**
+ * Static constructor for CompositionEngine
+ */
 export interface CompositionEngineStatic {
   getInstance(): CompositionEngine;
-  initialize(config: Config): Promise<CompositionEngine>;
-}
-
-export interface StreamManagerStatic {
-  getInstance(): StreamManager;
-  initialize(config: Config): Promise<StreamManager>;
+  initialize(config: any): Promise<CompositionEngine>;
 } 

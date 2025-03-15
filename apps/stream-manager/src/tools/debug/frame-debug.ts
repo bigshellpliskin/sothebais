@@ -171,6 +171,9 @@ class FrameDebugger {
     const p95ProcessingTime = this.calculatePercentile(processingTimes, 95);
     const p99ProcessingTime = this.calculatePercentile(processingTimes, 99);
 
+    const firstStat = stats[0];
+    const lastStat = stats[stats.length - 1];
+
     return {
       totalFrames,
       averageProcessingTime,
@@ -180,16 +183,17 @@ class FrameDebugger {
       batchedFrames,
       batchRatio: batchedFrames / totalFrames,
       timeRange: {
-        start: stats[0].timestamp,
-        end: stats[stats.length - 1].timestamp
+        start: firstStat ? firstStat.timestamp : Date.now(),
+        end: lastStat ? lastStat.timestamp : Date.now()
       }
     };
   }
 
   private calculatePercentile(values: number[], percentile: number): number {
+    if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-    return sorted[index];
+    return sorted[index] || 0; // Provide default of 0 if undefined
   }
 
   private logFrameStats(stats: FrameStats) {

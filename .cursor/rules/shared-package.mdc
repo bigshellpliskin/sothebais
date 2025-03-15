@@ -3,7 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
- # Shared Package Structure and Import Standards
+# Shared Package Structure and Import Standards
 
 This document outlines the recommended structure for the SothebAIs shared package and how to properly import from it.
 

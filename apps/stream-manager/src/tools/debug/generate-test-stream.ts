@@ -2,15 +2,13 @@ import { loadConfig } from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { Config } from '../../types/config.js';
 import type { 
+  Config, 
   AssetManager, 
-  CompositionEngine, 
-  StreamManager,
+  CompositionEngine,
   AssetManagerStatic,
-  CompositionEngineStatic,
-  StreamManagerStatic
-} from '../../types/core.js';
+  CompositionEngineStatic
+} from '../../types/index.js';
 import { CompositionEngine as CE } from '../../core/composition.js';
 import { AssetManager as AM } from '../../core/assets.js';
 import { StreamManager as SM } from '../../streaming/stream-manager.js';
@@ -27,7 +25,7 @@ async function initializeCoreComponents(config: Config) {
   logger.info('Initializing core components for test stream...');
 
   // Parse resolution
-  const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+  const { width, height } = config.STREAM_RESOLUTION;
 
   // Initialize managers with proper typing
   const assets = AM.getInstance() as AssetManager;
@@ -41,7 +39,7 @@ async function initializeCoreComponents(config: Config) {
   return { assets, composition };
 }
 
-async function startApiServer(config: Config, streamManager: StreamManager) {
+async function startApiServer(config: Config, streamManager: SM) {
   const app = express();
   app.use(express.json());
 
@@ -76,9 +74,13 @@ async function startApiServer(config: Config, streamManager: StreamManager) {
 async function main() {
   // Load configuration
   const config = await loadConfig();
-  logger.initialize(config);
+  logger.info('Starting test stream generator with config', {
+    resolution: config.STREAM_RESOLUTION.toString(),
+    fps: config.TARGET_FPS,
+    environment: process.env['NODE_ENV'] || 'development'
+  });
   
-  const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+  const { width, height } = config.STREAM_RESOLUTION;
 
   logger.info('Starting test stream generator', {
     resolution: `${width}x${height}`,
@@ -93,7 +95,7 @@ async function main() {
     const scene = createDefaultScene(config);
 
     // Initialize stream manager with proper typing
-    const streamManager = SM.getInstance() as StreamManager;
+    const streamManager = SM.getInstance() as SM;
     await streamManager.initialize(config, {
       assets,
       composition,

@@ -1,9 +1,9 @@
-import type { Scene, QuadrantId, Quadrant, Asset } from '../types/core.js';
-import type { Config } from '../types/config.js';
+import type { Scene, QuadrantId, Quadrant, Asset } from '../types/index.js';
+import type { Config } from '../types/index.js';
 import path from 'path';
 
 export function createDefaultScene(config: Config): Scene {
-  const [width, height] = config.STREAM_RESOLUTION.split('x').map(Number);
+  const { width, height } = config.STREAM_RESOLUTION;
   const halfWidth = width / 2;
   const halfHeight = height / 2;
 

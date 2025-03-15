@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import sharp from 'sharp';
-import { logger } from '../utils/logger.js';
-import type { Asset, Position as ViewportPosition, Transform as ViewportTransform } from '../types/core.js';
+import { logger, logStreamEvent } from '../utils/logger.js';
+import type { Asset, Position, Transform } from '@sothebais/shared/types/scene.js';
 
 type AssetType = Asset['type'];
 
@@ -122,11 +122,12 @@ export class AssetManager extends EventEmitter {
   public createAsset(
     type: AssetType,
     source: string,
-    position: ViewportPosition,
-    transform: ViewportTransform & { opacity: number },
+    position: Position,
+    transform: Transform & { opacity: number },
     metadata?: Record<string, unknown>
   ): Asset {
-    return {
+    // Create base asset without optional properties
+    const asset: Omit<Asset, 'metadata'> = {
       id: `asset_${Date.now()}`,
       type,
       source,
@@ -136,9 +137,15 @@ export class AssetManager extends EventEmitter {
         anchor: { x: 0.5, y: 0.5 } // Default center anchor
       },
       zIndex: 0,
-      visible: true,
-      metadata
+      visible: true
     };
+
+    // Add metadata only if it's provided
+    if (metadata !== undefined) {
+      return { ...asset, metadata };
+    }
+
+    return asset;
   }
 
   private getCacheKey(source: string, type: AssetType): string {

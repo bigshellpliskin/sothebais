@@ -1,6 +1,19 @@
-import { EventType } from '../types/events.js';
-import type { EventEmitter, EventListener, StreamManagerEvent } from '../types/events.js';
+import type { EventType } from '@sothebais/shared/types/events.js';
 import { logger } from '../utils/logger.js';
+import type { StreamManagerEvent } from '../types/index.js';
+
+// Define EventListener interface locally
+interface EventListener {
+  (event: StreamManagerEvent): Promise<void> | void;
+}
+
+// Define EventEmitter interface locally
+interface EventEmitter {
+  on(type: EventType, listener: EventListener): void;
+  off(type: EventType, listener: EventListener): void;
+  once(type: EventType, listener: EventListener): void;
+  emit(event: StreamManagerEvent): Promise<void> | void;
+}
 
 export class StreamManagerEventEmitter implements EventEmitter {
   private listeners: Map<EventType, Set<EventListener>>;

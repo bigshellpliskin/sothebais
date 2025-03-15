@@ -5,11 +5,40 @@
  * These are type definitions for development and don't represent actual database schemas.
  */
 
-// Core Types
+// Core Primitive Types
 export * from './core.js';
 
-// Stream Types
-export * from './stream.js';
+// Scene and Animation Types
+export * from './scene.js';
+
+// Stream State and Events - using all exports except config types
+export type {
+  StreamState,
+  SceneState,
+  PreviewClient,
+  AppState,
+  StreamMetrics,
+  StateUpdateEvent,
+  StreamEvent,
+  StreamOutput,
+  StateManager
+} from './stream.js';
+
+// Configuration Types - explicitly export these to avoid conflicts
+export type {
+  StreamConfig,
+  AudioConfig,
+  RenderConfig,
+  RTMPConfig,
+  WorkerPoolConfig,
+  ViewportConfig,
+  AssetConfig,
+  LayoutConfig,
+  PipelineConfig,
+  EffectsConfig,
+  BufferConfig
+} from './config.js';
+export { streamConfigSchema } from './config.js';
 
 // Event Types
 export * from './events.js';

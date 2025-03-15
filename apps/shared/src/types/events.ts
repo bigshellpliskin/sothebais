@@ -199,7 +199,9 @@ export type ConnectionTypeKey =
   // Protocol Types
   | 'HTTP' | 'WEBSOCKET' | 'RTMP' | 'REDIS'
   // API Types
-  | 'REST' | 'GRAPHQL' | 'GRPC';
+  | 'REST' | 'GRAPHQL' | 'GRPC'
+  // RTMP Connection Types 
+  | 'PUBLISHER' | 'PLAYER' | 'PENDING';
 
 export const CONNECTION_TYPES = {
   // System Connections
@@ -215,7 +217,12 @@ export const CONNECTION_TYPES = {
   // API Types
   REST: 'REST',
   GRAPHQL: 'GRAPHQL',
-  GRPC: 'GRPC'
+  GRPC: 'GRPC',
+  
+  // RTMP Connection Types
+  PUBLISHER: 'PUBLISHER',
+  PLAYER: 'PLAYER',
+  PENDING: 'PENDING'
 } as const;
 
 export type ConnectionType = typeof CONNECTION_TYPES[ConnectionTypeKey];
@@ -607,6 +614,15 @@ export interface SystemConfigEvent extends BaseEvent {
   };
 }
 
+// RTMP Event payload for streaming service
+export interface RTMPEventPayload {
+  clientId: string;
+  connectionType: ConnectionType;
+  streamPath: string;
+  timestamp: number;
+  duration?: number;
+}
+
 // Union type of all events
 export type Event =
   | SessionStartEvent
@@ -640,4 +656,7 @@ export type Event =
   | SystemHealthEvent
   | SystemMetricEvent
   | SystemErrorEvent
-  | SystemConfigEvent; 
+  | SystemConfigEvent;
+
+// Export the base event listener type
+export type EventListener = (event: any) => void | Promise<void>; 

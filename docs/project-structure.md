@@ -12,15 +12,14 @@ sothebais/
 │   ├── eliza/             # VTuber character system
 │   ├── event-handler/     # Event processing service
 │   ├── shared/            # Shared code and utilities
-│   │   ├── schema/        # Database schemas
-│   │   │   ├── prisma/    # PostgreSQL schema (Prisma)
-│   │   │   ├── redis/     # Redis schema definitions
-│   │   │   └── README.md  # Schema documentation
-│   │   └── types/         # TypeScript type definitions
-│   │       ├── events.ts  # Event type definitions
-│   │       ├── models.ts  # Model type definitions
-│   │       ├── stream.ts  # Stream type definitions
-│   │       └── README.md  # Types documentation
+│   │   ├── dist/          # Built output
+│   │   ├── src/           # Source code
+│   │   │   ├── types/     # Type definitions
+│   │   │   ├── schema/    # Database schemas and models
+│   │   │   ├── utils/     # Utility functions
+│   │   │   └── index.ts   # Main entry point that re-exports everything
+│   │   ├── package.json   # Single package definition
+│   │   └── tsconfig.json  # TypeScript configuration
 │   └── stream-manager/    # Stream management service
 ├── data/                  # Persistent data storage
 │   ├── event-handler/     # Event handler data
@@ -55,10 +54,19 @@ Each service is implemented as a separate application with its own codebase and 
 
 ### Shared Code (`apps/shared/`)
 
-Contains code that is used by multiple services:
+Contains code that is used by multiple services in a single consolidated package:
 
-- **schema/**: Database schema definitions (see [schema.md](schema.md) for details)
-- **types/**: TypeScript type definitions for development-time type checking
+- **src/types/**: TypeScript type definitions (events, models, stream, etc.)
+- **src/schema/**: Database schema definitions (PostgreSQL/Prisma, Redis)
+- **src/utils/**: Shared utility functions (logging, etc.)
+- **src/index.ts**: Main entry point that re-exports everything for easy importing
+
+The shared package is designed for consistent imports using the pattern:
+```typescript
+// Example import pattern
+import { createLogger } from '@sothebais/shared/utils/logger.js';
+import type { StreamState } from '@sothebais/shared/types/stream.js';
+```
 
 ### Data Storage (`data/`)
 

@@ -7,10 +7,16 @@ import { stateManager } from './state/state-manager.js';
 import { AssetManager } from './core/assets.js';
 import { CompositionEngine } from './core/composition.js';
 import { createDefaultScene } from './scenes/default-scene.js';
-import type { 
-  AssetManager as AssetManagerType, 
-  CompositionEngine as CompositionEngineType
-} from './types/core.js';
+import type {
+  Asset,
+  Canvas
+} from './types/index.js';
+import type {
+  AssetManager as AssetManagerInterface,
+  CompositionEngine as CompositionEngineInterface,
+  CompositionEngineStatic,
+  AssetManagerStatic,
+} from '@sothebais/shared/types/scene.js';
 
 // TODO: Import core components once prototype in generate-test-stream.ts is ready
 // import { StreamManager } from './streaming/stream-manager.js';
@@ -20,18 +26,22 @@ import type {
 // Load configuration first
 const loadedConfig = await loadConfig();
 
-// Initialize logger early
-logger.initialize(loadedConfig);
+// Initialize logger with config context
+logger.info('Starting Stream Manager', { config: { 
+  resolution: loadedConfig.STREAM_RESOLUTION,
+  fps: loadedConfig.TARGET_FPS,
+  environment: process.env['NODE_ENV'] || 'development'
+}});
 
 async function initializeCoreComponents() {
   logger.info('Initializing core components...');
 
-  // Parse resolution
-  const [width, height] = loadedConfig.STREAM_RESOLUTION.split('x').map(Number);
+  // Get resolution from config
+  const { width, height } = loadedConfig.STREAM_RESOLUTION;
 
   // Initialize managers
-  const assets = AssetManager.getInstance() as AssetManagerType;
-  const composition = CompositionEngine.getInstance(loadedConfig) as CompositionEngineType;
+  const assets = AssetManager.getInstance() as AssetManagerInterface;
+  const composition = CompositionEngine.getInstance(loadedConfig) as CompositionEngineInterface;
 
   // Update composition dimensions
   composition.updateDimensions(width, height);
@@ -80,7 +90,7 @@ async function startServer() {
     app.listen(port, '0.0.0.0', () => {
       logger.info('Stream Manager server ready', {
         port,
-        status: process.env.NODE_ENV || 'development'
+        status: process.env['NODE_ENV'] || 'development'
       });
     });
 

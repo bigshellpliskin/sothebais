@@ -6,9 +6,9 @@ import type {
   Quadrant,
   QuadrantId,
   Position
-} from '../types/core.js';
+} from '@sothebais/shared/types/scene.js';
 import { logger } from '../utils/logger.js';
-import type { Config } from '../types/config.js';
+import type { Config } from '../types/index.js';
 
 interface CompositeOperation {
   input: Buffer;

@@ -1,6 +1,6 @@
 import { createClient } from 'redis';
-import type { StreamState, SceneState } from '../types/state.js';
-import type { Config } from '../types/config.js';
+import type { StreamState, SceneState } from '@sothebais/shared/types/stream.js';
+import type { Config } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import type { LogContext } from '../utils/logger.js';
 import type { RedisClientType, RedisClientOptions } from 'redis';
@@ -17,8 +17,7 @@ function isStreamState(obj: unknown): obj is StreamState {
     typeof state.fps === 'number' &&
     typeof state.targetFPS === 'number' &&
     typeof state.frameCount === 'number' &&
-    typeof state.droppedFrames === 'number' &&
-    typeof state.averageRenderTime === 'number'
+    typeof state.droppedFrames === 'number'
   );
 }
 
