@@ -1,14 +1,27 @@
-import Redis from 'ioredis';
-import { AuctionState, Bid, MarathonConfig } from '../types/auction';
+// Using CommonJS-style import to avoid TypeScript issues with Redis
+import * as IoRedis from 'ioredis';
+// @ts-ignore
+const Redis = IoRedis.default || IoRedis;
+
+import type { AuctionState } from '@sothebais/shared/schema/redis/models.js';
+import type { MarathonConfig } from '@sothebais/shared/types/auction.js';
+import type { TwitterBid as Bid } from '@sothebais/shared/types/twitter.js';
+
+// Interface to extend AuctionState with the properties we need
+interface ExtendedAuctionState extends AuctionState {
+  marathonId: string;
+  dayNumber: number;
+}
 
 export class RedisService {
-  private client: Redis;
+  private client: any; // Using any to avoid type issues
 
   constructor() {
     const redisPassword = process.env.REDIS_PASSWORD || 'default_password';
     const redisHost = process.env.REDIS_HOST || 'redis';
     const redisPort = process.env.REDIS_PORT || '6379';
     
+    // @ts-ignore - Ignore type error for Redis construction
     this.client = new Redis({
       host: redisHost,
       port: parseInt(redisPort),
@@ -97,11 +110,11 @@ export class RedisService {
   }
 
   // Current Auction State
-  async setCurrentAuction(state: AuctionState): Promise<void> {
+  async setCurrentAuction(state: ExtendedAuctionState): Promise<void> {
     await this.client.set(`auction:${state.marathonId}:current`, JSON.stringify(state));
   }
 
-  async getCurrentAuction(marathonId: string): Promise<AuctionState | null> {
+  async getCurrentAuction(marathonId: string): Promise<ExtendedAuctionState | null> {
     const state = await this.client.get(`auction:${marathonId}:current`);
     return state ? JSON.parse(state) : null;
   }

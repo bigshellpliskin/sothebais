@@ -1,5 +1,5 @@
 import { Counter, Gauge, Histogram } from 'prom-client';
-import { metricsRegistry } from '../index';
+import { metricsRegistry } from '../index.js';
 
 // Auction State Metrics
 export const activeAuctionsGauge = new Gauge({

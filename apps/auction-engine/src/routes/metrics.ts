@@ -1,5 +1,5 @@
 import express from 'express';
-import { metricsRegistry } from '../index';
+import { metricsRegistry } from '../index.js';
 
 export const metricsRouter = express.Router();
 

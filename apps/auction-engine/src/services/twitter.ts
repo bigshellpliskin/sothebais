@@ -1,5 +1,5 @@
 import { TwitterApi } from 'twitter-api-v2';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
 
 /**
  * Twitter Service
@@ -41,7 +41,9 @@ export class TwitterService {
       this.isInitialized = true;
       return true;
     } catch (error) {
-      logger.error('Failed to initialize Twitter client', error);
+      logger.error('Failed to initialize Twitter client', { 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
       this.isInitialized = false;
       return false;
     }
@@ -76,7 +78,9 @@ export class TwitterService {
         tweets,
       };
     } catch (error) {
-      logger.error('Failed to test Twitter connection', error);
+      logger.error('Failed to test Twitter connection', { 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
       return {
         success: false,
         error,
@@ -101,7 +105,9 @@ export class TwitterService {
         tweetId: tweet.data.id,
       };
     } catch (error) {
-      logger.error('Failed to post tweet', error);
+      logger.error('Failed to post tweet', { 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
       return {
         success: false,
         error,
@@ -130,7 +136,9 @@ export class TwitterService {
         this.processPotentialBidTweet(tweet);
       });
     } catch (error) {
-      logger.error(`Failed to monitor tweets for "${searchQuery}"`, error);
+      logger.error(`Failed to monitor tweets for "${searchQuery}"`, { 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
     }
   }
 
@@ -162,7 +170,9 @@ export class TwitterService {
         await this.tweetStream.close();
         logger.info('Twitter stream closed');
       } catch (error) {
-        logger.error('Error closing Twitter stream', error);
+        logger.error('Error closing Twitter stream', { 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
       }
     }
     
