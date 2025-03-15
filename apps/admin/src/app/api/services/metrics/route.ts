@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://prometheus:9090';
+const PROMETHEUS_URL = process.env['PROMETHEUS_URL'] || 'http://prometheus:9090';
 // Skip authentication for metrics endpoint during testing
 export const dynamic = 'force-dynamic';
 // Make this a public API route
@@ -272,31 +272,32 @@ export async function GET(request: Request) {
     if (instance === 'redis') {
       const redisMemory = await queryPrometheus(STANDARD_METRICS.redisMemory());
       const redisConnections = await queryPrometheus(STANDARD_METRICS.redisConnections());
-      const redisOps = await queryPrometheus(STANDARD_METRICS.redisOps());
 
       if (redisMemory !== null) {
-        metrics.redisMemory = {
+        metrics['redisMemory'] = {
           value: Number(redisMemory.toFixed(2)),
-          unit: "MB",
-          trend: "stable",
+          unit: 'MB',
+          trend: 'stable',
           timestamp
         };
       }
 
       if (redisConnections !== null) {
-        metrics.connections = {
+        metrics['connections'] = {
           value: redisConnections,
-          unit: "req/s",
-          trend: "stable",
+          unit: 'req/s',
+          trend: 'stable',
           timestamp
         };
       }
 
+      // Redis operations rate (commands per second)
+      const redisOps = await queryPrometheus(STANDARD_METRICS.redisOps());
       if (redisOps !== null) {
-        metrics.operations = {
+        metrics['operations'] = {
           value: Number(redisOps.toFixed(2)),
-          unit: "ops/s",
-          trend: "stable",
+          unit: 'ops/s',
+          trend: 'stable',
           timestamp
         };
       }

@@ -28,7 +28,7 @@ class EventHandlerLogger implements Logger {
       ...meta,
       service: this.service,
       component: 'event-handler',
-      environment: process.env.NODE_ENV || 'development',
+      environment: process.env['NODE_ENV'] || 'development',
       timestamp: new Date().toISOString()
     };
   }

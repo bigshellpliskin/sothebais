@@ -7,7 +7,7 @@ import { Loader2, TrendingDown, TrendingUp, Minus, Server, Box, Activity, Cpu, H
 import { cn } from "@/lib/utils";
 import { StatusCard } from "@/components/ui/status-card";
 import { useServiceStatus } from "@/hooks/useServiceStatus";
-import { CORE_SERVICES } from "@/types/service";
+import { CORE_SERVICES, ServiceGroup, Service } from "@/types";
 import { UserButton } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
 
@@ -251,14 +251,14 @@ export function SystemMetrics() {
 
           {/* Service Groups */}
           <div className="grid grid-cols-2 gap-6">
-            {CORE_SERVICES.map((group) => (
+            {CORE_SERVICES.map((group: ServiceGroup) => (
               <div key={group.name} className="min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <h3 className="text-sm font-semibold whitespace-nowrap">{group.name}</h3>
                   <div className="h-px bg-gray-200 flex-grow" />
                 </div>
                 <div className="space-y-1">
-                  {group.services.map((service) => {
+                  {group.services.map((service: Service) => {
                     const health = services?.[service.name];
                     const status = health?.status || 'stopped';
                     const metrics = health?.metrics || {};
@@ -281,27 +281,27 @@ export function SystemMetrics() {
                             <p className="text-[10px] text-gray-500 truncate">{service.description}</p>
                             {status === 'running' && metrics && (
                               <div className="flex gap-2 mt-1">
-                                {metrics.cpuUsage !== undefined && (
+                                {metrics['cpuUsage'] !== undefined && (
                                   <div className="flex items-center gap-1">
                                     <Cpu className="w-3 h-3" />
                                     <span className="text-[10px] text-gray-500">
-                                      {metrics.cpuUsage.toFixed(1)}%
+                                      {metrics['cpuUsage'].toFixed(1)}%
                                     </span>
                                   </div>
                                 )}
-                                {metrics.memoryUsage !== undefined && (
+                                {metrics['memoryUsage'] !== undefined && (
                                   <div className="flex items-center gap-1">
                                     <HardDrive className="w-3 h-3" />
                                     <span className="text-[10px] text-gray-500">
-                                      {metrics.memoryUsage.toFixed(1)}MB
+                                      {metrics['memoryUsage'].toFixed(1)}MB
                                     </span>
                                   </div>
                                 )}
-                                {metrics.requestRate !== undefined && (
+                                {metrics['requestRate'] !== undefined && (
                                   <div className="flex items-center gap-1">
                                     <Network className="w-3 h-3" />
                                     <span className="text-[10px] text-gray-500">
-                                      {metrics.requestRate.toFixed(1)}req/s
+                                      {metrics['requestRate'].toFixed(1)}req/s
                                     </span>
                                   </div>
                                 )}

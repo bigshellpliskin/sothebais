@@ -112,8 +112,8 @@ export function EventLog() {
         const containerOptions = {
           headers: {
             ...headers,
-            ...(lastUpdateRef.current.container && {
-              'If-Modified-Since': lastUpdateRef.current.container
+            ...(lastUpdateRef.current['container'] && {
+              'If-Modified-Since': lastUpdateRef.current['container']
             })
           }
         };
@@ -121,8 +121,8 @@ export function EventLog() {
         const systemOptions = {
           headers: {
             ...headers,
-            ...(lastUpdateRef.current.system && {
-              'If-Modified-Since': lastUpdateRef.current.system
+            ...(lastUpdateRef.current['system'] && {
+              'If-Modified-Since': lastUpdateRef.current['system']
             })
           }
         };
@@ -137,7 +137,7 @@ export function EventLog() {
         // Only process responses if they have new data
         if (containerResponse.status === 200) {
           const containerLogsData = await containerResponse.json();
-          lastUpdateRef.current.container = new Date().toISOString();
+          lastUpdateRef.current['container'] = new Date().toISOString();
 
           // Process container logs
           Object.entries(containerLogsData).forEach(([key, logs]) => {
@@ -155,7 +155,7 @@ export function EventLog() {
 
         if (systemResponse.status === 200) {
           const systemLogsData = await systemResponse.json();
-          lastUpdateRef.current.system = new Date().toISOString();
+          lastUpdateRef.current['system'] = new Date().toISOString();
 
           // Process system logs
           const processedSystemLogs = systemLogsData.map((log: any) => ({

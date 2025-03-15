@@ -39,9 +39,9 @@ healthApp.use('/', healthRouter);
 metricsApp.use('/', metricsRouter);
 
 // Start servers
-const PORT = process.env.PORT || 4400;
-const METRICS_PORT = process.env.METRICS_PORT || 4490;
-const HEALTH_PORT = process.env.HEALTH_PORT || 4491;
+const PORT = process.env['PORT'] || 4400;
+const METRICS_PORT = process.env['METRICS_PORT'] || 4490;
+const HEALTH_PORT = process.env['HEALTH_PORT'] || 4491;
 
 mainServer.listen(PORT, () => {
   logger.info(`Main API server listening on port ${PORT}`);

@@ -18,7 +18,7 @@ const eventCounter = metrics.eventCounter;
 // Adding a dummy implementation since this wasn't defined before
 const eventProcessingDuration = {
   observe: (labels: Record<string, string>, value: number) => {
-    console.log(`Event processing duration: ${value}s for type ${labels.type}`);
+    console.log(`Event processing duration: ${value}s for type ${labels['type']}`);
   }
 };
 

@@ -7,5 +7,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
   }
-} 
+}

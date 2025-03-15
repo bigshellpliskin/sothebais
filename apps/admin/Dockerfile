@@ -4,21 +4,24 @@ WORKDIR /app
 # Install dependencies including health check utilities
 RUN apk add --no-cache curl netcat-openbsd
 
-# Create shared directory for types and parent directories for tsconfig
-RUN mkdir -p /app/shared/types
-RUN mkdir -p ../../
+# Create necessary directories including shared package 
+RUN mkdir -p /app/shared
 
-# Copy tsconfig.base.json to the correct location relative to the workspace
-COPY tsconfig.base.json ../../tsconfig.base.json
+# Copy TypeScript configurations
+COPY tsconfig.base.json /tsconfig.base.json
+COPY tsconfig.base.json /app/tsconfig.base.json
 
-# Copy package files
+# Copy package files first
 COPY apps/admin/package*.json ./
+COPY apps/shared/package.json ../shared/
 
-# Copy shared types
-COPY apps/shared/types ../shared/types
+# Copy shared package files
+COPY apps/shared/tsconfig.json ../shared/
+COPY apps/shared/src ../shared/src
+COPY apps/shared/dist ../shared/dist
 
-# Install dependencies
-RUN npm install
+# Install dependencies for both app and shared package
+RUN npm install && cd ../shared && npm install && cd ../app
 
 # Copy the admin application
 COPY apps/admin/ ./

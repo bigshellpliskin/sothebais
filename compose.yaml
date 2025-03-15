@@ -71,6 +71,12 @@ services:
       - ./apps/admin/src:/app/src:ro
       - ./apps/admin/public:/app/public:ro
       - ./apps/admin/.next:/app/.next
+      - ./node_modules:/app/node_modules:ro  # Mount root node_modules
+      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
+      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
+      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
+      - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     networks:
       - auction_net
     ports:
@@ -128,6 +134,7 @@ services:
       - ./apps/stream-manager/package.json:/app/package.json:ro
       - ./data/stream-manager:/app/storage:rw
       - ./apps/stream-manager/assets:/app/assets:ro  # Mount assets directory
+      - ./node_modules:/app/node_modules:ro  # Mount root node_modules
       - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
       - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
       - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
@@ -234,7 +241,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./apps/event-handler/src:/app/src:ro
       - ./apps/event-handler/package.json:/app/package.json:ro
+      - ./node_modules:/app/node_modules:ro  # Mount root node_modules
       - ./data/event-handler:/app/storage:rw
+      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
+      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
+      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
+      - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     # In development, expose ports directly
     ports:
       - "${EVENT_HANDLER_PORT:-4300}:${EVENT_HANDLER_PORT:-4300}" # Main API
@@ -296,6 +309,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data/auction:/app/storage:rw
+      - ./apps/auction-engine/src:/app/src:ro
+      - ./apps/auction-engine/package.json:/app/package.json:ro
+      - ./node_modules:/app/node_modules:ro  # Mount root node_modules
+      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
+      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
+      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
+      - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     ports:
       - "${AUCTION_ENGINE_PORT:-4400}:${AUCTION_ENGINE_PORT:-4400}"
       - "${AUCTION_ENGINE_METRICS_PORT:-4490}:${AUCTION_ENGINE_METRICS_PORT:-4490}"

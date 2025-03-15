@@ -80,7 +80,7 @@ const logger = appLogger;
 
 // Initialize Redis client
 const redisClient = Redis.createClient({
-  url: process.env.REDIS_URL || 'redis://redis:6379',
+  url: process.env['REDIS_URL'] || 'redis://redis:6379',
   socket: {
     reconnectStrategy: (retries: number) => {
       redisConnectionState.reconnectAttempts = retries;
@@ -98,9 +98,9 @@ const app: Application = express();
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.NODE_ENV === 'development' 
+  origin: process.env['NODE_ENV'] === 'development' 
     ? ['http://localhost:3000'] 
-    : (process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : '*'),
+    : (process.env['FRONTEND_URL'] ? [process.env['FRONTEND_URL']] : '*'),
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Accept', 'If-Modified-Since'],
   credentials: true
@@ -146,7 +146,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   
   res.status(500).json({
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env['NODE_ENV'] === 'development' ? err.message : undefined
   });
 });
 
@@ -210,17 +210,21 @@ app.get('/health/redis', async (_req: Request, res: Response) => {
   }
 });
 
-const parseTimestamp = (timestamp: string): string => {
+const parseTimestamp = (timestamp: string | undefined): string => {
   try {
     // Handle Docker timestamp format
-    if (typeof timestamp === 'string') {
+    if (typeof timestamp === 'string' && timestamp) {
       // Remove nanoseconds if present (Docker can include them)
       const cleanTimestamp = timestamp.split('.')[0];
-      const date = new Date(cleanTimestamp);
-      if (isNaN(date.getTime())) {
-        return new Date().toISOString(); // Fallback to current time if invalid
+      // Ensure cleanTimestamp is a valid string before passing to Date constructor
+      if (cleanTimestamp) {
+        const date = new Date(cleanTimestamp);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString();
+        }
       }
-      return date.toISOString();
+      // If we get here, either cleanTimestamp is invalid or date parsing failed
+      return new Date().toISOString();
     }
     return new Date().toISOString(); // Fallback to current time if not a string
   } catch (err: any) {
@@ -241,7 +245,16 @@ app.get('/logs', async (_req: Request, res: Response) => {
     
     // Get logs for each container
     for (const container of containers) {
-      const containerName = container.Names[0].replace('/', '');
+      // Defensive checks for container properties
+      if (!container || !container.Id) {
+        logger.warn({ component: 'docker' }, 'Invalid container object, skipping logs');
+        continue;
+      }
+      
+      // Get container name safely
+      const containerName = (container.Names && container.Names.length > 0)
+        ? (container.Names[0] ? container.Names[0].replace('/', '') : `container_${container.Id.substring(0, 8)}`)
+        : `container_${container.Id.substring(0, 8)}`;
       const containerInstance = docker.getContainer(container.Id);
       
       try {

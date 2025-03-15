@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ServiceStatus } from '@/types/service';
+import { ServiceStatus } from '@/types';
 
 // This should be the internal Docker network URL
 const PROMETHEUS_URL = 'http://prometheus:9090';  // Always use Docker network name
@@ -111,7 +111,12 @@ async function queryPrometheus(query: string, serviceName: string): Promise<numb
       return null;
     }
 
-    const [, value] = data.data.result[0].value;
+    // Safe access with optional chaining
+    const value = data.data.result[0]?.value?.[1];
+    if (typeof value !== 'string') {
+      return null;
+    }
+
     const numValue = parseFloat(value);
     return isNaN(numValue) ? null : numValue;
 
@@ -155,7 +160,7 @@ async function getServiceHealth(service: ServiceConfig): Promise<ServiceStatus> 
           next: { revalidate: 0 }
         });
         clearTimeout(timeout);
-        status = response.ok ? 'running' : 'error';
+        status = response.ok ? 'RUNNING' : 'ERROR';
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
           // On timeout, check cache before failing
@@ -167,7 +172,7 @@ async function getServiceHealth(service: ServiceConfig): Promise<ServiceStatus> 
         } else {
           console.error(`Error checking Prometheus health:`, error instanceof Error ? error.message : 'Unknown error');
         }
-        status = 'error';
+        status = 'ERROR';
       }
       break;
 
@@ -184,9 +189,9 @@ async function getServiceHealth(service: ServiceConfig): Promise<ServiceStatus> 
         return cached.status;
       }
       
-      if (redisExporterUp === null || redisUp === null) status = 'error';
-      else if (redisExporterUp < 1) status = 'error';
-      else status = redisUp >= 1 ? 'running' : 'stopped';
+      if (redisExporterUp === null || redisUp === null) status = 'ERROR';
+      else if (redisExporterUp < 1) status = 'ERROR';
+      else status = redisUp >= 1 ? 'RUNNING' : 'STOPPED';
       break;
 
     case 'standard':
@@ -201,8 +206,8 @@ async function getServiceHealth(service: ServiceConfig): Promise<ServiceStatus> 
         return cached.status;
       }
       
-      if (up === null) status = 'error';
-      else status = up >= 1 ? 'running' : 'stopped';  // Any value >= 1 means running
+      if (up === null) status = 'ERROR';
+      else status = up >= 1 ? 'RUNNING' : 'STOPPED';  // Any value >= 1 means running
       break;
   }
 
@@ -220,16 +225,16 @@ export async function GET() {
     const servicePromises = SERVICES.map(async service => {
       try {
         const status = await getServiceHealth(service);
-        return [service.name, String(status)] as [string, ServiceStatus];
+        return [service.name, status] as [string, ServiceStatus];
       } catch (error) {
         // Try to use cached value on error
         const cached = statusCache.get(service.name);
         if (cached) {
           console.log(`Using cached status for ${service.name} due to error`);
-          return [service.name, String(cached.status)] as [string, ServiceStatus];
+          return [service.name, cached.status] as [string, ServiceStatus];
         }
         console.error(`Error getting status for ${service.name}:`, error);
-        return [service.name, 'error'] as [string, ServiceStatus];
+        return [service.name, 'ERROR' as ServiceStatus];
       }
     });
 
@@ -242,11 +247,16 @@ export async function GET() {
           return result.value;
         }
         // If a promise was rejected, try to use cached value
-        const cached = statusCache.get(SERVICES[index].name);
-        if (cached) {
-          return [SERVICES[index].name, String(cached.status)];
+        const serviceName = SERVICES[index]?.name;
+        if (!serviceName) {
+          return ['unknown', 'ERROR' as ServiceStatus];
         }
-        return [SERVICES[index].name, 'error'] as [string, ServiceStatus];
+        
+        const cached = statusCache.get(serviceName);
+        if (cached) {
+          return [serviceName, cached.status];
+        }
+        return [serviceName, 'ERROR' as ServiceStatus];
       })
     );
 

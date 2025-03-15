@@ -6,15 +6,24 @@ WORKDIR /app
 # Install curl for healthchecks
 RUN apk add --no-cache curl
 
-# Create directory structure for TypeScript config
-RUN mkdir -p ../../
+# Create necessary directories including shared package
+RUN mkdir -p /app/shared
 
-# Copy the TypeScript base config to the correct location relative to the workspace
-COPY tsconfig.base.json ../../tsconfig.base.json
+# Copy TypeScript configurations
+COPY tsconfig.base.json /tsconfig.base.json
+COPY tsconfig.base.json /app/tsconfig.base.json
 
-# Copy package files and install dependencies
+# Copy package files first
 COPY apps/event-handler/package*.json ./
-RUN npm install
+COPY apps/shared/package.json ../shared/
+
+# Copy shared package files
+COPY apps/shared/tsconfig.json ../shared/
+COPY apps/shared/src ../shared/src
+COPY apps/shared/dist ../shared/dist
+
+# Install dependencies for both app and shared package
+RUN npm install && cd ../shared && npm install && cd ../app
 
 # Copy application code
 COPY apps/event-handler/ ./

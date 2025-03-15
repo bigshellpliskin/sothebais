@@ -42,10 +42,10 @@ async function runTwitterTest() {
     // Initialize Twitter client
     logger.info('Initializing Twitter client...');
     const initialized = await twitterService.initialize({
-      appKey: process.env.TWITTER_API_KEY!,
-      appSecret: process.env.TWITTER_API_SECRET!,
-      accessToken: process.env.TWITTER_ACCESS_TOKEN!,
-      accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET!
+      appKey: process.env['TWITTER_API_KEY'] || '',
+      appSecret: process.env['TWITTER_API_SECRET'] || '',
+      accessToken: process.env['TWITTER_ACCESS_TOKEN'] || '',
+      accessSecret: process.env['TWITTER_ACCESS_TOKEN_SECRET'] || ''
     });
 
     if (!initialized) {
@@ -71,7 +71,7 @@ async function runTwitterTest() {
     });
 
     // Optionally post a test tweet if POST_TEST_TWEET is set to 'true'
-    if (process.env.POST_TEST_TWEET === 'true') {
+    if (process.env['POST_TEST_TWEET'] === 'true') {
       logger.info('Posting test tweet...');
       const tweetMessage = `SothebAIs Twitter integration test - ${new Date().toISOString()}`;
       const postResult = await twitterService.postTweet(tweetMessage);
@@ -84,7 +84,7 @@ async function runTwitterTest() {
     }
 
     // Test monitoring tweets with a specific search query
-    const searchQuery = process.env.TWITTER_SEARCH_QUERY || 'nft auction';
+    const searchQuery = process.env['TWITTER_SEARCH_QUERY'] || 'nft auction';
     logger.info(`Monitoring tweets with query: "${searchQuery}"...`);
     await twitterService.monitorTweets(searchQuery);
 
@@ -104,7 +104,8 @@ async function runTwitterTest() {
 // Run the test if this script is executed directly
 // Note: In ESM, there's no direct equivalent to require.main === module
 // Using a simple approach to check if this is the main module
-const isMainModule = import.meta.url.endsWith(process.argv[1]);
+// Ensure process.argv[1] exists before using it
+const isMainModule = import.meta.url.endsWith(process.argv[1] || '');
 if (isMainModule) {
   runTwitterTest().catch(error => {
     logger.error('Unhandled error in Twitter test', {

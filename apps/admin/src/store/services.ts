@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ServiceGroup, ServiceInfo, ServiceStatus, CORE_SERVICES } from '@/types/service';
+import { ServiceGroup, ServiceInfo, ServiceStatus, CORE_SERVICES } from '@/types';
 
 interface ServiceState {
   serviceGroups: ServiceGroup[];
@@ -32,7 +32,7 @@ export const useServiceStore = create<ServiceState>((set) => ({
         ...group,
         services: group.services.map((service) => ({
           ...service,
-          status: statuses[service.name] || 'stopped',
+          status: statuses[service.name] || 'STOPPED',
         })),
       })),
     })),

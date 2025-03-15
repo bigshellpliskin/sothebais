@@ -6,9 +6,24 @@ WORKDIR /app
 # Install curl for healthchecks
 RUN apk add --no-cache curl
 
-# Copy package files and install dependencies
+# Create necessary directories including shared package
+RUN mkdir -p /app/shared
+
+# Copy TypeScript configurations
+COPY tsconfig.base.json /tsconfig.base.json
+COPY tsconfig.base.json /app/tsconfig.base.json
+
+# Copy package files first
 COPY apps/auction-engine/package*.json ./
-RUN npm install
+COPY apps/shared/package.json ../shared/
+
+# Copy shared package files
+COPY apps/shared/tsconfig.json ../shared/
+COPY apps/shared/src ../shared/src
+COPY apps/shared/dist ../shared/dist
+
+# Install dependencies for both app and shared package
+RUN npm install && cd ../shared && npm install && cd ../app
 
 # Copy application code
 COPY apps/auction-engine/ .

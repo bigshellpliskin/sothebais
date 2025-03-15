@@ -888,8 +888,8 @@ describe('LivestreamPage', () => {
             data: {
               isLive: true,
               isPaused: false,
-              fps: currentStatus.fps,
-              targetFPS: currentStatus.targetFPS,
+              fps: currentStatus?.fps ?? 30,
+              targetFPS: currentStatus?.targetFPS ?? 60,
               layerCount: 4,
               averageRenderTime: 16.7,
               layers: {
@@ -920,7 +920,7 @@ describe('LivestreamPage', () => {
       await waitForComponentUpdate();
 
       // Verify the specific state we care about
-      if (statusUpdates[i].fps === 50) {
+      if (statusUpdates[i]?.fps === 50) {
         const streamViewer = screen.getByTestId('stream-viewer');
         expect(streamViewer).toHaveTextContent('FPS: 50/60');
       }

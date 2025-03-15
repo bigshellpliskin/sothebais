@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ServiceStatus, ServiceHealth, ServiceMetrics } from '@/types/service';
-import { CORE_SERVICES } from '@/types/service';
+import { ServiceStatus, ServiceHealth, ServiceMetrics, CORE_SERVICES } from '@/types';
 
 interface ServiceStatuses {
   [key: string]: Omit<ServiceHealth, 'lastCheck'> & {
@@ -26,9 +25,9 @@ async function fetchServiceMetrics(serviceName: string, port: number): Promise<P
 
   // Add service-specific metrics
   if (serviceName === 'traefik') {
-    queries.lastReload = 'traefik_config_last_reload_success';
+    queries['lastReload'] = 'traefik_config_last_reload_success';
   } else if (serviceName === 'redis') {
-    queries.connectionCount = 'redis_connected_clients';
+    queries['connectionCount'] = 'redis_connected_clients';
   }
 
   const results: Partial<ServiceMetrics> = {};
@@ -90,7 +89,7 @@ async function fetchServiceStatuses(): Promise<ServiceStatuses> {
         if (!serviceInfo) return;
 
         // Skip metrics fetching for Prometheus since it has special handling
-        const metrics = serviceName === 'prometheus' ? {} : await fetchServiceMetrics(serviceName, serviceInfo.port || 0);
+        const metrics = serviceName === 'prometheus' ? {} : await fetchServiceMetrics(serviceName, (serviceInfo as any).port || 0);
         
         // Ensure we create a plain object with only serializable data
         detailedStatuses[serviceName] = {
@@ -102,8 +101,8 @@ async function fetchServiceStatuses(): Promise<ServiceStatuses> {
             ])
           ),
           lastCheck: new Date().toISOString(),
-          message: metrics.errorRate !== undefined
-            ? `Error rate: ${(Number(metrics.errorRate) * 100).toFixed(2)}%` 
+          message: metrics['errorRate'] !== undefined
+            ? `Error rate: ${(Number(metrics['errorRate']) * 100).toFixed(2)}%` 
             : ''
         };
       })

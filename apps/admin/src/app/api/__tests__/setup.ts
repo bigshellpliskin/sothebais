@@ -44,13 +44,15 @@ export const createTestRequest = (options: {
   method?: string;
   url: string;
   body?: any;
+  headers?: Record<string, string>;
 }) => {
   return new Request(options.url, {
     method: options.method || 'GET',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...options.headers
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body ? JSON.stringify(options.body) : null
   });
 };
 

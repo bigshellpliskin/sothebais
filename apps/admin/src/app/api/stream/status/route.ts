@@ -4,7 +4,7 @@ export async function GET() {
   console.log('🔵 [Status API] Route handler called');
   
   try {
-    const streamManagerUrl = process.env.STREAM_MANAGER_URL || 'http://stream-manager:4200';
+    const streamManagerUrl = process.env['STREAM_MANAGER_URL'] || 'http://stream-manager:4200';
     console.log('🔵 [Status API] Fetching from:', streamManagerUrl + '/stream/status');
     
     const response = await fetch(`${streamManagerUrl}/stream/status`, {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { StreamState } from '@shared/types/stream';
+import type { StreamState } from '@sothebais/shared/types/stream';
 
 interface UseStreamStateOptions {
   pollInterval?: number;
@@ -11,9 +11,11 @@ export function useStreamState({ pollInterval = 1000 }: UseStreamStateOptions = 
     isPaused: false,
     fps: 0,
     targetFPS: 30,
-    averageRenderTime: 0,
     frameCount: 0,
-    droppedFrames: 0
+    droppedFrames: 0,
+    averageRenderTime: 0,
+    startTime: null,
+    error: null
   });
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
