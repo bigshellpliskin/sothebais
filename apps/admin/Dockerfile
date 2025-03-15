@@ -4,8 +4,12 @@ WORKDIR /app
 # Install dependencies including health check utilities
 RUN apk add --no-cache curl netcat-openbsd
 
-# Create shared directory for types
+# Create shared directory for types and parent directories for tsconfig
 RUN mkdir -p /app/shared/types
+RUN mkdir -p ../../
+
+# Copy tsconfig.base.json to the correct location relative to the workspace
+COPY tsconfig.base.json ../../tsconfig.base.json
 
 # Copy package files
 COPY apps/admin/package*.json ./
@@ -35,5 +39,5 @@ EXPOSE 3091
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD nc -z localhost 3000 || exit 1
 
-# Use npm run dev as the default command
-CMD ["npm", "run", "dev"] 
+# Use npm run start for production
+CMD ["npm", "run", "start"] 
