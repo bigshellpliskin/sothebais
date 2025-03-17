@@ -4,8 +4,8 @@
  * This module re-exports the shared logger with auction-engine specific configuration.
  */
 
-import { createLogger } from '@sothebais/shared/utils/logger.js';
-import type { Logger } from '@sothebais/shared/utils/logger.js';
+import { createLogger } from '@sothebais/packages/utils/logger.js';
+import type { Logger } from '@sothebais/packages/utils/logger.js';
 
 // Create a logger instance specifically for the auction engine
 export const logger: Logger = createLogger('auction-engine', {

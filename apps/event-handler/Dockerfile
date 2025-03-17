@@ -20,10 +20,15 @@ COPY apps/shared/package.json ../shared/
 # Copy shared package files
 COPY apps/shared/tsconfig.json ../shared/
 COPY apps/shared/src ../shared/src
-COPY apps/shared/dist ../shared/dist
 
-# Install dependencies for both app and shared package
-RUN npm install && cd ../shared && npm install && cd ../app
+# Install dependencies for the app
+RUN npm install
+
+# Install dependencies for the shared package
+RUN cd ../shared && npm install
+
+# Build the shared package
+RUN cd ../shared && npm run build
 
 # Copy application code
 COPY apps/event-handler/ ./

@@ -470,7 +470,7 @@ REDIS_PORT=6379
 - **Shared Package Structure**:
   The system implements a consolidated shared package for consistent type definitions and utilities across services:
   ```
-  apps/shared/
+  packages/
   ├── dist/          # Built output
   ├── src/           # Source code
   │   ├── types/     # Type definitions (events.ts, stream.ts, etc.)
@@ -483,8 +483,8 @@ REDIS_PORT=6379
 
   Services import from the shared package using the pattern:
   ```typescript
-  import { createLogger } from '@sothebais/shared/utils/logger.js';
-  import type { StreamState } from '@sothebais/shared/types/stream.js';
+  import { createLogger } from '@sothebais/packages/utils/logger.js';
+  import type { StreamState } from '@sothebais/packages/types/stream.js';
   ```
 
 - **Event Flow**:

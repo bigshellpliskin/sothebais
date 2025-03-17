@@ -4,9 +4,9 @@ import { CompositionEngine } from '../../core/composition.js';
 import { logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { stateManager } from '../../state/state-manager.js';
-import type { Scene } from '@sothebais/shared/types/scene.js';
-import type { StreamState, PreviewClient, StreamEvent } from '@sothebais/shared/types/stream.js';
-import type { EventType } from '@sothebais/shared/types/events.js';
+import type { Scene } from '@sothebais/packages/types/scene.js';
+import type { StreamState, PreviewClient, StreamEvent } from '@sothebais/packages/types/stream.js';
+import type { EventType } from '@sothebais/packages/types/events.js';
 import { Router } from 'express';
 
 interface PreviewMessage {

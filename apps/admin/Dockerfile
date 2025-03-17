@@ -18,10 +18,9 @@ COPY apps/shared/package.json ../shared/
 # Copy shared package files
 COPY apps/shared/tsconfig.json ../shared/
 COPY apps/shared/src ../shared/src
-COPY apps/shared/dist ../shared/dist
 
-# Install dependencies for both app and shared package
-RUN npm install && cd ../shared && npm install && cd ../app
+# Install dependencies and build the shared package
+RUN npm install && cd ../shared && npm install && npm run build && cd ../app
 
 # Copy the admin application
 COPY apps/admin/ ./

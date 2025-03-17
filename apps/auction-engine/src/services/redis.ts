@@ -3,9 +3,9 @@ import * as IoRedis from 'ioredis';
 // @ts-ignore
 const Redis = IoRedis.default || IoRedis;
 
-import type { AuctionState } from '@sothebais/shared/schema/redis/models.js';
-import type { MarathonConfig, AuctionStatus } from '@sothebais/shared/types/auction.js';
-import type { TwitterBid } from '@sothebais/shared/types/twitter.js';
+import type { AuctionState } from '@sothebais/packages/schema/redis/models.js';
+import type { MarathonConfig, AuctionStatus } from '@sothebais/packages/types/auction.js';
+import type { TwitterBid } from '@sothebais/packages/types/twitter.js';
 
 // Interface to extend AuctionState with the properties we need
 interface ExtendedAuctionState extends Omit<AuctionState, 'id'> {

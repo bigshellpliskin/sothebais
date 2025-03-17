@@ -6,7 +6,7 @@ import type {
   Quadrant,
   QuadrantId,
   Position
-} from '@sothebais/shared/types/scene.js';
+} from '@sothebais/packages/types/scene.js';
 import { logger } from '../utils/logger.js';
 import type { Config } from '../types/index.js';
 

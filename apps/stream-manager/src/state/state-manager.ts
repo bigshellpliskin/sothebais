@@ -5,8 +5,8 @@ import type {
   SceneState,
   PreviewClient,
   StreamMetrics
-} from '@sothebais/shared/types/stream.js';
-import type { EventType } from '@sothebais/shared/types/events.js';
+} from '@sothebais/packages/types/stream.js';
+import type { EventType } from '@sothebais/packages/types/events.js';
 import type { Config } from '../types/index.js';
 import type { 
   StreamManagerEvent,

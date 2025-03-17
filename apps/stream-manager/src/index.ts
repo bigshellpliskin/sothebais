@@ -16,7 +16,7 @@ import type {
   CompositionEngine as CompositionEngineInterface,
   CompositionEngineStatic,
   AssetManagerStatic,
-} from '@sothebais/shared/types/scene.js';
+} from '@sothebais/packages/types/scene.js';
 
 // TODO: Import core components once prototype in generate-test-stream.ts is ready
 // import { StreamManager } from './streaming/stream-manager.js';

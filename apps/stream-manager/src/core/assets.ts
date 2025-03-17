@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import sharp from 'sharp';
 import { logger, logStreamEvent } from '../utils/logger.js';
-import type { Asset, Position, Transform } from '@sothebais/shared/types/scene.js';
+import type { Asset, Position, Transform } from '@sothebais/packages/types/scene.js';
 
 type AssetType = Asset['type'];
 

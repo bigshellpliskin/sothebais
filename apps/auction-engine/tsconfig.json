@@ -6,12 +6,17 @@
     "rootDir": "./src",
     "types": ["node", "express", "jest"],
     "paths": {
-      "@sothebais/shared/*": ["../shared/src/*"]
-    }
+      "@/*": ["./src/*"],
+      "@sothebais/packages/*": ["../../packages/src/*"]
+    },
+    "baseUrl": ".",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"],
   "references": [
-    { "path": "../shared" }
+    { "path": "../../packages" }
   ]
 } 

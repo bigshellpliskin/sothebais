@@ -6,10 +6,10 @@
  */
 
 // Re-export all shared types
-export * from '@sothebais/shared/types/index.js';
+export * from '@sothebais/packages/types/index.js';
 
 // Re-export types with aliases to maintain compatibility
-import { streamConfigSchema } from '@sothebais/shared/types/config.js';
+import { streamConfigSchema } from '@sothebais/packages/types/config.js';
 import type { z } from 'zod';
 
 // Service-specific aliases for backward compatibility
@@ -21,7 +21,7 @@ export type {
   AudioConfig,
   RTMPConfig,
   RenderConfig
-} from '@sothebais/shared/types/config.js';
+} from '@sothebais/packages/types/config.js';
 
 // Re-export scene types with canvas-specific aliases
 export type {
@@ -30,7 +30,7 @@ export type {
   Bounds,
   Asset,
   Quadrant
-} from '@sothebais/shared/types/scene.js';
+} from '@sothebais/packages/types/scene.js';
 
 // Re-export core service interfaces
 export type {
@@ -39,12 +39,12 @@ export type {
   CompositionEngine,
   AssetManagerStatic,
   CompositionEngineStatic
-} from '@sothebais/shared/types/scene.js';
+} from '@sothebais/packages/types/scene.js';
 
 // Re-export state manager and related types
 export type {
   StateManager
-} from '@sothebais/shared/types/stream.js';
+} from '@sothebais/packages/types/stream.js';
 
 // Re-export additional event types needed for backwards compatibility
 export type {
@@ -52,7 +52,7 @@ export type {
   StateUpdateEvent as StateEvent,
   StreamState,
   SceneState
-} from '@sothebais/shared/types/stream.js';
+} from '@sothebais/packages/types/stream.js';
 
 // Define missing RTMP event payload type
 export interface RTMPEventPayload {

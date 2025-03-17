@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { RedisService } from '../services/redis.js';
-import { logger } from '@sothebais/shared/utils/logger.js';
-import type { TwitterBid } from '@sothebais/shared/types/twitter.js';
+import { logger } from '@sothebais/packages/utils/logger.js';
+import type { TwitterBid } from '@sothebais/packages/types/twitter.js';
 
 const router = Router();
 const redis = new RedisService();

@@ -52,7 +52,7 @@ Each service is implemented as a separate application with its own codebase and 
 - **stream-manager**: Manages live streams and WebSocket connections
 - **shared**: Common code used across multiple services
 
-### Shared Code (`apps/shared/`)
+### Shared Code (`packages/`)
 
 Contains code that is used by multiple services in a single consolidated package:
 
@@ -64,8 +64,8 @@ Contains code that is used by multiple services in a single consolidated package
 The shared package is designed for consistent imports using the pattern:
 ```typescript
 // Example import pattern
-import { createLogger } from '@sothebais/shared/utils/logger.js';
-import type { StreamState } from '@sothebais/shared/types/stream.js';
+import { createLogger } from '@sothebais/packages/utils/logger.js';
+import type { StreamState } from '@sothebais/packages/types/stream.js';
 ```
 
 ### Data Storage (`data/`)

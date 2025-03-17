@@ -16,7 +16,7 @@ const nextConfig = {
     // Add shared package resolution
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@sothebais/shared': path.resolve(__dirname, '../shared'),
+      '@sothebais/packages': path.resolve(__dirname, '../shared'),
     };
     
     // Add JS extensions to resolve

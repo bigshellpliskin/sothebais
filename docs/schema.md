@@ -62,9 +62,9 @@ This document outlines the schema design for each storage type and explains how 
 ### Schema Usage
 
 The schemas defined in this document are implemented in:
-- Prisma schema files for PostgreSQL (`apps/shared/src/schema/prisma/`)
-- TypeScript interfaces for Redis data (`apps/shared/src/schema/redis/`)
-- TypeScript type definitions for events (`apps/shared/src/types/events.ts`)
+- Prisma schema files for PostgreSQL (`packages/src/schema/prisma/`)
+- TypeScript interfaces for Redis data (`packages/src/schema/redis/`)
+- TypeScript type definitions for events (`packages/src/types/events.ts`)
 
 ## 1. PostgreSQL Schema (Prisma)
 
@@ -191,17 +191,5 @@ Event types are TypeScript interfaces and types used during development for:
 - Documentation
 - Compile-time error detection
 
-These are defined in `apps/shared/src/types/events.ts` and are imported via:
-```typescript
-import { Event, EventType, EventSource } from '@sothebais/shared/types/events.js';
+These are defined in `packages/src/types/events.ts` and are imported via:
 ```
-
-### 3.2. Event Structure
-
-All events include:
-- `id` - Unique identifier
-- `timestamp` - When the event occurred
-- `type` - Event type (from EventType enum)
-- `source` - Source service
-- `version` - Schema version
-- `data`

@@ -12,15 +12,15 @@ Use package-style imports for importing from shared packages. This helps with po
 ### Correct import pattern:
 ```typescript
 // Good: Use package-style imports for shared code
-import { createLogger } from '@sothebais/shared/utils/logger.js';
-import type { ServiceGroup } from '@sothebais/shared/types/service.js';
+import { createLogger } from '@sothebais/packages/utils/logger.js';
+import type { ServiceGroup } from '@sothebais/packages/types/service.js';
 ```
 
 ### Avoid relative paths for shared code:
 ```typescript
 // Avoid: Don't use relative paths for shared code
-import { createLogger } from '../../../shared/utils/logger.js';
-import type { ServiceGroup } from '../../../shared/types/service.js';
+import { createLogger } from '../../packages/src/utils/logger.js';
+import type { ServiceGroup } from '../../packages/src/types/service.js';
 ```
 
 ## ESM Import Requirements
@@ -29,10 +29,10 @@ When using ESM imports, always include the file extension (.js) at the end of th
 
 ```typescript
 // Correct: Include .js extension
-import { createLogger } from '@sothebais/shared/utils/logger.js';
+import { createLogger } from '@sothebais/packages/utils/logger.js';
 
 // Incorrect: Missing .js extension
-import { createLogger } from '@sothebais/shared/utils/logger';
+import { createLogger } from '@sothebais/packages/utils/logger';
 ```
 
 ## Path Aliases
@@ -40,6 +40,6 @@ import { createLogger } from '@sothebais/shared/utils/logger';
 The project is configured with the following path aliases:
 
 - `@/*` - References files within the current app's `src/` directory
-- `@sothebais/shared/*` - References files from the shared package's `src/` directory
+- `@sothebais/packages/*` - References files from the packages directory's `src/` directory
 
 Use these path aliases consistently throughout the codebase. 

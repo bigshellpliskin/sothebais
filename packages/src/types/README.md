@@ -126,10 +126,10 @@ Always use the package-style import pattern:
 
 ```typescript
 // Recommended: Import from the index
-import type { UUID, Timestamp, PaginatedResponse } from '@sothebais/shared/types/index.js';
+import type { UUID, Timestamp, PaginatedResponse } from '@sothebais/packages/types/index.js';
 
 // Alternative: Import directly from specific file for better clarity
-import type { Scene, SceneTransition } from '@sothebais/shared/types/scene.js';
+import type { Scene, SceneTransition } from '@sothebais/packages/types/scene.js';
 ```
 
 ### Important Rules
@@ -137,22 +137,22 @@ import type { Scene, SceneTransition } from '@sothebais/shared/types/scene.js';
 1. **Always Include .js Extension**: Even for TypeScript files, use `.js` extension in imports
    ```typescript
    // Correct
-   import type { UUID } from '@sothebais/shared/types/core.js';
+   import type { UUID } from '@sothebais/packages/types/core.js';
    
    // Incorrect
-   import type { UUID } from '@sothebais/shared/types/core';
+   import type { UUID } from '@sothebais/packages/types/core';
    ```
 
 2. **Use `type` Import When Possible**: For types-only imports, use the `type` keyword
    ```typescript
    // Preferred for type-only imports
-   import type { Scene } from '@sothebais/shared/types/scene.js';
+   import type { Scene } from '@sothebais/packages/types/scene.js';
    ```
 
 3. **Avoid Relative Paths**: Use package-style imports rather than relative paths
    ```typescript
    // Good
-   import type { StreamState } from '@sothebais/shared/types/stream.js';
+   import type { StreamState } from '@sothebais/packages/types/stream.js';
    
    // Avoid
    import type { StreamState } from '../../../shared/types/stream.js';
@@ -164,7 +164,7 @@ When a service needs to extend a shared type with service-specific properties:
 
 ```typescript
 // In service-specific types file
-import type { StreamState } from '@sothebais/shared/types/stream.js';
+import type { StreamState } from '@sothebais/packages/types/stream.js';
 
 // Extend with service-specific properties
 export interface ServiceStreamState extends StreamState {

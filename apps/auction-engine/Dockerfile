@@ -1,32 +1,33 @@
 # syntax=docker/dockerfile:1
-# Note: This service uses a simple non-staged build approach.
 FROM node:22-alpine
 WORKDIR /app
 
 # Install curl for healthchecks
 RUN apk add --no-cache curl
 
-# Create necessary directories including shared package
-RUN mkdir -p /app/shared
+# Create a simpler structure where shared is under the app
+# No need to maintain monorepo structure in container
 
-# Copy TypeScript configurations
-COPY tsconfig.base.json /tsconfig.base.json
-COPY tsconfig.base.json /app/tsconfig.base.json
+# Copy just the TypeScript config
+COPY tsconfig.base.json ./
 
-# Copy package files first
+# Set up shared lib first
+WORKDIR /app/shared
+COPY apps/shared/package*.json ./
+COPY apps/shared/tsconfig.json ./
+COPY apps/shared/src ./src
+RUN npm install && npm run build
+
+# Set up the main app
+WORKDIR /app/auction-engine
 COPY apps/auction-engine/package*.json ./
-COPY apps/shared/package.json ../shared/
 
-# Copy shared package files
-COPY apps/shared/tsconfig.json ../shared/
-COPY apps/shared/src ../shared/src
-COPY apps/shared/dist ../shared/dist
+# Install deps for main app (with path to shared package)
+RUN npm install
 
-# Install dependencies for both app and shared package
-RUN npm install && cd ../shared && npm install && cd ../app
-
-# Copy application code
-COPY apps/auction-engine/ .
+# Copy app source code
+COPY apps/auction-engine/src ./src
+COPY apps/auction-engine/tsconfig.json ./
 
 # Build TypeScript code
 RUN npm run build

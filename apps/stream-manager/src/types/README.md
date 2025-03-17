@@ -28,8 +28,8 @@ If you're writing code that might be shared with other services later, import di
 
 ```typescript
 // Import directly from the shared package
-import type { StreamState, SceneState } from '@sothebais/shared/types/stream.js';
-import type { Canvas, Transform } from '@sothebais/shared/types/scene.js';
+import type { StreamState, SceneState } from '@sothebais/packages/types/stream.js';
+import type { Canvas, Transform } from '@sothebais/packages/types/scene.js';
 ```
 
 ## Type Import Pattern Changes
@@ -39,15 +39,15 @@ We've updated the type imports to match our new shared types structure:
 1. **Scene Types**: Now imported directly from `scene.js` instead of using aliases
    ```typescript
    // Before
-   import { SceneCanvas as Canvas } from '@sothebais/shared/types/index.js';
+   import { SceneCanvas as Canvas } from '@sothebais/packages/types/index.js';
    
    // After
-   import { Canvas } from '@sothebais/shared/types/scene.js';
+   import { Canvas } from '@sothebais/packages/types/scene.js';
    ```
 
 2. **Config Types**: Continue to be imported from `config.js`
    ```typescript
-   import { StreamConfig } from '@sothebais/shared/types/config.js';
+   import { StreamConfig } from '@sothebais/packages/types/config.js';
    ```
 
 3. **Service-Specific Types**: Now defined in the local index.ts
@@ -66,4 +66,4 @@ If you encounter "Cannot find module" errors:
 
 1. Make sure you're using the correct import path with `.js` extension
 2. Check if the type is exported from the local index.ts or if you need to import from shared directly
-3. Verify your `tsconfig.json` has the correct path aliases for `@sothebais/shared/*` 
+3. Verify your `tsconfig.json` has the correct path aliases for `@sothebais/packages/*` 

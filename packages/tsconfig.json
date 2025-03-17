@@ -1,12 +1,12 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
     "composite": true,
-    "baseUrl": "../..",
+    "baseUrl": "..",
     "paths": {
-      "@sothebais/shared/*": ["apps/shared/src/*"]
+      "@sothebais/packages/*": ["packages/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

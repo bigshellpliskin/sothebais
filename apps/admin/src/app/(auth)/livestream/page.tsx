@@ -7,7 +7,7 @@ import { StreamStatus } from "@/components/stream/stream-status";
 import { ChatControls } from "@/components/stream/chat-controls";
 import { useStreamState } from "@/hooks/useStreamState";
 import { useState, useEffect, useRef } from "react";
-import type { StreamState } from "@sothebais/shared/types/stream";
+import type { StreamState } from "@sothebais/packages/types/stream";
 
 export default function LivestreamPage() {
   const { 

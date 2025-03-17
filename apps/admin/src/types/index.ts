@@ -13,10 +13,10 @@ export type {
   ServiceInfo,
   ServiceGroup,
   ServiceConfig
-} from '@sothebais/shared/types/service';
+} from '@sothebais/packages/types/service';
 
 // Re-export and extend the Service type to include port
-import type { Service as SharedService } from '@sothebais/shared/types/service';
+import type { Service as SharedService } from '@sothebais/packages/types/service';
 export interface Service extends SharedService {
   port?: number;
 }
@@ -26,7 +26,7 @@ export type {
   StreamState,
   StreamMetrics,
   SceneState
-} from '@sothebais/shared/types/stream';
+} from '@sothebais/packages/types/stream';
 
 // Re-export auction types
 export type {
@@ -34,7 +34,7 @@ export type {
   AuctionBid,
   AuctionState,
   MarathonConfig
-} from '@sothebais/shared/types/auction';
+} from '@sothebais/packages/types/auction';
 
 // Re-export event types
 export type {
@@ -42,10 +42,10 @@ export type {
   EventType,
   EventListener,
   EventSource
-} from '@sothebais/shared/types/events';
+} from '@sothebais/packages/types/events';
 
 // Re-export SERVICES_CONFIG as CORE_SERVICES for backward compatibility
-import { SERVICES_CONFIG } from '@sothebais/shared/types/service';
+import { SERVICES_CONFIG } from '@sothebais/packages/types/service';
 export { SERVICES_CONFIG as CORE_SERVICES };
 
 // Admin-specific type extensions can be added here

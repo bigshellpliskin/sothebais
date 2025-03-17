@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { Redis } from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import type { TwitterApiTweet } from '@sothebais/shared/types/twitter.js';
+import type { TwitterApiTweet } from '@sothebais/packages/types/twitter.js';
 
 // Redis key prefixes
 const TWEET_CACHE_PREFIX = 'twitter:tweet:';

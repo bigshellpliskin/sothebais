@@ -1,5 +1,5 @@
 import express from 'express';
-import { createLogger } from '@sothebais/shared/utils/logger.js';
+import { createLogger } from '@sothebais/packages/utils/logger.js';
 import { RedisService } from '../services/redis.js';
 
 const logger = createLogger('auction-engine:health');

@@ -33,10 +33,21 @@ COPY tsconfig.base.json /app/tsconfig.base.json
 # Copy shared package files
 COPY apps/shared/tsconfig.json ../shared/
 COPY apps/shared/src ../shared/src
-COPY apps/shared/dist ../shared/dist
 
-# Install dependencies
+# Install dependencies for the app
 RUN npm install
+
+# Install tsx globally
+RUN npm install -g tsx
+
+# Install dependencies for the shared package
+RUN cd ../shared && npm install
+
+# Build the shared package
+RUN cd ../shared && npm run build
+
+# Create a symlink for the shared package
+RUN mkdir -p node_modules/@sothebais && ln -s /app/shared node_modules/@sothebais/shared
 
 # Copy all stream-manager files
 COPY apps/stream-manager/ .

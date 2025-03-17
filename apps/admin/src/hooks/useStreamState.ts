@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { StreamState } from '@sothebais/shared/types/stream';
+import type { StreamState } from '@sothebais/packages/types/stream';
 
 interface UseStreamStateOptions {
   pollInterval?: number;

@@ -68,13 +68,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./.env:/app/.env:ro
+      - ./packages/src:/app/packages/src:ro  # Mount packages source code
+      - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+      - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
       - ./apps/admin/src:/app/src:ro
       - ./apps/admin/public:/app/public:ro
       - ./apps/admin/.next:/app/.next
       - ./node_modules:/app/node_modules:ro  # Mount root node_modules
-      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
-      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
-      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
       - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     networks:
@@ -130,14 +130,14 @@ services:
       - "${STREAM_MANAGER_RTMP_PORT:-1935}:${STREAM_MANAGER_RTMP_PORT:-1935}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./packages/src:/app/packages/src:ro  # Mount packages source code
+      - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+      - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
       - ./apps/stream-manager/src:/app/src:ro
       - ./apps/stream-manager/package.json:/app/package.json:ro
       - ./data/stream-manager:/app/storage:rw
       - ./apps/stream-manager/assets:/app/assets:ro  # Mount assets directory
       - ./node_modules:/app/node_modules:ro  # Mount root node_modules
-      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
-      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
-      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
       - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     networks:
@@ -239,13 +239,13 @@ services:
       - FRONTEND_URL=http://localhost:3000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./packages/src:/app/packages/src:ro  # Mount packages source code
+      - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+      - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
       - ./apps/event-handler/src:/app/src:ro
       - ./apps/event-handler/package.json:/app/package.json:ro
-      - ./node_modules:/app/node_modules:ro  # Mount root node_modules
       - ./data/event-handler:/app/storage:rw
-      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
-      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
-      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
+      - ./node_modules:/app/node_modules:ro  # Mount root node_modules
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
       - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     # In development, expose ports directly
@@ -308,13 +308,13 @@ services:
       - LOG_PRETTY_PRINT=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./packages/src:/app/packages/src:ro  # Mount packages source code
+      - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+      - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
       - ./data/auction:/app/storage:rw
       - ./apps/auction-engine/src:/app/src:ro
       - ./apps/auction-engine/package.json:/app/package.json:ro
       - ./node_modules:/app/node_modules:ro  # Mount root node_modules
-      - ./apps/shared/src:/app/shared/src:ro  # Mount shared source code
-      - ./apps/shared/package.json:/app/shared/package.json:ro  # Mount shared package.json
-      - ./apps/shared/tsconfig.json:/app/shared/tsconfig.json:ro  # Mount shared tsconfig.json
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro  # Mount base tsconfig at app path
       - ./tsconfig.base.json:/tsconfig.base.json:ro  # Mount base tsconfig at root path
     ports:
@@ -377,8 +377,9 @@ services:
   #     - LOG_PRETTY_PRINT=true
   #   volumes:
   #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #     - ./apps/eliza/src:/app/src:ro
-  #     - ./apps/eliza/package.json:/app/package.json:ro
+  #     - ./packages/src:/app/packages/src:ro  # Mount packages source code
+  #     - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+  #     - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
   #     - ./data/eliza:/app/storage:rw
   #   ports:
   #     - "${ELIZA_PORT:-4500}:${ELIZA_PORT:-4500}"
@@ -422,36 +423,16 @@ x-volumes:
       target: /app/.env
       read_only: true
     - type: bind
-      source: ./apps/stream-manager/src
-      target: /app/src
+      source: ./packages/src
+      target: /app/packages/src
       read_only: true
     - type: bind
-      source: ./apps/stream-manager/package.json
-      target: /app/package.json
+      source: ./packages/package.json
+      target: /app/packages/package.json
       read_only: true
     - type: bind
-      source: ./apps/stream-manager/assets
-      target: /app/assets
-      read_only: true
-    - type: bind
-      source: ./apps/shared/src
-      target: /app/shared/src
-      read_only: true
-    - type: bind
-      source: ./apps/shared/package.json
-      target: /app/shared/package.json
-      read_only: true
-    - type: bind
-      source: ./apps/shared/tsconfig.json
-      target: /app/shared/tsconfig.json
-      read_only: true
-    - type: bind
-      source: ./tsconfig.base.json
-      target: /app/tsconfig.base.json
-      read_only: true
-    - type: bind
-      source: ./tsconfig.base.json
-      target: /tsconfig.base.json
+      source: ./packages/tsconfig.json
+      target: /app/packages/tsconfig.json
       read_only: true
     - type: volume
       source: stream_storage
@@ -463,6 +444,9 @@ x-volumes:
       target: /app/storage
 
   dev.volumes.admin-frontend:
+    - ./packages/src:/app/packages/src:ro  # Mount packages source code
+    - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+    - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
     - ./apps/admin/src:/app/src:ro
     - ./apps/admin/public:/app/public:ro
     - ./apps/admin/.next:/app/.next
@@ -471,8 +455,9 @@ x-volumes:
     - ./apps/admin/.next:/app/.next
 
   dev.volumes.event-handler:
-    - ./apps/event-handler/src:/app/src:ro
-    - ./apps/event-handler/package.json:/app/package.json:ro
+    - ./packages/src:/app/packages/src:ro  # Mount packages source code
+    - ./packages/package.json:/app/packages/package.json:ro  # Mount packages package.json
+    - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
     - ./data/event-handler:/app/storage:rw
 
   prod.volumes.event-handler:

@@ -5,12 +5,13 @@
     "rootDir": "src",
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@sothebais/shared/*": ["../shared/src/*"]
+      "@/*": ["./src/*"],
+      "@sothebais/packages/*": ["../../packages/src/*"]
     }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"],
   "references": [
-    { "path": "../shared" }
+    { "path": "../../packages" }
   ]
 } 

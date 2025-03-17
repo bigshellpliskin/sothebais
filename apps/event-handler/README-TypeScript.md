@@ -151,7 +151,7 @@ Converting to TypeScript provides several benefits:
 3. Early detection of potential errors
 4. Documentation through type definitions
 
-The service can now also more easily integrate with the shared types from the `@sothebais/shared` package if needed.
+The service can now also more easily integrate with the shared types from the `@sothebais/packages` package if needed.
 
 ## Linting
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { usePreviewSocket } from '@/hooks/usePreviewSocket';
 import { useStreamState } from '@/hooks/useStreamState';
-import type { StreamState } from '@sothebais/shared/types/stream';
+import type { StreamState } from '@sothebais/packages/types/stream';
 
 interface StreamViewerProps {
   width?: number;

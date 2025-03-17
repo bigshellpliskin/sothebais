@@ -11,7 +11,7 @@ import type {
   Quadrant,
   Scene,
   SceneTransition
-} from '@sothebais/shared/types/scene.js';
+} from '@sothebais/packages/types/scene.js';
 
 export class SceneManager extends EventEmitter {
   private static instance: SceneManager | null = null;
