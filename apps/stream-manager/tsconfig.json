@@ -10,7 +10,7 @@
     "rootDir": "src",
     "paths": {
       "@/*": ["./src/*"],
-      "@sothebais/packages/*": ["../../packages/src/*"]
+      "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]
     }
   },
   "include": ["src/**/*"],

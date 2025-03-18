@@ -6,7 +6,8 @@
     "composite": true,
     "baseUrl": "..",
     "paths": {
-      "@sothebais/packages/*": ["packages/src/*"]
+      "@sothebais/packages/*": ["packages/src/*", "/app/packages/src/*"],
+      "../tsconfig.base.json": ["../tsconfig.base.json", "/app/tsconfig.base.json"]
     }
   },
   "include": ["src/**/*.ts"],

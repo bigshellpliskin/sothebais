@@ -5,24 +5,21 @@ WORKDIR /app
 # Install curl for healthchecks
 RUN apk add --no-cache curl
 
-# Create a simpler structure where shared is under the app
-# No need to maintain monorepo structure in container
-
-# Copy just the TypeScript config
+# Copy the base tsconfig file to the app directory
 COPY tsconfig.base.json ./
 
-# Set up shared lib first
-WORKDIR /app/shared
-COPY apps/shared/package*.json ./
-COPY apps/shared/tsconfig.json ./
-COPY apps/shared/src ./src
+# Set up packages lib first
+WORKDIR /app/packages
+COPY packages/package*.json ./
+COPY packages/tsconfig.json ./
+COPY packages/src ./src
 RUN npm install && npm run build
 
 # Set up the main app
 WORKDIR /app/auction-engine
 COPY apps/auction-engine/package*.json ./
 
-# Install deps for main app (with path to shared package)
+# Install deps for main app (with path to packages package)
 RUN npm install
 
 # Copy app source code
