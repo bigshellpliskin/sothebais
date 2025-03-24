@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    "./utils/*": "./dist/utils/*.js",
+    "./types/*": "./dist/types/*.js",
+    "./schema/*": "./dist/schema/*.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",

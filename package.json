@@ -2,14 +2,23 @@
   "name": "sothebais",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages"
   ],
   "scripts": {
-    "build": "npm run build --workspaces"
+    "build": "npm run build --workspaces",
+    "test:package": "NODE_ENV=test node --loader ts-node/esm scripts/test-package.ts",
+    "test:package:simple": "NODE_ENV=test node --loader ts-node/esm scripts/test-package-simple.ts",
+    "test:package:docker": "./scripts/docker-test-package.sh",
+    "test:package:js": "NODE_ENV=test node scripts/test-package.js"
   },
   "dependencies": {
     "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

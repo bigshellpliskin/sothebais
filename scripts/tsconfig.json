@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../dist/scripts",
+    "rootDir": ".",
+    "baseUrl": "..",
+    "paths": {
+      "@sothebais/packages/*": ["packages/src/*"]
+    }
+  },
+  "include": ["./**/*.ts"],
+  "references": [
+    { "path": "../packages" }
+  ]
+} 

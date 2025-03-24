@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "baseUrl": ".",
+    "paths": {
+      "@sothebais/packages/*": ["./packages/src/*"]
+    }
+  },
+  "include": ["scripts/**/*", "packages/src/**/*"],
+  "ts-node": {
+    "transpileOnly": true,
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
+} 
