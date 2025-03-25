@@ -2,7 +2,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Registry, collectDefaultMetrics } from 'prom-client';
-import { logger } from '@sothebais/packages/utils/logger.js';
+import { logger } from '@sothebais/packages/utils/logger';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { auctionRouter } from './routes/auction.js';

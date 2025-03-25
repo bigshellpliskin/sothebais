@@ -1,12 +1,16 @@
-import type { 
-  StateManager,
-  AppState,
-  StreamState,
-  SceneState,
-  PreviewClient,
-  StreamMetrics
-} from '@sothebais/packages/types/stream.js';
-import type { EventType } from '@sothebais/packages/types/events.js';
+import { EventEmitter } from 'node:events';
+import { logger, logStreamEvent } from '../utils/logger.js';
+import { RedisService } from './redis-service.js';
+import { 
+  type StreamState, 
+  type SceneState, 
+  type StreamMetrics,
+  type AppState,
+  type PreviewClient,
+  type StateManager
+} from '@sothebais/packages/types/stream';
+import type { Scene } from '@sothebais/packages/types/scene';
+import type { EventType } from '@sothebais/packages/types/events';
 import type { Config } from '../types/index.js';
 import type { 
   StreamManagerEvent,
@@ -17,8 +21,6 @@ import type {
 } from '../types/index.js';
 import { EVENT_TYPES } from '../types/index.js';
 
-import { RedisService } from './redis-service.js';
-import { logger } from '../utils/logger.js';
 import { eventEmitter } from './event-emitter.js';
 import { webSocketService } from '../server/websocket.js';
 

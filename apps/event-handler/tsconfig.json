@@ -4,6 +4,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]

@@ -7,8 +7,7 @@
     "types": ["node", "express", "jest"],
     "paths": {
       "@/*": ["./src/*"],
-      "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"],
-      "../../tsconfig.base.json": ["../../tsconfig.base.json", "/app/tsconfig.base.json"]
+      "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]
     },
     "baseUrl": ".",
     "resolveJsonModule": true,

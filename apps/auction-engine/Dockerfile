@@ -19,14 +19,6 @@ COPY apps/auction-engine ./apps/auction-engine
 RUN npm install
 RUN cd packages && npm run build
 
-# Create a specialized package.json for runtime link
-RUN cd packages && echo '{"type":"module","name":"@sothebais/packages","exports":{"./utils/*":"./dist/utils/*.js","./types/*":"./dist/types/*.js","./schema/*":"./dist/schema/*.js"}}' > dist/package.json
-
-# Clear and recreate symlinks to ensure they're correct
-RUN rm -rf /app/node_modules/@sothebais/packages && \
-    mkdir -p /app/node_modules/@sothebais && \
-    ln -sf /app/packages/dist /app/node_modules/@sothebais/packages
-
 # Build auction-engine
 RUN cd apps/auction-engine && npm run build
 
@@ -39,4 +31,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Default command
 WORKDIR /app/apps/auction-engine
-CMD ["npm", "run", "start"] 
+CMD ["node", "dist/index.js"] 

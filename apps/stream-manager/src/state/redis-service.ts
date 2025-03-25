@@ -1,5 +1,5 @@
 import { createClient } from 'redis';
-import type { StreamState, SceneState } from '@sothebais/packages/types/stream.js';
+import type { StreamState, SceneState } from '@sothebais/packages/types/stream';
 import type { Config } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import type { LogContext } from '../utils/logger.js';

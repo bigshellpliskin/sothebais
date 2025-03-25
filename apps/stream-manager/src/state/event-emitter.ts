@@ -1,4 +1,4 @@
-import type { EventType } from '@sothebais/packages/types/events.js';
+import type { EventType } from '@sothebais/packages/types/events';
 import { logger } from '../utils/logger.js';
 import type { StreamManagerEvent, AnyEvent } from '../types/index.js';
 

@@ -116,6 +116,16 @@ services:
       - RTMP_PORT=${STREAM_MANAGER_RTMP_PORT:-1935}
       - LOG_LEVEL=debug
       - LOG_PRETTY_PRINT=true
+      # Stream configuration
+      - STREAM_RESOLUTION=${STREAM_RESOLUTION:-1280x720}
+      - STREAM_BITRATE=${STREAM_BITRATE:-2000k}
+      - STREAM_CODEC=${STREAM_CODEC:-h264}
+      - STREAM_PRESET=${STREAM_PRESET:-veryfast}
+      - STREAM_AUDIO_CODEC=${STREAM_AUDIO_CODEC:-aac}
+      - STREAM_AUDIO_BITRATE=${STREAM_AUDIO_BITRATE:-128k}
+      - TARGET_FPS=${TARGET_FPS:-30}
+      - RENDER_QUALITY=${RENDER_QUALITY:-high}
+      - MAX_LAYERS=${MAX_LAYERS:-50}
     deploy:
       resources:
         limits:

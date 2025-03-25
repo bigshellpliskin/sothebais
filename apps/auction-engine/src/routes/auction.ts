@@ -1,7 +1,7 @@
 import express from 'express';
 import { AuctionManager } from '../services/auction-manager.js';
-import type { MarathonConfig } from '@sothebais/packages/types/auction.js';
-import type { TwitterBid } from '@sothebais/packages/types/twitter.js';
+import type { MarathonConfig } from '@sothebais/packages/types/auction';
+import type { TwitterBid } from '@sothebais/packages/types/twitter';
 
 export const auctionRouter = express.Router();
 const auctionManager = new AuctionManager();

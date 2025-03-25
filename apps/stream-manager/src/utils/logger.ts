@@ -4,8 +4,8 @@
  * This module re-exports the shared logger with stream-manager specific configuration.
  */
 
-import { createLogger } from '@sothebais/packages/utils/logger.js';
-import type { Logger } from '@sothebais/packages/utils/logger.js';
+import { createLogger } from '@sothebais/packages/utils/logger';
+import type { Logger } from '@sothebais/packages/utils/logger';
 
 // Type for log context metadata
 export type LogContext = Record<string, unknown>;

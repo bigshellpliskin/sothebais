@@ -8,6 +8,7 @@
     "declarationMap": true,
     "lib": ["es2022", "dom", "dom.iterable"],
     "rootDir": "src",
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]

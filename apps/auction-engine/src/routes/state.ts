@@ -1,9 +1,9 @@
-import { Router } from 'express';
+import express from 'express';
 import { RedisService } from '../services/redis.js';
-import { logger } from '@sothebais/packages/utils/logger.js';
-import type { TwitterBid } from '@sothebais/packages/types/twitter.js';
+import { logger } from '@sothebais/packages/utils/logger';
+import type { TwitterBid } from '@sothebais/packages/types/twitter';
 
-const router = Router();
+const router = express.Router();
 const redis = new RedisService();
 
 interface BidsByDay {

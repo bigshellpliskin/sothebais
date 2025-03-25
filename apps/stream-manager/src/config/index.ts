@@ -5,6 +5,35 @@ export const configSchema = {
   parse: (values: Record<string, any>) => values
 };
 
+/**
+ * Parse a resolution string in the format "1280x720" to an object with width and height
+ */
+function parseResolution(resolution: string | undefined): { width: number; height: number } {
+  if (!resolution) {
+    // Default to 1280x720 if not specified
+    return { width: 1280, height: 720 };
+  }
+  
+  const parts = resolution.split('x');
+  if (parts.length !== 2) {
+    console.warn(`Invalid resolution format: ${resolution}. Using default 1280x720.`);
+    return { width: 1280, height: 720 };
+  }
+  
+  const widthStr = parts[0] || '';
+  const heightStr = parts[1] || '';
+  
+  const width = parseInt(widthStr, 10);
+  const height = parseInt(heightStr, 10);
+  
+  if (isNaN(width) || isNaN(height)) {
+    console.warn(`Invalid resolution format: ${resolution}. Using default 1280x720.`);
+    return { width: 1280, height: 720 };
+  }
+  
+  return { width, height };
+}
+
 export async function loadConfig(): Promise<Config> {
   const config = configSchema.parse({
     PORT: process.env['PORT'] ? parseInt(process.env['PORT']) : undefined,
@@ -12,7 +41,7 @@ export async function loadConfig(): Promise<Config> {
     METRICS_PORT: process.env['METRICS_PORT'] ? parseInt(process.env['METRICS_PORT']) : undefined,
     REDIS_URL: process.env['REDIS_URL'],
     REDIS_PASSWORD: process.env['REDIS_PASSWORD'],
-    STREAM_RESOLUTION: process.env['STREAM_RESOLUTION'],
+    STREAM_RESOLUTION: parseResolution(process.env['STREAM_RESOLUTION']),
     TARGET_FPS: process.env['TARGET_FPS'] ? parseInt(process.env['TARGET_FPS']) : undefined,
     STREAM_BITRATE: process.env['STREAM_BITRATE'],
     ENABLE_HARDWARE_ACCELERATION: process.env['ENABLE_HARDWARE_ACCELERATION'] === 'true',

@@ -1,8 +1,8 @@
 import { RedisService } from './redis.js';
-import type { AuctionState } from '@sothebais/packages/schema/redis/models.js';
-import type { MarathonConfig, AuctionStatus } from '@sothebais/packages/types/auction.js';
-import type { TwitterBid } from '@sothebais/packages/types/twitter.js';
-import { logger } from '@sothebais/packages/utils/logger.js';
+import type { AuctionState } from '@sothebais/packages/schema/redis/models';
+import type { MarathonConfig, AuctionStatus } from '@sothebais/packages/types/auction';
+import type { TwitterBid } from '@sothebais/packages/types/twitter';
+import { logger } from '@sothebais/packages/utils/logger';
 
 export class AuctionManager {
   private redis: RedisService;

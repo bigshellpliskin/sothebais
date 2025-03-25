@@ -13,6 +13,7 @@
     "reinstall": "npm run clean && npm install"
   },
   "dependencies": {
+    "@sothebais/packages": "^0.1.0",
     "cors": "^2.8.5",
     "dockerode": "^4.0.2",
     "express": "^4.18.2",

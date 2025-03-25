@@ -9,7 +9,7 @@
 export * from '@sothebais/packages/types/index.js';
 
 // Re-export types with aliases to maintain compatibility
-import { streamConfigSchema } from '@sothebais/packages/types/config.js';
+import { streamConfigSchema } from '@sothebais/packages/types/config';
 import type { z } from 'zod';
 
 // Service-specific aliases for backward compatibility

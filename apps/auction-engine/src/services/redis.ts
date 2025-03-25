@@ -3,9 +3,10 @@ import * as IoRedis from 'ioredis';
 // @ts-ignore
 const Redis = IoRedis.default || IoRedis;
 
-import type { AuctionState } from '@sothebais/packages/schema/redis/models.js';
-import type { MarathonConfig, AuctionStatus } from '@sothebais/packages/types/auction.js';
-import type { TwitterBid } from '@sothebais/packages/types/twitter.js';
+import { EventEmitter } from 'events';
+import type { AuctionState } from '@sothebais/packages/schema/redis/models';
+import type { MarathonConfig, AuctionStatus } from '@sothebais/packages/types/auction';
+import type { TwitterBid } from '@sothebais/packages/types/twitter';
 
 // Interface to extend AuctionState with the properties we need
 interface ExtendedAuctionState extends Omit<AuctionState, 'id'> {
@@ -188,7 +189,7 @@ export class RedisService {
 
     const bids: {[key: string]: TwitterBid[]} = {};
     for (let day = 1; day <= state.dayNumber; day++) {
-      bids[day] = await this.getBidHistory(marathonId, day);
+      bids[day.toString()] = await this.getBidHistory(marathonId, day);
     }
     return bids;
   }
@@ -252,4 +253,4 @@ export class RedisService {
       }
     }
   }
-} 
+}
