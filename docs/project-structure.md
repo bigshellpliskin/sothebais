@@ -11,16 +11,16 @@ sothebais/
 │   ├── auction-engine/    # Auction logic service
 │   ├── eliza/             # VTuber character system
 │   ├── event-handler/     # Event processing service
-│   ├── shared/            # Shared code and utilities
-│   │   ├── dist/          # Built output
-│   │   ├── src/           # Source code
-│   │   │   ├── types/     # Type definitions
-│   │   │   ├── schema/    # Database schemas and models
-│   │   │   ├── utils/     # Utility functions
-│   │   │   └── index.ts   # Main entry point that re-exports everything
-│   │   ├── package.json   # Single package definition
-│   │   └── tsconfig.json  # TypeScript configuration
 │   └── stream-manager/    # Stream management service
+├── packages/              # Shared code used across services
+│   ├── dist/              # Built output
+│   ├── src/               # Source code
+│   │   ├── types/         # Type definitions
+│   │   ├── schema/        # Database schemas and models
+│   │   ├── utils/         # Utility functions
+│   │   └── index.ts       # Main entry point that re-exports everything
+│   ├── package.json       # Package definition
+│   └── tsconfig.json      # TypeScript configuration
 ├── data/                  # Persistent data storage
 │   ├── event-handler/     # Event handler data
 │   ├── stream-manager/    # Stream manager data
@@ -50,7 +50,6 @@ Each service is implemented as a separate application with its own codebase and 
 - **eliza**: VTuber character system and visual output
 - **event-handler**: Processes system events and orchestrates communication
 - **stream-manager**: Manages live streams and WebSocket connections
-- **shared**: Common code used across multiple services
 
 ### Shared Code (`packages/`)
 
@@ -67,6 +66,8 @@ The shared package is designed for consistent imports using the pattern:
 import { createLogger } from '@sothebais/packages/utils/logger.js';
 import type { StreamState } from '@sothebais/packages/types/stream.js';
 ```
+
+For detailed information about the package structure and import configuration, see the Cursor Rule on shared packages.
 
 ### Data Storage (`data/`)
 

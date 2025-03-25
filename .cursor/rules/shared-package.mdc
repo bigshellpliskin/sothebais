@@ -63,13 +63,77 @@ packages/
     "composite": true,
     "baseUrl": "..",
     "paths": {
-      "@sothebais/packages/*": ["packages/src/*"]
+      "@sothebais/packages/*": ["packages/src/*", "/app/packages/src/*"]
     }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
 ```
+
+## TypeScript Configuration Decisions
+
+### Module Resolution Settings
+
+The project uses the following key module resolution settings:
+
+```json
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true
+  }
+}
+```
+
+- **`NodeNext`**: Enables proper ESM support while maintaining compatibility with Node.js resolution rules
+- **`verbatimModuleSyntax`**: Preserves import statements as written, preventing TypeScript from modifying them during compilation
+
+### Understanding `baseUrl` and `paths`
+
+The project uses `baseUrl` and `paths` to enable package-style imports:
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]
+    }
+  }
+}
+```
+
+#### Why `baseUrl` Is Necessary
+
+- `baseUrl` is **required** for the `paths` feature to work correctly
+- It defines the base directory for resolving non-relative module names
+- Without `baseUrl`, TypeScript would not be able to resolve imports using path aliases
+
+#### Configuration vs. Runtime Considerations
+
+**Important**: TypeScript path mapping is a **compile-time** feature, not a **runtime** feature.
+
+1. **During Development**:
+   - TypeScript uses `paths` to resolve imports during type-checking and compilation
+   - The compiled JavaScript still contains the mapped paths, which Node.js needs to resolve at runtime
+   - For local development, we use the relative paths (`../../packages/src/*`) 
+
+2. **In Docker Environment**:
+   - Containers have a different file system structure
+   - We add `/app/packages/src/*` as an alternative path to support Docker environments
+   - This dual mapping ensures the same code works in both local and containerized environments
+
+3. **Project References**:
+   ```json
+   "references": [
+     { "path": "../../packages" }
+   ]
+   ```
+   - Project references ensure that dependencies are built in the correct order
+   - They provide better IDE support for navigating between projects
 
 ## Import Standards
 
@@ -91,7 +155,7 @@ For each service package that needs to use the shared packages, add the followin
 {
   "compilerOptions": {
     "paths": {
-      "@sothebais/packages/*": ["../../packages/src/*"]
+      "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]
     }
   }
 }
@@ -105,9 +169,14 @@ Always include the `.js` extension in import paths, even for TypeScript files:
 // Correct
 import { createLogger } from '@sothebais/packages/utils/logger.js';
 
-// Incorrect
+// Incorrect - will fail at runtime
 import { createLogger } from '@sothebais/packages/utils/logger';
 ```
+
+This is necessary because:
+- TypeScript compilation doesn't add extensions for ESM imports
+- Node.js requires full extensions for ESM imports
+- An import without an extension in TypeScript will compile to an import without an extension in JavaScript, which Node.js cannot resolve
 
 ## Local Development
 
@@ -146,7 +215,12 @@ volumes:
   - ./packages/tsconfig.json:/app/packages/tsconfig.json:ro  # Mount packages tsconfig.json
 ```
 
-2. **Ensure tsconfig paths are correct** in the Docker container.
+2. **Ensure tsconfig paths are correct** in the Docker container by including both local and container paths:
+```json
+"paths": {
+  "@sothebais/packages/*": ["../../packages/src/*", "/app/packages/src/*"]
+}
+```
 
 ## Troubleshooting Common Issues
 
@@ -154,9 +228,10 @@ volumes:
 
 If you see "Cannot find module '@sothebais/packages/...'" errors:
 
-1. Ensure the packages directory is built.
+1. Ensure the packages directory is built (`cd packages && npm run build`).
 2. Check that your tsconfig.json has the correct paths alias.
 3. Verify you're using the `.js` extension in your imports.
+4. For Docker environments, ensure volumes are mounted correctly.
 
 ### Type Issues
 
@@ -164,3 +239,4 @@ If TypeScript can't find types from the shared packages:
 
 1. Make sure to explicitly import the types: `import type { ... } from '@sothebais/packages/types/...';`
 2. Check that the shared package's build is up to date.
+3. Verify that project references are correctly configured.
