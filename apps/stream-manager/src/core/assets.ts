@@ -59,20 +59,91 @@ export class AssetManager extends EventEmitter {
           break;
 
         case 'text':
-          // TODO: Implement text rendering
-          throw new Error('Text rendering not implemented');
+          // Create text as SVG using sharp
+          const svg = `
+            <svg width="500" height="100">
+              <text
+                x="50%"
+                y="50%"
+                font-family="Arial"
+                font-size="24"
+                fill="white"
+                text-anchor="middle"
+                dominant-baseline="middle"
+              >${source}</text>
+            </svg>
+          `;
+          const textImage = sharp(Buffer.from(svg));
+          metadata = await textImage.metadata();
+          buffer = await textImage.png().toBuffer();
+          break;
 
         case 'video':
-          // TODO: Implement video frame extraction
-          throw new Error('Video frame extraction not implemented');
+          // Extract frame from video using ffmpeg
+          const ffmpeg = (await import('fluent-ffmpeg')).default;
+          const tempPath = `/tmp/frame_${Date.now()}.png`;
+          
+          await new Promise((resolve, reject) => {
+            ffmpeg(source)
+              .screenshots({
+                timestamps: ['00:00:00'],
+                filename: tempPath,
+                size: '1280x720'
+              })
+              .on('end', resolve)
+              .on('error', reject);
+          });
+          
+          const videoFrame = sharp(tempPath);
+          metadata = await videoFrame.metadata();
+          buffer = await videoFrame.toBuffer();
+          break;
 
         case 'stream':
-          // TODO: Implement stream source loading
-          throw new Error('Stream source loading not implemented');
+          // Handle live stream source using ffmpeg
+          const streamFfmpeg = (await import('fluent-ffmpeg')).default;
+          const streamPath = `/tmp/stream_${Date.now()}.png`;
+          
+          await new Promise((resolve, reject) => {
+            streamFfmpeg(source)
+              .outputOptions(['-vframes 1'])
+              .output(streamPath)
+              .on('end', resolve)
+              .on('error', reject)
+              .run();
+          });
+          
+          const streamFrame = sharp(streamPath);
+          metadata = await streamFrame.metadata();
+          buffer = await streamFrame.toBuffer();
+          break;
 
         case 'overlay':
-          // TODO: Implement overlay loading
-          throw new Error('Overlay loading not implemented');
+          // Create overlay using sharp with compositing
+          const overlayData = JSON.parse(source);
+          const baseImage = sharp({
+            create: {
+              width: overlayData.width || 1280,
+              height: overlayData.height || 720,
+              channels: 4,
+              background: { r: 0, g: 0, b: 0, alpha: 0 }
+            }
+          });
+          
+          if (overlayData.elements) {
+            const compositeOperations = overlayData.elements.map((element: any) => ({
+              input: Buffer.from(element.data),
+              top: element.y,
+              left: element.x,
+              blend: element.blend || 'over'
+            }));
+            
+            await baseImage.composite(compositeOperations);
+          }
+          
+          metadata = await baseImage.metadata();
+          buffer = await baseImage.png().toBuffer();
+          break;
 
         default:
           throw new Error(`Unsupported asset type: ${type}`);

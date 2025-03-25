@@ -43,11 +43,11 @@ jest.mock('node-media-server', () =>
 );
 
 // Mock Sharp for image processing
-const mockToBuffer = jest.fn<() => Promise<Buffer>>();
+const mockToBuffer = jest.fn();
 mockToBuffer.mockResolvedValue(Buffer.from('mock-image'));
 
-const mockMetadata = jest.fn<() => Promise<sharp.Metadata>>();
-mockMetadata.mockResolvedValue({ width: 1920, height: 1080 } as sharp.Metadata);
+const mockMetadata = jest.fn();
+mockMetadata.mockResolvedValue({ width: 1920, height: 1080 });
 
 const mockSharpInstance = {
   resize: jest.fn().mockReturnThis(),
@@ -76,13 +76,14 @@ jest.mock('fluent-ffmpeg', () => ({
 }));
 
 // Mock logger
-jest.mock('../utils/logger', () => ({
+jest.mock('../utils/logger.js', () => ({
   logger: {
     info: jest.fn(),
-    error: jest.fn(),
     warn: jest.fn(),
+    error: jest.fn(),
     debug: jest.fn()
-  }
+  },
+  logStreamEvent: jest.fn()
 }));
 
 // Mock performance hooks
@@ -91,6 +92,74 @@ jest.mock('perf_hooks', () => ({
     now: jest.fn(() => Date.now())
   }
 }));
+
+// Mock sharp
+jest.mock('sharp', () => {
+  const mockSharpFn = jest.fn();
+  mockSharpFn.mockImplementation(() => ({
+    metadata: jest.fn().mockResolvedValue({ width: 1280, height: 720 }),
+    toBuffer: jest.fn().mockResolvedValue(Buffer.from('mock-image')),
+    png: jest.fn().mockReturnThis(),
+    composite: jest.fn().mockReturnThis()
+  }));
+  return mockSharpFn;
+});
+
+// Mock fluent-ffmpeg
+jest.mock('fluent-ffmpeg', () => {
+  const mockFfmpeg = jest.fn();
+  const mockInstance = {
+    screenshots: jest.fn().mockReturnThis(),
+    outputOptions: jest.fn().mockReturnThis(),
+    output: jest.fn().mockReturnThis(),
+    on: function(event: string, callback: () => void) {
+      if (event === 'end') {
+        callback();
+      }
+      return this;
+    },
+    run: jest.fn()
+  };
+  
+  mockFfmpeg.mockImplementation(() => mockInstance);
+  return { __esModule: true, default: mockFfmpeg };
+});
+
+// Mock fs promises
+jest.mock('fs/promises', () => {
+  const fsPromises = {
+    readFile: jest.fn(),
+    writeFile: jest.fn(),
+    unlink: jest.fn()
+  };
+  
+  fsPromises.readFile.mockResolvedValue(Buffer.from('mock-file'));
+  fsPromises.writeFile.mockResolvedValue(undefined);
+  fsPromises.unlink.mockResolvedValue(undefined);
+  
+  return fsPromises;
+});
+
+// Mock Redis
+jest.mock('redis', () => {
+  const redisClient = {
+    connect: jest.fn(),
+    disconnect: jest.fn(),
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn()
+  };
+  
+  redisClient.connect.mockResolvedValue(undefined);
+  redisClient.disconnect.mockResolvedValue(undefined);
+  redisClient.get.mockResolvedValue('mock-value');
+  redisClient.set.mockResolvedValue('OK');
+  redisClient.del.mockResolvedValue(1);
+  
+  return {
+    createClient: jest.fn().mockReturnValue(redisClient)
+  };
+});
 
 // Common test utilities
 export const mockLayer = {
