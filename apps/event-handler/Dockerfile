@@ -6,35 +6,22 @@ WORKDIR /app
 # Install curl for healthchecks
 RUN apk add --no-cache curl
 
-# Create necessary directories including shared package
-RUN mkdir -p /app/shared
+# Copy workspace configuration and base tsconfig
+COPY package*.json ./
+COPY tsconfig.base.json ./
 
-# Copy TypeScript configurations
-COPY tsconfig.base.json /tsconfig.base.json
-COPY tsconfig.base.json /app/tsconfig.base.json
+# Copy packages first
+COPY packages ./packages
 
-# Copy package files first
-COPY apps/event-handler/package*.json ./
-COPY apps/shared/package.json ../shared/
+# Copy event-handler app
+COPY apps/event-handler ./apps/event-handler
 
-# Copy shared package files
-COPY apps/shared/tsconfig.json ../shared/
-COPY apps/shared/src ../shared/src
-
-# Install dependencies for the app
+# Install all dependencies and build packages
 RUN npm install
+RUN cd packages && npm run build
 
-# Install dependencies for the shared package
-RUN cd ../shared && npm install
-
-# Build the shared package
-RUN cd ../shared && npm run build
-
-# Copy application code
-COPY apps/event-handler/ ./
-
-# Build the TypeScript code
-RUN npm run build
+# Build event-handler
+RUN cd apps/event-handler && npm run build
 
 # Expose ports (4300: Main API, 4301: Event Stream, 4390: Metrics, 4391: Health)
 EXPOSE 4300 4301 4390 4391
@@ -44,4 +31,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:4391/health || exit 1
 
 # Default command
-CMD ["npm", "run", "start"] 
+WORKDIR /app/apps/event-handler
+CMD ["node", "dist/index.js"] 

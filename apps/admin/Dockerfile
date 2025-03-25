@@ -1,45 +1,34 @@
+# syntax=docker/dockerfile:1
 FROM node:22-alpine
 WORKDIR /app
 
-# Install dependencies including health check utilities
-RUN apk add --no-cache curl netcat-openbsd
+# Install curl for healthchecks
+RUN apk add --no-cache curl
 
-# Create necessary directories including shared package 
-RUN mkdir -p /app/shared
+# Copy workspace configuration and base tsconfig
+COPY package*.json ./
+COPY tsconfig.base.json ./
 
-# Copy TypeScript configurations
-COPY tsconfig.base.json /tsconfig.base.json
-COPY tsconfig.base.json /app/tsconfig.base.json
+# Copy packages first
+COPY packages ./packages
 
-# Copy package files first
-COPY apps/admin/package*.json ./
-COPY apps/shared/package.json ../shared/
+# Copy admin app
+COPY apps/admin ./apps/admin
 
-# Copy shared package files
-COPY apps/shared/tsconfig.json ../shared/
-COPY apps/shared/src ../shared/src
+# Install all dependencies and build packages
+RUN npm install
+RUN cd packages && npm run build
 
-# Install dependencies and build the shared package
-RUN npm install && cd ../shared && npm install && npm run build && cd ../app
+# Build admin
+RUN cd apps/admin && npm run build
 
-# Copy the admin application
-COPY apps/admin/ ./
-
-# Add node_modules/.bin to PATH and set other environment variables
-ENV PATH="/app/node_modules/.bin:$PATH" \
-    NEXT_TELEMETRY_DISABLED=1
-
-# Build the application
-RUN npm run build
-
-# Expose ports (3000: Main App, 3090: Metrics, 3091: Health)
-EXPOSE 3000
-EXPOSE 3090
-EXPOSE 3091
+# Expose ports (4500: Main API, 4590: Metrics, 4591: Health)
+EXPOSE 4500 4590 4591
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD nc -z localhost 3000 || exit 1
+    CMD curl -f http://localhost:4591/health || exit 1
 
-# Use npm run start for production
-CMD ["npm", "run", "start"] 
+# Default command
+WORKDIR /app/apps/admin
+CMD ["node", "dist/index.js"] 
