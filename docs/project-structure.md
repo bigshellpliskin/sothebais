@@ -73,6 +73,17 @@ For detailed information about the package structure and import configuration, s
 
 Contains persistent data for various services (see [architecture.md](architecture.md) for storage strategy).
 
+### Code Quality Tools (Root level)
+
+The project uses several code quality tools configured at the root level and shared across all services:
+
+- **.eslintrc.json**: ESLint configuration for code linting
+- **.prettierrc**: Prettier configuration for code formatting
+- **vitest.config.ts**: Vitest configuration for testing
+- **vitest.shared.ts**: Shared test configuration for services
+
+These tools ensure consistent code quality, style, and testing practices across all services. Each service can extend the base configurations while maintaining project-wide consistency.
+
 ## Documentation Map
 
 For more detailed information, please refer to:

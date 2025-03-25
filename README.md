@@ -55,6 +55,10 @@ For detailed setup instructions, see the [Environment Setup Guide](./docs/enviro
   - Docker volumes for asset storage
 - **Deployment**: Docker & Docker Compose
 - **Monitoring**: Prometheus & Grafana
+- **Code Quality**:
+  - ESLint for static code analysis
+  - Prettier for code formatting
+  - Vitest for testing (unit, integration)
 
 ## Git Submodules
 

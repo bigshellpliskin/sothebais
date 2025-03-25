@@ -8,6 +8,10 @@ This document outlines how to run the SothebAIs system in different environments
 - [2. Local Production Environment](#2-local-production-environment)
 - [3. CI/CD Production Environment](#3-cicd-production-environment)
 - [4. Configuration Management](#4-configuration-management)
+  - [TypeScript Configuration](#typescript-configuration)
+  - [Code Quality Tools](#code-quality-tools)
+  - [Package.json Scripts](#packagejson-scripts)
+  - [Docker Configuration](#docker-configuration)
 - [5. Troubleshooting](#5-troubleshooting)
 
 ## 1. Local Development Environment
@@ -197,6 +201,120 @@ Each service extends the base configuration with service-specific settings:
 }
 ```
 
+### Code Quality Tools
+
+The project utilizes several code quality tools to ensure consistency, prevent errors, and provide a robust testing environment.
+
+#### ESLint Configuration
+
+ESLint is configured at the root level with a shared configuration for all services:
+
+```json
+// .eslintrc.json
+{
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "rules": {
+    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
+  },
+  "env": {
+    "node": true
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/*.js"]
+}
+```
+
+Run linting checks with the following command:
+
+```bash
+npm run lint        # Check for linting issues
+npm run lint:fix    # Automatically fix linting issues
+```
+
+#### Prettier Configuration
+
+Prettier is configured at the root level to ensure consistent code formatting across all services:
+
+```json
+// .prettierrc
+{
+  "semi": true,
+  "trailingComma": "all",
+  "singleQuote": true,
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false
+}
+```
+
+Format code with the following command:
+
+```bash
+npm run format    # Format all files
+```
+
+#### Vitest Testing Framework
+
+The project uses Vitest for testing, which provides better ESM support and improved performance compared to Jest:
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/dist/**'],
+    coverage: {
+      reporter: ['text', 'lcov', 'html'],
+      exclude: ['**/node_modules/**', '**/dist/**']
+    }
+  },
+  resolve: {
+    alias: {
+      '@sothebais/packages': resolve(__dirname, './packages/src')
+    }
+  }
+});
+```
+
+Service-specific test configurations extend from a shared configuration:
+
+```typescript
+// apps/service-name/vitest.config.ts
+import { defineWorkspaceConfig } from '../../vitest.shared';
+import { resolve } from 'path';
+
+export default defineWorkspaceConfig('service-name', {
+  environment: 'node',
+  include: ['src/**/*.{test,spec}.ts'],
+  exclude: ['**/node_modules/**', '**/dist/**'],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  }
+});
+```
+
+Run tests with the following commands:
+
+```bash
+npm test              # Run all tests
+npm run test:watch    # Run tests in watch mode
+npm run test:coverage # Run tests with coverage
+```
+
 ### Package.json Scripts
 
 Each service maintains consistent script naming conventions:
@@ -209,7 +327,9 @@ Each service maintains consistent script naming conventions:
     "start": "node dist/index.js",
     "debug:stream": "NODE_ENV=development DEBUG=* ts-node-dev --respawn src/index.ts",
     "lint": "eslint . --ext .ts",
-    "test": "jest"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   }
 }
 ```
@@ -263,6 +383,11 @@ CMD ["npm", "run", "start"]
    - Verify package.json scripts match the commands in Docker Compose
    - Check logs for specific error messages
    - Try running the command directly in the container with `docker compose exec`
+
+5. **Testing Issues**:
+   - For Vitest errors with aliases, check the `resolve.alias` configuration
+   - Ensure that test files follow the correct naming pattern in `vitest.config.ts`
+   - For import errors, verify that ESM imports include file extensions (`.js`)
 
 ### Debugging Tools
 
