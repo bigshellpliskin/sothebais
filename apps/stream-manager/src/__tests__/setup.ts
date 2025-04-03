@@ -1,165 +1,132 @@
 import '@testing-library/jest-dom';
-import { jest } from '@jest/globals';
+import { vi, beforeAll, afterAll, beforeEach, expect } from 'vitest';
 import type sharp from 'sharp';
+import type { FileHandle } from 'fs/promises';
+import type { PathLike } from 'fs';
+import type { RedisClientType } from 'redis';
+import type { FfmpegCommand } from 'fluent-ffmpeg';
 
 // Extend timeout for all tests
-jest.setTimeout(30000);
+// vi.setConfig({ testTimeout: 30000 });
 
 // Mock Redis
-jest.mock('../state/redis-service', () => ({
+vi.mock('../state/redis-service', () => ({
   redisService: {
-    initialize: jest.fn(),
-    disconnect: jest.fn(),
-    get: jest.fn(),
-    set: jest.fn(),
-    del: jest.fn(),
-    exists: jest.fn(),
-    publish: jest.fn(),
-    subscribe: jest.fn(),
-    unsubscribe: jest.fn()
+    initialize: vi.fn(),
+    disconnect: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    exists: vi.fn(),
+    publish: vi.fn(),
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn()
   }
 }));
 
 // Mock WebSocket
-jest.mock('ws', () => ({
-  WebSocket: jest.fn().mockImplementation(() => ({
-    on: jest.fn(),
-    send: jest.fn(),
-    close: jest.fn()
+vi.mock('ws', () => ({
+  WebSocket: vi.fn().mockImplementation(() => ({
+    on: vi.fn(),
+    send: vi.fn(),
+    close: vi.fn()
   })),
-  Server: jest.fn().mockImplementation(() => ({
-    on: jest.fn(),
-    close: jest.fn()
+  Server: vi.fn().mockImplementation(() => ({
+    on: vi.fn(),
+    close: vi.fn()
   }))
 }));
 
 // Mock RTMP Server
-jest.mock('node-media-server', () => 
-  jest.fn().mockImplementation(() => ({
-    run: jest.fn(),
-    on: jest.fn(),
-    stop: jest.fn()
+vi.mock('node-media-server', () => 
+  vi.fn().mockImplementation(() => ({
+    run: vi.fn(),
+    on: vi.fn(),
+    stop: vi.fn()
   }))
 );
 
 // Mock Sharp for image processing
-const mockToBuffer = jest.fn();
-mockToBuffer.mockResolvedValue(Buffer.from('mock-image'));
-
-const mockMetadata = jest.fn();
-mockMetadata.mockResolvedValue({ width: 1920, height: 1080 });
-
 const mockSharpInstance = {
-  resize: jest.fn().mockReturnThis(),
-  composite: jest.fn().mockReturnThis(),
-  toBuffer: mockToBuffer,
-  metadata: mockMetadata,
-  extract: jest.fn().mockReturnThis(),
-  extend: jest.fn().mockReturnThis(),
-  flatten: jest.fn().mockReturnThis(),
-  raw: jest.fn().mockReturnThis()
+  resize: vi.fn().mockReturnThis(),
+  composite: vi.fn().mockReturnThis(),
+  toBuffer: vi.fn<[], Promise<Buffer>>().mockResolvedValue(Buffer.from('mock-image')),
+  metadata: vi.fn<[], Promise<{ width: number; height: number; }>>().mockResolvedValue({ width: 1920, height: 1080 }),
+  extract: vi.fn().mockReturnThis(),
+  extend: vi.fn().mockReturnThis(),
+  flatten: vi.fn().mockReturnThis(),
+  raw: vi.fn().mockReturnThis(),
+  png: vi.fn().mockReturnThis()
 };
+vi.mock('sharp', () => ({ default: vi.fn(() => mockSharpInstance) }));
 
-jest.mock('sharp', () => jest.fn(() => mockSharpInstance));
+// Define an explicit type for the ffmpeg mock instance
+// Use Partial because we only mock a subset of FfmpegCommand methods
+type MockFfmpegInstance = Partial<Pick<FfmpegCommand, 
+    'input' | 'inputFormat' | 'outputFormat' | 'output' | 
+    'screenshots' | 'outputOptions' | 'on' | 'run'
+>>;
 
-// Mock FFmpeg
-jest.mock('fluent-ffmpeg', () => ({
-  __esModule: true,
-  default: jest.fn().mockReturnValue({
-    input: jest.fn().mockReturnThis(),
-    inputFormat: jest.fn().mockReturnThis(),
-    outputFormat: jest.fn().mockReturnThis(),
-    output: jest.fn().mockReturnThis(),
-    on: jest.fn().mockReturnThis(),
-    run: jest.fn()
-  })
+// Mock FFmpeg (using vi.mock)
+const mockFfmpegInstance: MockFfmpegInstance = {
+    input: vi.fn().mockReturnThis(),
+    inputFormat: vi.fn().mockReturnThis(),
+    outputFormat: vi.fn().mockReturnThis(),
+    output: vi.fn().mockReturnThis(),
+    screenshots: vi.fn().mockReturnThis(),
+    outputOptions: vi.fn().mockReturnThis(),
+    // Simplify mock signature for 'on' - cast to any or a simpler function type
+    on: vi.fn((event: string, callback: (...args: any[]) => void) => { 
+      if (event === 'end') {
+        callback(); // Simulate 'end' event for tests if needed
+      }
+      return mockFfmpegInstance; // Return the mock instance
+    }) as any, // Cast to any to bypass complex overload issues
+    run: vi.fn()
+  };
+vi.mock('fluent-ffmpeg', () => ({ 
+    // Ensure the factory returns the correctly typed mock
+    default: vi.fn(() => mockFfmpegInstance as FfmpegCommand), // Cast to base type here
+    __esModule: true
 }));
 
 // Mock logger
-jest.mock('../utils/logger.js', () => ({
+vi.mock('../utils/logger.js', () => ({
   logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn()
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn()
   },
-  logStreamEvent: jest.fn()
+  logStreamEvent: vi.fn()
 }));
 
 // Mock performance hooks
-jest.mock('perf_hooks', () => ({
+vi.mock('perf_hooks', () => ({
   performance: {
-    now: jest.fn(() => Date.now())
+    now: vi.fn(() => Date.now())
   }
 }));
 
-// Mock sharp
-jest.mock('sharp', () => {
-  const mockSharpFn = jest.fn();
-  mockSharpFn.mockImplementation(() => ({
-    metadata: jest.fn().mockResolvedValue({ width: 1280, height: 720 }),
-    toBuffer: jest.fn().mockResolvedValue(Buffer.from('mock-image')),
-    png: jest.fn().mockReturnThis(),
-    composite: jest.fn().mockReturnThis()
-  }));
-  return mockSharpFn;
-});
-
-// Mock fluent-ffmpeg
-jest.mock('fluent-ffmpeg', () => {
-  const mockFfmpeg = jest.fn();
-  const mockInstance = {
-    screenshots: jest.fn().mockReturnThis(),
-    outputOptions: jest.fn().mockReturnThis(),
-    output: jest.fn().mockReturnThis(),
-    on: function(event: string, callback: () => void) {
-      if (event === 'end') {
-        callback();
-      }
-      return this;
-    },
-    run: jest.fn()
-  };
-  
-  mockFfmpeg.mockImplementation(() => mockInstance);
-  return { __esModule: true, default: mockFfmpeg };
-});
-
-// Mock fs promises
-jest.mock('fs/promises', () => {
-  const fsPromises = {
-    readFile: jest.fn(),
-    writeFile: jest.fn(),
-    unlink: jest.fn()
-  };
-  
-  fsPromises.readFile.mockResolvedValue(Buffer.from('mock-file'));
-  fsPromises.writeFile.mockResolvedValue(undefined);
-  fsPromises.unlink.mockResolvedValue(undefined);
-  
-  return fsPromises;
-});
+// Mock fs promises (using vi.mock)
+vi.mock('fs/promises', () => ({
+  // Use types imported from 'fs' and 'fs/promises'
+  readFile: vi.fn<[PathLike | FileHandle, any?], Promise<Buffer>>().mockResolvedValue(Buffer.from('mock-file')),
+  writeFile: vi.fn<[PathLike | FileHandle, any, any?], Promise<void>>().mockResolvedValue(undefined),
+  unlink: vi.fn<[PathLike], Promise<void>>().mockResolvedValue(undefined)
+}));
 
 // Mock Redis
-jest.mock('redis', () => {
-  const redisClient = {
-    connect: jest.fn(),
-    disconnect: jest.fn(),
-    get: jest.fn(),
-    set: jest.fn(),
-    del: jest.fn()
-  };
-  
-  redisClient.connect.mockResolvedValue(undefined);
-  redisClient.disconnect.mockResolvedValue(undefined);
-  redisClient.get.mockResolvedValue('mock-value');
-  redisClient.set.mockResolvedValue('OK');
-  redisClient.del.mockResolvedValue(1);
-  
-  return {
-    createClient: jest.fn().mockReturnValue(redisClient)
-  };
-});
+const mockRedisClient = {
+  connect: vi.fn<[], Promise<void>>().mockResolvedValue(undefined),
+  disconnect: vi.fn<[], Promise<void>>().mockResolvedValue(undefined),
+  get: vi.fn<[string], Promise<string | null>>().mockResolvedValue('mock-value'),
+  set: vi.fn<[string, any, any?], Promise<string | null>>().mockResolvedValue('OK'),
+  del: vi.fn<[string | string[]], Promise<number>>().mockResolvedValue(1)
+};
+vi.mock('redis', () => ({
+  createClient: vi.fn().mockReturnValue(mockRedisClient as any)
+}));
 
 // Common test utilities
 export const mockLayer = {
@@ -194,7 +161,7 @@ afterAll(() => {
 
 beforeEach(() => {
   // Clear all mocks before each test
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 // Add custom matchers if needed

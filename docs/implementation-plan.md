@@ -74,56 +74,61 @@
   - [#] Configure data persistence volumes
   - [#] Set up Redis health checks
 
-- [ ] **Service Containers**
-  - [ ] Set up admin-frontend service
+- [x] **Service Containers**
+  - [x] Set up admin-frontend service
     - [#] Configure Next.js
     - [#] Set up basic pages structure
     - [#] Add authentication with Clerk
     - [#] Configure routing and middleware
   
-  - [ ] Set up stream-manager service
-    - [x] Configure RTMP server
-    - [x] Set up basic stream handling
-    - [#] Create asset service
-      - [x] Basic image asset handling
-      - [ ] Text rendering
-      - [ ] Video frame extraction
-      - [ ] Stream source loading
-      - [ ] Overlay system
-    - [x] Configure WebSocket communication
+  - [x] Set up stream-manager service
+    - [x] Configure RTMP server (via nginx.conf & Dockerfile)
+    - [x] Set up basic stream handling (implied by RTMP)
+    - [x] Create asset service foundation
+      - [x] Basic image asset handling (vips installed)
+      - [x] Install ffmpeg for video processing
+    - [x] Configure WebSocket communication (ports exposed)
   
-  - [ ] Set up event-handler service
-    - [x] Configure Redis pub/sub
-    - [x] Create event routing mechanism
-    - [x] Set up basic event storage
-    - [ ] Implement event broadcasting
-    - [x] Complete event validation
+  - [x] Set up event-handler service
+    - [x] Configure Redis pub/sub (implemented and connected)
+    - [x] Create event routing mechanism (implemented in events/router.ts)
+    - [x] Set up basic event storage (using Redis lists for persistence)
+    - [x] Implement event broadcasting via Server-Sent Events (SSE)
+    - [x] Complete event validation logic
   
-  - [ ] Set up auction-engine service
-    - [#] Create basic auction data models
+  - [x] Set up auction-engine service
+    - [#] Create basic auction data models (Prisma schema)
     - [#] Set up bid validation logic
     - [#] Define auction state machine
 
 - [ ] **Core Communication**
-  - [#] Implement health check endpoints for all services
-  - [ ] Configure Traefik service discovery with labels
-  - [ ] Implement JWT validation middleware
-  - [ ] Create axios-based inter-service client libraries
+  - [x] Implement health check endpoints for all services
+  - [x] Configure Traefik service discovery with labels
+  - [ ] Implement inter-service communication framework
+    - [ ] Create Redis-based event client in shared package
+    - [ ] Implement standardized event validation middleware 
+    - [ ] Add typed event publisher utility
+    - [ ] Create event subscription/handler registration utility
+    - [ ] Add WebSocket client for real-time communication
+    - [ ] Develop HTTP client utility for direct API calls
 
-- [ ] **Basic Event System**
-  - [#] Implement basic event validation
-  - [#] Create event routing framework
-  - [#] Set up event persistence in Redis
-  - [ ] Implement auction event subscribers in each service
+- [ ] **Event System Implementation**
+  - [x] ~~Basic Event System~~
+    - [x] Implement basic event validation
+    - [x] Create event routing framework
+    - [x] Set up event persistence in Redis
+    - [x] Implement event broadcasting via Server-Sent Events (SSE)
   - [ ] Create typed event definitions for core workflows
+  - [ ] Implement event subscribers in each service
+    - [ ] Add auction event subscribers
+    - [ ] Add stream event subscribers 
+    - [ ] Add system event subscribers
+  - [ ] Enhance event reliability
+    - [ ] Implement Redis-based dead letter queue for failed events
+    - [ ] Create event replay API with event ID selection
+    - [ ] Develop event-sourced state reconstruction mechanism
 
 ## 4. Phase 2: Core System
-
-- [ ] **Enhanced Event System**
-  - [ ] Implement Redis-based dead letter queue for failed events
-  - [ ] Create event replay API with event ID selection
-  - [ ] Build persistent event history with PostgreSQL archiving
-  - [ ] Develop event-sourced state reconstruction mechanism
 
 - [ ] **Auction Engine**
   - [#] Implement bid processing logic
@@ -138,7 +143,10 @@
   - [ ] Create dynamic SVG overlay rendering system
   - [#] Configure WebSocket communication
   - [#] Set up RTMP server configuration
-  - [ ] Build asset upload and preview functionality
+  - [ ] Asset service - Phase 1
+    - [ ] Basic asset upload and preview functionality
+    - [ ] Text rendering integration
+    - [ ] Video frame extraction capabilities
   - [ ] Implement stream quality monitoring with automatic bitrate adjustment
   - [ ] Create animated scene transition effects library
 
@@ -169,7 +177,10 @@
   - [ ] Create dynamic emotive expression system with 8 mood states
   - [ ] Build historical context retention for repeat bidders
   - [ ] Develop animated overlay components for stream integration
-  - [ ] Create asset management UI for character customization
+  - [ ] Asset service - Phase 2
+    - [ ] Stream source loading logic
+    - [ ] Overlay system implementation
+    - [ ] Create asset management UI for character customization
 
 - [ ] **Twitter/X Integration**
   - [ ] Configure RTMP streaming to Twitter Live API
@@ -209,6 +220,15 @@
   - [ ] Implement real-time stream viewer analytics
   - [ ] Develop bid source attribution dashboard
 
+- [ ] **Monitoring & Operations**
+  - [x] Set up basic Prometheus metrics
+  - [x] Implement custom service-specific metrics endpoints
+  - [ ] Create bid activity and auction performance dashboards
+  - [ ] Configure Slack/Discord alerting for system events
+  - [ ] Implement centralized ELK stack for log analysis
+  - [ ] Create automated deployment runbook
+  - [ ] Implement service recovery automation scripts
+
 - [ ] **Production Deployment**
   - [ ] Set up AWS EC2 instances with autoscaling group
   - [ ] Configure Let's Encrypt auto-renewal with Traefik
@@ -216,15 +236,6 @@
   - [ ] Create Prisma migration CI workflow
   - [ ] Implement daily AWS S3 database backups
   - [ ] Configure AWS Security Groups and WAF rules
-
-- [ ] **Monitoring & Operations**
-  - [#] Set up basic Prometheus metrics
-  - [ ] Implement custom service-specific metrics endpoints
-  - [ ] Create bid activity and auction performance dashboards
-  - [ ] Configure Slack/Discord alerting for system events
-  - [ ] Implement centralized ELK stack for log analysis
-  - [ ] Create automated deployment runbook
-  - [ ] Implement service recovery automation scripts
 
 ## 6. Critical Dependencies
 

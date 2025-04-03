@@ -9,6 +9,10 @@ export * from './types/index.js';
 
 // Export utilities
 export * from './utils/logger.js';
+export * from './utils/events.js';
+export * from './utils/validation.js';
+export * from './utils/websocket-client.js';
+export * from './utils/http-client.js';
 
 // Export schema models - ensure these don't conflict with type exports
 export * as RedisModels from './schema/redis/models.js';

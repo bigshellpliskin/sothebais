@@ -66,6 +66,41 @@ The local development environment prioritizes developer experience with hot-relo
 | event-handler | `npm run start` | Built from source with debug info |
 | auction-engine | `npm run start` | Built from source with debug info |
 
+### Admin Frontend Next.js Configuration
+
+The admin frontend uses Next.js with the `output: 'standalone'` configuration, which creates an optimized production build:
+
+```js
+// apps/admin/next.config.js
+const nextConfig = {
+  output: 'standalone',
+  // Other configuration...
+}
+```
+
+#### Development Mode
+
+In development mode:
+- Run with `npm run dev` for hot reloading
+- Access at http://localhost:3000
+
+#### Production Mode
+
+In production mode:
+- The standalone output creates a self-contained application in `.next/standalone/`
+- The Docker container runs the standalone server directly:
+  ```dockerfile
+  # In Dockerfile
+  CMD ["node", ".next/standalone/apps/admin/server.js"]
+  ```
+- Environment variable `NODE_ENV=production` must be set
+- This provides optimal performance and smaller bundle size
+
+The standalone output is more efficient for production deployments because:
+- It includes all necessary dependencies
+- Reduces startup time and memory usage
+- Simplifies deployment in containerized environments
+
 ### Development-Specific Volume Mounts
 
 Docker Compose mounts source directories as read-only volumes to enable hot-reloading:

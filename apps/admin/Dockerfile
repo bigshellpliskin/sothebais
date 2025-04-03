@@ -15,20 +15,30 @@ COPY packages ./packages
 # Copy admin app
 COPY apps/admin ./apps/admin
 
+# Set environment variables for build time - no need for ARGs since we've hardcoded the values
+# in the apps/admin/.env.production file which Next.js will automatically load during build
+
 # Install all dependencies and build packages
 RUN npm install
 RUN cd packages && npm run build
 
-# Build admin
+# Build admin with production configuration
 RUN cd apps/admin && npm run build
 
-# Expose ports (4500: Main API, 4590: Metrics, 4591: Health)
-EXPOSE 4500 4590 4591
+# Copy static files to standalone directory - this is crucial for Next.js standalone mode
+RUN mkdir -p apps/admin/.next/standalone/.next
+RUN cp -R apps/admin/.next/static apps/admin/.next/standalone/.next/
+RUN mkdir -p apps/admin/.next/standalone/apps/admin/.next
+RUN cp -R apps/admin/.next/static apps/admin/.next/standalone/apps/admin/.next/
+
+# Expose Next.js port
+EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:4591/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://127.0.0.1:3000/api/health || exit 1
 
-# Default command
+# Default command using the standalone server (optimized for production with output: standalone)
 WORKDIR /app/apps/admin
-CMD ["node", "dist/index.js"] 
+# Use wrapper script to ensure Next.js binds to all interfaces
+CMD ["node", "server-wrapper.js"] 
